@@ -1,3 +1,4 @@
+import { CHARACTER_3D_SOURCES } from './character-3d.ts'
 import type { JsonSchema, ManifestSource } from "@aotter/mantle-spec"
 import type { RuntimePlan } from "@aotter/mantle-runtime"
 import {
@@ -923,7 +924,7 @@ const ALL_BACKBONE_SOURCES = [
   ),
 ] as const satisfies readonly ManifestSource[]
 
-export const AUTHORING_BACKBONE_SOURCES = ALL_BACKBONE_SOURCES.filter(({ sourceId }) => sourceId.startsWith('authoring/'))
+export const AUTHORING_BACKBONE_SOURCES = [...ALL_BACKBONE_SOURCES.filter(({ sourceId }) => sourceId.startsWith('authoring/')), ...CHARACTER_3D_SOURCES]
 export const FIXED_BACKBONE_SOURCES = ALL_BACKBONE_SOURCES.filter(({ sourceId }) => sourceId.startsWith('fixed/'))
 
 const compileBackbone = (sources: readonly ManifestSource[]): RuntimePlan =>

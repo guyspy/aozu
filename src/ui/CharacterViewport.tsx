@@ -1,5 +1,5 @@
 import { CharacterRenderer } from '@/ui/CharacterRenderer'
-import { VoxViewer } from '@/ui/VoxViewer'
+import { GlbViewer } from '@/ui/GlbViewer'
 import { useRenderMode } from '@/ui/render-mode'
 import type { CharacterTextureAtlas, CharacterVariantTransform } from '@/core/domain/character'
 
@@ -19,6 +19,6 @@ export function CharacterViewport({
   interactive?: boolean
 }) {
   const [mode] = useRenderMode()
-  if (mode === '3d') return <VoxViewer label={label} className={className} controls={interactive} />
+  if (mode === '3d') return <GlbViewer label={label} className={className} controls={interactive} />
   return <CharacterRenderer label={label} layers={layers} atlas={atlas} className={className} />
 }

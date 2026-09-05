@@ -10,7 +10,9 @@
     "lint": "oxlint",
     "test": "node --experimental-strip-types scripts/check.ts",
     "preview": "pnpm build && vite preview",
-    "deploy": "pnpm build && wrangler deploy"
+    "deploy": "pnpm build && wrangler deploy",
+    "generate:glb": "node --experimental-strip-types scripts/generate-skinned-humanoid.ts",
+    "check:3d": "node --experimental-strip-types scripts/check-character-3d.ts"
   },
   "engines": {
     "node": ">=22"
