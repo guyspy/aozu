@@ -16,9 +16,9 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aotter/mantle-runtime": "0.1.0-alpha.14",
-    "@aotter/mantle-spec": "0.1.0-alpha.14",
-    "@aotter/mantle-web": "0.1.0-alpha.14",
+    "@aotter/mantle-runtime": "0.1.0-alpha.16",
+    "@aotter/mantle-spec": "0.1.0-alpha.16",
+    "@aotter/mantle-web": "0.1.0-alpha.16",
     "@fontsource-variable/geist": "^5.3.0",
     "@jsquash/webp": "1.5.0",
     "@tailwindcss/vite": "^4.3.3",

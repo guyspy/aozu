@@ -576,7 +576,8 @@ const ALL_BACKBONE_SOURCES = [
       title: 'Update Character Workspace',
       input: objectSchema({
         id: { type: 'string', minLength: 1 },
-        expectedVersion: { type: 'integer', minimum: 1 },
+        // Alpha.15 builtin update requires strict JSON Schema type `number` (not `integer`).
+        expectedVersion: { type: 'number', minimum: 1 },
         ...characterWorkspaceProperties,
       }, ['id', 'expectedVersion', ...characterWorkspaceRequired]),
       output: { type: 'object' },

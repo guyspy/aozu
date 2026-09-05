@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@aotter/mantle-runtime':
-        specifier: 0.1.0-alpha.14
-        version: 0.1.0-alpha.14(zod@4.5.2)
+        specifier: 0.1.0-alpha.16
+        version: 0.1.0-alpha.16(zod@4.5.2)
       '@aotter/mantle-spec':
-        specifier: 0.1.0-alpha.14
-        version: 0.1.0-alpha.14(zod@4.5.2)
+        specifier: 0.1.0-alpha.16
+        version: 0.1.0-alpha.16(zod@4.5.2)
       '@aotter/mantle-web':
-        specifier: 0.1.0-alpha.14
-        version: 0.1.0-alpha.14(zod@4.5.2)
+        specifier: 0.1.0-alpha.16
+        version: 0.1.0-alpha.16(zod@4.5.2)
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -114,19 +114,19 @@ importers:
 
 packages:
 
-  '@aotter/mantle-runtime@0.1.0-alpha.14':
-    resolution: {integrity: sha512-2i7XP07IDTPrz5RuquGdnh5ob9O08k5ur9mPVggPWPeWZkBa58+apm9fAQIykZEdsl+U1o3iEKGUmHsvP1dcXg==}
+  '@aotter/mantle-runtime@0.1.0-alpha.16':
+    resolution: {integrity: sha512-zniVOJjRffXnniHOCpKKdc4Ndw/eTkyT4dFVbjviC82/edUGdxh6XGSy1c5/hFW6IjI6DlemSplcwMSyMXKGbw==}
     peerDependencies:
       zod: ^4.5.0
 
-  '@aotter/mantle-spec@0.1.0-alpha.14':
-    resolution: {integrity: sha512-QY0B2KshXFwfil36XADnxIsy9zLF9DEdTS9pvrOCQeza4MVbeQQih0ExODK61MOmFYztXLtFWkr5VsuW0BRTrQ==}
+  '@aotter/mantle-spec@0.1.0-alpha.16':
+    resolution: {integrity: sha512-Iwppr86hxrjFDptgVKIHv1+sEnSngGcyAGcMQutk1Tx81j9i7Y1FPy2Opg7P26mg3kFCA5GSbjABZ4oqLi31Zw==}
     hasBin: true
     peerDependencies:
       zod: ^4.5.0
 
-  '@aotter/mantle-web@0.1.0-alpha.14':
-    resolution: {integrity: sha512-fx8R6PieVFEF9mRZkgP+M6B6+OPm/rxN9u6DOh7W4WiAMldVmEqL/0eVAKlTgN8ofPtAqVpoTg7ibsvMJY3MNw==}
+  '@aotter/mantle-web@0.1.0-alpha.16':
+    resolution: {integrity: sha512-00OKPxmdkaxC5/Lo/POdb/FOI1vhgbTgcLsrjfdLy2vIVGQ6EBYYCuTRszd9mMiPBW8eVwSSlaT5/HUEr66PeQ==}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -3386,20 +3386,20 @@ packages:
 
 snapshots:
 
-  '@aotter/mantle-runtime@0.1.0-alpha.14(zod@4.5.2)':
+  '@aotter/mantle-runtime@0.1.0-alpha.16(zod@4.5.2)':
     dependencies:
-      '@aotter/mantle-spec': 0.1.0-alpha.14(zod@4.5.2)
+      '@aotter/mantle-spec': 0.1.0-alpha.16(zod@4.5.2)
       zod: 4.5.2
 
-  '@aotter/mantle-spec@0.1.0-alpha.14(zod@4.5.2)':
+  '@aotter/mantle-spec@0.1.0-alpha.16(zod@4.5.2)':
     dependencies:
       yaml: 2.9.0
       zod: 4.5.2
 
-  '@aotter/mantle-web@0.1.0-alpha.14(zod@4.5.2)':
+  '@aotter/mantle-web@0.1.0-alpha.16(zod@4.5.2)':
     dependencies:
-      '@aotter/mantle-runtime': 0.1.0-alpha.14(zod@4.5.2)
-      '@aotter/mantle-spec': 0.1.0-alpha.14(zod@4.5.2)
+      '@aotter/mantle-runtime': 0.1.0-alpha.16(zod@4.5.2)
+      '@aotter/mantle-spec': 0.1.0-alpha.16(zod@4.5.2)
     transitivePeerDependencies:
       - zod
 
