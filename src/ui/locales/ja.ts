@@ -1,7 +1,7 @@
 import type { Messages } from './en'
 
 export const ja: Messages = {
-  common: { productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
+  common: { productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語', renderMode: { label: '表示モード', '2d': '2D', '3d': '3D' } },
   navigation: { primary: 'メインナビゲーション' },
   startup: {
     loading: 'ローカルデータを読み込んでいます…',

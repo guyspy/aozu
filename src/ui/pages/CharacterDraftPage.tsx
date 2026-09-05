@@ -10,6 +10,8 @@ import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterTextureAtlas, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAlignmentRenderer, CharacterAssetImage, CharacterAtlasFrameImage, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
+import { VoxViewer } from '@/ui/VoxViewer'
+import { useRenderMode } from '@/ui/render-mode'
 import { Button } from '@/ui/components/ui/button'
 import {
   AlertDialog,
@@ -94,6 +96,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   deleteCharacter(): Promise<void>
 }) {
   const { t } = useTranslation()
+  const [renderMode] = useRenderMode()
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const category = characterCategories.find(({ id }) => id === step)
@@ -348,7 +351,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         <div className="character-stage-content">
         <div className="character-stage-preview">
         <div className="character-stage-canvas">
-          {baseVariant && !hasBase ? <label
+          {renderMode === '3d' ? <div className="aspect-2/3 h-full max-h-full max-w-full"><VoxViewer label={draft.name} /></div> : baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
             aria-label={t('characterDraft.missingRequired')}
             title={t('characterDraft.missingRequired')}
@@ -374,7 +377,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               />
             : <CharacterRenderer label={draft.name} layers={previewLayers} atlas={atlas} />}</div>}
         </div>
-        {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
+        {renderMode === '2d' && selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
