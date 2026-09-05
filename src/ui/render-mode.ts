@@ -3,7 +3,6 @@ import { useCallback, useSyncExternalStore } from 'react'
 export const RENDER_MODES = ['2d', '3d'] as const
 export type RenderMode = (typeof RENDER_MODES)[number]
 export const RENDER_MODE_STORAGE_KEY = 'companion-render-mode'
-export const DEFAULT_DEMO_VOX_URL = '/vox/demo-character.vox'
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
 

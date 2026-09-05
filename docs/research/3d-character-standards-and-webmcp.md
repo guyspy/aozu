@@ -2,6 +2,53 @@
 
 Date: 2026-09-05. Product direction: D排. This replaces the earlier rigid/voxel-first proposal.
 
+## PR #3 code and performance review
+
+- Fixed continuous rendering while paused, at zero speed, after a one-shot clip
+  finishes, offscreen, and in hidden tabs. A demand loop redraws for composition,
+  resize and orbit changes, then sleeps after damping settles. Resuming visibility
+  resets the frame timestamp so hidden time does not advance the pose.
+- Fixed hidden skeleton work: Bones allocates its helper on first use and removes
+  it from the scene when disabled. Setting only `visible=false` still allowed
+  Three's scene matrix traversal to rebuild its line geometry.
+- Shared one GLB load/parse across mounted viewers with reference-counted asset
+  ownership. Each instance keeps independent bones, morph weights, visibility and
+  mixer bindings; its body, armor and helmet retain one shared skeleton. Cleanup
+  frees mixers and instance bone textures, deduplicates shared geometry/material/
+  texture disposal on final release, handles late/failed loads, and releases each
+  unmounted WebGL context. See [Three's disposal guidance](https://threejs.org/manual/en/how-to-dispose-of-objects.html).
+- Removed mixer resampling on visibility and morph edits, redundant forced world
+  matrix updates, and per-frame transition Map iteration. Static hand clips hold
+  their sampled pose. Library portraits render static poses at pixel ratio 1;
+  offscreen portraits defer mounting, and only interactive previews animate.
+- Isolated playback and workshop-slot subscriptions from the viewer host and PNG
+  editor. Viking edits no longer rebuild PNG layer lists; the 3D workshop skips
+  unused atlas compilation. Equipment stays in the existing workshop slots.
+- Removed the unused VOX viewer, browser adapter, fixture, generators, URL constant
+  and dedicated test. Moved the core/Three boundary check into the 3D lifecycle
+  tests. Retained the original humanoid as the tested 17-joint baseline, the Viking
+  showcase, both WebMCP procedures and Pixi 2D behavior. Updated stale README controls.
+
+Validation: `pnpm lint`, `pnpm test`, `pnpm check:3d` and `pnpm build` pass.
+New deterministic checks cover idle scheduling, visibility/restart timestamps,
+hidden helper updates, mixer sampling, concurrent asset ownership, independent
+rigs/morphs, final disposal, early unmount and load-failure retry. Headless Chrome
+draw-call instrumentation confirms zero draws after settling in paused, zero-speed,
+completed-once, offscreen and hidden-tab states, with updates on edits/orbit and
+visibility resumption. Static cards settle and unmount loses the WebGL context.
+Workshop slots, WebMCP revisions, 390px interaction, PNG upload/Pixi rendering,
+outfit/prop selection, undo/redo and three 2D/3D round trips pass without browser
+exceptions or PNG changes from Viking edits.
+
+Deferred: a single shared renderer or cached portrait images for very large
+libraries; currently each mounted portrait still owns a context and GPU buffers,
+even though decoded CPU resources are shared and idle drawing stops. Bundle
+restructuring also remains deferred: Three is absent from the eager entry and stays
+in a lazy adapter chunk (~641 kB minified / 163 kB gzip), but Vite's existing 500 kB
+warning remains for that chunk and the main application. The Viking fixture is
+1,704,908 bytes, 19,013 vertices, five meshes and two materials, with no image
+textures to downsize. Arbitrary asset compression/import is outside this review.
+
 ## Decision
 
 Deliver self-contained **glTF 2.0 GLB with a skinned humanoid**, using **VRM 1.0 humanoid bone semantics** as the primary bone map. Keep the layered PNG/Pixi workshop separate. Its canvas, painter order, whole-head overlays, and nine authoring tools are not a 3D contract. A voxel viewer is not evidence of a game-ready character pipeline.

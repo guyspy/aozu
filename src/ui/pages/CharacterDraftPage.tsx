@@ -101,7 +101,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const { t } = useTranslation()
   const [renderMode] = useRenderMode()
   const isViking = renderMode === '3d'
-  const preview3D = useSyncExternalStore(character3DPreview.subscribe, character3DPreview.getSnapshot, character3DPreview.getSnapshot)
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const category = characterCategories.find(({ id }) => id === step)
@@ -170,7 +169,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   useLayoutEffect(() => { atlasDraft.current = committed }, [committed])
   useEffect(() => {
     const source = atlasDraft.current
-    if (!source || !atlasKey || compiled?.key === atlasKey) return
+    if (isViking || !source || !atlasKey || compiled?.key === atlasKey) return
     let active = true
     void compileAtlas(source)
       .then((atlas) => { if (active) setCompiled({ key: atlasKey, atlas }) })
@@ -179,7 +178,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         if (active) setCompiled({ key: atlasKey })
       })
     return () => { active = false }
-  }, [atlasKey, compileAtlas, compiled?.key])
+  }, [atlasKey, compileAtlas, compiled?.key, isViking])
 
   const fitGroup = !isViking && (category?.group === 'expression' || category?.group === 'outfit') ? category.group : undefined
   const fitKey = committed && atlasKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${atlasKey}` : undefined
@@ -219,12 +218,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const baseVariant = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')
   const hasBase = Boolean(baseVariant && isCharacterDraftAssetCurrent(draft, baseVariant, 'body'))
   const workbenchLocked = !isViking && !hasBase
-  const vikingSlots = CHARACTER_3D_SLOTS.filter(slot => slot.group === category.group)
   const visibleVariants = category ? draft.variants.filter(({ group }) => category.group === group) : []
   // Keep a PNG detail URL while showing the demo's catalog, so switching back restores the editor.
   const selectedVariant = !isViking ? visibleVariants.find((variant) => variant.id === variantId) : undefined
   if (!isViking && variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
-  const previewLayers = resolveCharacterDraftLayers(draft, selectedVariant)
+  const previewLayers = isViking ? [] : resolveCharacterDraftLayers(draft, selectedVariant)
   const referenceLayers = selectedVariant ? resolveCharacterDraftReferenceLayers(draft, selectedVariant) : []
   const registration = characterRegistrationFrame(draft)
   const selectedPrimaryLayer = selectedVariant && (selectedVariant.group === 'prop' ? selectedVariant.layers.front ? 'front' : 'back' : CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!.layers[0])
@@ -291,8 +289,8 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     commit((current) => ({ ...current, selected: { ...current.selected, props: current.selected.props.filter((id) => id !== variant.id) } }))
   }
   const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length) : Boolean(selectedId(group))
-  const emptySelection = isViking ? !vikingSlots.some(slot => isCharacter3DSlotSelected(preview3D, slot)) : !hasSelection(category.group)
-  const emptyLabel = isViking && category.group === 'expression' ? 'Neutral' : t('characterDraft.none')
+  const emptySelection = !hasSelection(category.group)
+  const emptyLabel = t('characterDraft.none')
   const addVariant = (group: CharacterVariantGroup) => {
     const count = draft.variants.filter((variant) => variant.group === group).length + 1
     const variant: CharacterDraftVariant = {
@@ -454,17 +452,12 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </TabsList>}
 
         <TabsContent value={category.id} className="workbench-content min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {!selectedVariant && <>
+        {!selectedVariant && (isViking ? <VikingSlots group={category.group} /> : <>
           <div className="variant-grid">
-            <button type="button" aria-label={emptyLabel} title={emptyLabel} aria-pressed={emptySelection} className={`variant-card ${emptySelection ? 'is-selected' : ''}`} onClick={() => isViking ? character3DPreview.clearSlots(category.group) : clearVariant(category.group)}>
+            <button type="button" aria-label={emptyLabel} title={emptyLabel} aria-pressed={emptySelection} className={`variant-card ${emptySelection ? 'is-selected' : ''}`} onClick={() => clearVariant(category.group)}>
               <span className="variant-preview"><CircleSlash2Icon className="size-1/3 text-muted-foreground" /></span><span className="variant-label">{emptyLabel}</span>
             </button>
-            {isViking ? vikingSlots.map(slot => {
-              const Icon = vikingSlotIcons[slot.id]
-              return <CharacterVariantSlot key={variantKey(slot)} label={slot.label} selected={isCharacter3DSlotSelected(preview3D, slot)} expression={slot.group === 'expression'} onToggle={() => character3DPreview.toggleSlot(slot)}>
-                <Icon className="size-1/3" />
-              </CharacterVariantSlot>
-            }) : visibleVariants.map((variant) => {
+            {visibleVariants.map((variant) => {
               const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === variant.group)!
               const thumbnailLayer = variant.layers.front && isCharacterDraftAssetCurrent(draft, variant, 'front')
                 ? 'front'
@@ -480,15 +473,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                     : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}
               </CharacterVariantSlot>
             })}
-            {!isViking && <button type="button" title={t(`characterDraft.groups.${category.group}.add`)} className="variant-card add-variant" aria-label={t(`characterDraft.groups.${category.group}.add`)} onClick={() => addVariant(category.group)}>
+            <button type="button" title={t(`characterDraft.groups.${category.group}.add`)} className="variant-card add-variant" aria-label={t(`characterDraft.groups.${category.group}.add`)} onClick={() => addVariant(category.group)}>
               <span className="variant-preview"><PlusIcon className="size-6" /></span><span className="variant-label">{t(`characterDraft.groups.${category.group}.add`)}</span>
-            </button>}
+            </button>
           </div>
-          {isViking && <p className="mt-3 text-xs text-muted-foreground">{category.group === 'outfit' ? 'Toggle armor and helmet independently. None removes both.' : category.group === 'prop' ? 'Choose one weapon. Click it again or choose None to empty the hand.' : 'Choose a face, or Neutral to reset.'}</p>}
-          {isViking && category.group === 'expression' && <label className="mt-3 flex items-center gap-2 text-xs">Strength
-            <input aria-label="Expression strength" className="min-w-0 flex-1" type="range" min="0" max="1" step="0.01" disabled={preview3D.expression === 'neutral'} value={preview3D.expressionWeight} onChange={event => character3DPreview.configure({ expectedRevision: character3DPreview.getSnapshot().revision, expressionWeight: Number(event.target.value) })} /><output>{Math.round(preview3D.expressionWeight * 100)}%</output>
-          </label>}
-        </>}
+        </>)}
 
         {selectedVariant && (() => {
           const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!
@@ -619,4 +608,31 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       </AlertDialogContent>
     </AlertDialog>
   </div>
+}
+
+// Subscribe only the slots that display composition state. Playback and morph edits
+// must not rerender the PNG editor, rebuild its layer lists or compile its atlas.
+function VikingSlots({ group }: { group: CharacterCategory['group'] }) {
+  const { t } = useTranslation()
+  const state = useSyncExternalStore(character3DPreview.subscribe, character3DPreview.getSnapshot, character3DPreview.getSnapshot)
+  const slots = CHARACTER_3D_SLOTS.filter(slot => slot.group === group)
+  const emptyLabel = group === 'expression' ? 'Neutral' : t('characterDraft.none')
+  const emptySelection = !slots.some(slot => isCharacter3DSlotSelected(state, slot))
+  return <>
+    <div className="variant-grid">
+      <button type="button" aria-label={emptyLabel} title={emptyLabel} aria-pressed={emptySelection} className={`variant-card ${emptySelection ? 'is-selected' : ''}`} onClick={() => character3DPreview.clearSlots(group)}>
+        <span className="variant-preview"><CircleSlash2Icon className="size-1/3 text-muted-foreground" /></span><span className="variant-label">{emptyLabel}</span>
+      </button>
+      {slots.map(slot => {
+        const Icon = vikingSlotIcons[slot.id]
+        return <CharacterVariantSlot key={variantKey(slot)} label={slot.label} selected={isCharacter3DSlotSelected(state, slot)} expression={slot.group === 'expression'} onToggle={() => character3DPreview.toggleSlot(slot)}>
+          <Icon className="size-1/3" />
+        </CharacterVariantSlot>
+      })}
+    </div>
+    <p className="mt-3 text-xs text-muted-foreground">{group === 'outfit' ? 'Toggle armor and helmet independently. None removes both.' : group === 'prop' ? 'Choose one weapon. Click it again or choose None to empty the hand.' : 'Choose a face, or Neutral to reset.'}</p>
+    {group === 'expression' && <label className="mt-3 flex items-center gap-2 text-xs">Strength
+      <input aria-label="Expression strength" className="min-w-0 flex-1" type="range" min="0" max="1" step="0.01" disabled={state.expression === 'neutral'} value={state.expressionWeight} onChange={event => character3DPreview.configure({ expectedRevision: character3DPreview.getSnapshot().revision, expressionWeight: Number(event.target.value) })} /><output>{Math.round(state.expressionWeight * 100)}%</output>
+    </label>}
+  </>
 }

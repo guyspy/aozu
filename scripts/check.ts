@@ -21,7 +21,7 @@ import "./check-journal.ts"
 import "./check-portable.ts"
 import "./check-storage-persistence.ts"
 import "./check-render-mode.ts"
-import "./check-vox.ts"
 import "./check-workspace.ts"
 
 import "./check-character-3d.ts"
+import "./check-3d-lifecycle.ts"

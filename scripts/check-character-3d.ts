@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { Matrix4, SkinnedMesh, Vector3, type AnimationClip } from 'three'
+import { Matrix4, Scene, SkinnedMesh, Vector3, type AnimationClip } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { bootMantleRuntime } from '@aotter/mantle-runtime'
 import type { WebMcpTool } from '@aotter/mantle-web/webmcp'
@@ -34,7 +34,10 @@ assert.equal(originalMesh.skeleton.bones.length, 17)
 assert.equal(original.animations[0].name, 'wave')
 
 const gltf = await load('demo-viking', 2_000_000)
+const scene = new Scene()
+scene.add(gltf.scene)
 const demo = createSkinnedDemo(gltf)
+assert.equal(demo.helper, undefined, 'Bones off must not allocate a helper')
 const preview = createCharacter3DPreview()
 const apply = (patch: Preview3DPatch) => {
   preview.configure({ expectedRevision: preview.getSnapshot().revision, ...patch })
@@ -102,13 +105,33 @@ apply({ armor: false, helmet: false, skeleton: true })
 demo.update(1); gltf.scene.updateMatrixWorld(true)
 assertPositions(paused, vertices()); assert.equal(action('walk').time, pausedTime)
 assert.equal(demo.armor.visible, false); assert.equal(demo.helmet.visible, false); assert.equal(demo.helper.visible, true)
+assert.equal(demo.needsUpdate(), false, 'paused playback needs no frames')
+scene.updateMatrixWorld(true)
+const helper = demo.helper!
+const helperVersion = helper.geometry.getAttribute('position').version
+apply({ skeleton: false })
+scene.updateMatrixWorld(true)
+assert.equal(helper.parent, null)
+assert.equal(helper.geometry.getAttribute('position').version, helperVersion, 'hidden Bones must not update geometry')
+apply({ skeleton: true })
+assert.equal(demo.helper, helper, 'reuse the helper when reenabled')
+assert.equal(helper.parent, scene)
+let samples = 0
+const updateMixer = demo.mixer.update
+demo.mixer.update = function (dt) { samples++; return updateMixer.call(this, dt) }
+apply({ armor: true, expression: 'happy', expressionWeight: .2 })
+assert.equal(samples, 0, 'visibility/morph edits must not resample skeletal tracks')
+demo.mixer.update = updateMixer
 apply({ playing: true, timeScale: 2 }); demo.update(.1)
 assert.ok(Math.abs(action('walk').time - pausedTime - .2) < 1e-6, 'speed scales clip time')
 apply({ timeScale: 0 }); const frozenTime = action('walk').time; demo.update(1); assert.equal(action('walk').time, frozenTime)
+assert.equal(demo.needsUpdate(), false, 'zero speed needs no frames')
 apply({ timeScale: 1, loop: false, seek: .9 }); demo.update(2)
 assert.equal(action('walk').time, clip('walk').duration); assert.equal(action('walk').paused, true)
+assert.equal(demo.needsUpdate(), false, 'completed LoopOnce needs no frames')
 gltf.scene.updateMatrixWorld(true); const held = vertices(); demo.update(2); gltf.scene.updateMatrixWorld(true); assertPositions(held, vertices())
 apply({ seek: 0 }); demo.update(.1); assert.ok(action('walk').time < .11, 'same clip can replay after completion')
+assert.equal(demo.needsUpdate(), true, 'restart wakes the render loop')
 apply({ seek: 0, loop: true }); demo.update(clip('walk').duration + .2); assert.ok(Math.abs(action('walk').time - .2) < 1e-6)
 // An identical seek value is a new command; normalization is based on the chosen clip.
 apply({ seek: .5, playing: false }); assert.ok(Math.abs(action('walk').time - clip('walk').duration / 2) < 1e-6)

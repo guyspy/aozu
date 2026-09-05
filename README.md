@@ -135,11 +135,12 @@ Licensed under the [Apache License 2.0](./LICENSE).
 
 ### Game-ready 3D spike
 
-The **2D | 3D** toggle now previews a bundled skinned GLB humanoid in both the
-character editor and shared viewports. Use **Happy**, **Hand prop**, **Wave** and
-**Bones** to inspect morph targets, a bone socket, animation and skeleton.
+The **2D | 3D** toggle previews a bundled skinned Viking GLB in the character
+editor and shared viewports. Workshop slots select expressions, armor, helmet
+and weapons; the preview controls animation, pose seeking and **Bones**.
 The PNG/Pixi workshop remains independent. This shared tab-local demo does not
-convert or persist the selected character; clothing is deferred.
+convert or persist the selected character. Library cards show static poses;
+interactive viewers animate only while visible and playing.
 
 Two additional Mantle/WebMCP procedures, `inspect_3d_character` and
 `configure_3d_preview`, inspect/configure this demo with revision checks.
