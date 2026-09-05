@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AozuIcon } from '@/ui/AozuIcon'
+import { RenderModeToggle } from '@/ui/RenderModeToggle'
 import { Button } from '@/ui/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
 import type { WebMcpState } from '@/adapters/webmcp/controller.ts'
@@ -35,6 +36,7 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <RenderModeToggle />
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>
             <SelectTrigger size="sm" aria-label={t('common.language')}>
               <LanguagesIcon aria-hidden="true" />

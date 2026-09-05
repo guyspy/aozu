@@ -1,3 +1,4 @@
+import { CHARACTER_3D_TRIGGERS, character3DPreview } from './core/application/character-3d.ts'
 import { bootMantleRuntime, type MantleRuntime } from '@aotter/mantle-runtime'
 
 import { createIndexedDbAssetRepository } from './adapters/indexeddb/asset-repository.ts'
@@ -128,6 +129,7 @@ const characterNormalizationContract = (alignAvailable: boolean) => ({
 })
 
 const CHARACTER_WEBMCP_TRIGGERS = [
+  ...CHARACTER_3D_TRIGGERS,
   'inspect-workspace',
   'navigate-character',
   'inspect-character-contract',
@@ -167,6 +169,8 @@ export function createApplication(document: Document) {
     plan: authoringPlan,
     storage: createIndexedDbMantleStorageAdapter(AUTHORING_NAMESPACE),
     handlers: {
+      'companion.inspect-3d-character': () => character3DPreview.inspect(),
+      'companion.configure-3d-preview': (input) => character3DPreview.configure(input),
       'companion.inspect-workspace': inspectWorkspace,
       'companion.navigate-character': navigateCharacter,
       'companion.update-character-profile': updateProfile,

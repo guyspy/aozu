@@ -132,3 +132,19 @@ Architecture decisions are recorded in [`docs/adr/`](./docs/adr/).
 ## License
 
 Licensed under the [Apache License 2.0](./LICENSE).
+
+### Game-ready 3D spike
+
+The **2D | 3D** toggle previews a bundled skinned Viking GLB in the character
+editor and shared viewports. Workshop slots select expressions, armor, helmet
+and weapons; the preview controls animation, pose seeking and **Bones**.
+The PNG/Pixi workshop remains independent. This shared tab-local demo does not
+convert or persist the selected character. Library cards show static poses;
+interactive viewers animate only while visible and playing.
+
+Two additional Mantle/WebMCP procedures, `inspect_3d_character` and
+`configure_3d_preview`, inspect/configure this demo with revision checks.
+See the [research and deferred scope](docs/research/3d-character-standards-and-webmcp.md)
+and [fixture license and reproduction](public/glb/README.md).
+Run `pnpm generate:glb` to regenerate the CC0 fixture, `pnpm check:3d` for focused
+checks, and `pnpm lint`, `pnpm test`, `pnpm build` for all required gates.
