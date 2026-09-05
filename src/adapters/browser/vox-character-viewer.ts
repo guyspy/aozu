@@ -12,16 +12,9 @@ import {
   type Object3D,
 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { VOXLoader, buildMesh } from 'three/addons/loaders/VOXLoader.js'
+import { VOXLoader, buildMesh, type Chunk } from 'three/addons/loaders/VOXLoader.js'
 
 export const DEMO_VOX_URL = '/vox/demo-character.vox'
-
-type VoxChunk = { data?: Uint8Array }
-
-type VoxParseResult = {
-  chunks?: VoxChunk[]
-  scene?: Object3D | null
-}
 
 export type VoxCharacterViewerOptions = {
   src?: string
@@ -31,7 +24,7 @@ export type VoxCharacterViewerOptions = {
 const prefersReducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
 const disposeObject = (object: Object3D) => {
-  object.traverse((child) => {
+  object.traverse((child: Object3D) => {
     const mesh = child as Mesh
     mesh.geometry?.dispose()
     const material = mesh.material as Material | Material[] | undefined
@@ -40,7 +33,7 @@ const disposeObject = (object: Object3D) => {
   })
 }
 
-const meshFromChunks = (chunks: VoxChunk[]) => {
+const meshFromChunks = (chunks: Chunk[]) => {
   const group = new Group()
   for (const chunk of chunks) {
     if (chunk.data) group.add(buildMesh(chunk))
@@ -96,15 +89,12 @@ export async function mountVoxCharacterViewer(host: HTMLElement, options: VoxCha
   let frame = 0
   let destroyed = false
   const loader = new VOXLoader()
-  const parsed = await loader.loadAsync(src) as VoxParseResult
+  const parsed = await loader.loadAsync(src)
   if (destroyed) return { destroy() {} }
 
-  if (parsed.scene) {
-    model = parsed.scene
-  } else {
-    model = meshFromChunks(parsed.chunks ?? [])
-    if (model.children.length === 0) throw new Error(`VOX model is empty: ${src}`)
-  }
+  // Classic v150 files have SIZE/XYZI only; scene-graph nodes (v200) populate result.scene.
+  model = parsed.scene ?? meshFromChunks(parsed.chunks)
+  if (!parsed.scene && model.children.length === 0) throw new Error(`VOX model is empty: ${src}`)
   scene.add(model)
 
   if (enableControls) {
