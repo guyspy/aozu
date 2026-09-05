@@ -11,6 +11,8 @@ assert.deepEqual(Object.keys(authoring.schemas).sort(), ['character-workspaces',
 assert.equal(plan.views["current-stage"]?.query.kind, "declarative")
 assert.deepEqual(Object.keys(plan.procedures).sort(), ['inspect-companion', 'resolve-companion-turn', 'submit-companion-action'])
 assert.equal(plan.procedures["submit-companion-action"]?.manifest.spec.handler.kind, "ref")
+assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.handler.kind, 'builtin')
+assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.input.properties?.expectedVersion?.type, 'number')
 assert.equal(authoring.triggers["select-experience-draft"]?.target, "select-experience-draft")
 assert.equal(authoring.triggers['inspect-workspace']?.target, 'inspect-workspace')
 assert.equal(authoring.triggers['navigate-character']?.target, 'navigate-character')
