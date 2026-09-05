@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { bootMantleRuntime } from '@aotter/mantle-runtime'
 import type { WebMcpTool } from '@aotter/mantle-web/webmcp'
 import { createSkinnedDemo } from '../src/adapters/browser/glb-character-viewer.ts'
-import { createCharacter3DPreview, CHARACTER_3D_CLIPS, CHARACTER_3D_TRIGGERS, type Preview3DPatch } from '../src/core/application/character-3d.ts'
+import { createCharacter3DPreview, CHARACTER_3D_CLIPS, CHARACTER_3D_SLOTS, CHARACTER_3D_TRIGGERS, type Preview3DPatch } from '../src/core/application/character-3d.ts'
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
 import { bindMantleWebMcpTools } from '../src/adapters/webmcp/tools.ts'
 
@@ -210,6 +210,47 @@ assert.equal((await invoke('inspect-3d-character', { unknown: true })).ok, false
 assert.equal((await invoke('configure-3d-preview', { expectedRevision: revision })).ok, false)
 assert.equal((await invoke('configure-3d-preview', {})).ok, false)
 assert.equal(preview.getSnapshot().revision, revision + 1); assert.equal(notified, 1)
+
+// Workshop selections and WebMCP operate on the same live composition and revision.
+const toggleSlot = (id: typeof CHARACTER_3D_SLOTS[number]['id']) => preview.toggleSlot(CHARACTER_3D_SLOTS.find(slot => slot.id === id)!)
+const selectedSlots = () => preview.inspect().slots.filter(slot => slot.selected).map(slot => slot.id)
+assert.deepEqual(selectedSlots(), ['angry', 'sword'], 'tool configuration projects directly into the workshop cards')
+const heldClipTime = action('cheer').time
+const heldPlaybackRevision = preview.getSnapshot().playbackRevision
+toggleSlot('armor')
+assert.equal(notified, 2, 'one slot click emits one atomic composition change')
+assert.equal(demo.armor.visible, true); assert.equal(demo.helmet.visible, false)
+toggleSlot('helmet'); toggleSlot('armor')
+assert.equal(demo.armor.visible, false); assert.equal(demo.helmet.visible, true)
+toggleSlot('armor'); preview.clearSlots('outfit')
+assert.equal(demo.armor.visible, false); assert.equal(demo.helmet.visible, false)
+assert.equal(demo.weapons.sword.visible, true, 'clearing outfits preserves props')
+toggleSlot('axe')
+assert.equal(demo.weapons.axe.visible, true); assert.equal(demo.weapons.sword.visible, false)
+toggleSlot('axe')
+assert.equal(demo.weapons.axe.visible, false); assert.equal(action('hands-open').isScheduled(), true)
+toggleSlot('sword')
+assert.equal(demo.weapons.sword.visible, true); assert.equal(action('hands-grip').isScheduled(), true)
+preview.clearSlots('prop')
+assert.equal(demo.weapons.sword.visible, false); assert.equal(action('hands-open').isScheduled(), true)
+toggleSlot('happy'); toggleSlot('happy') // Expressions retain the 2D select pattern; Neutral is the reset card.
+assert.equal(demo.body.morphTargetInfluences![morphIndices.happy], .7)
+assert.equal(demo.body.morphTargetInfluences![morphIndices.angry], 0)
+toggleSlot('angry')
+assert.equal(demo.body.morphTargetInfluences![morphIndices.happy], 0)
+assert.equal(demo.body.morphTargetInfluences![morphIndices.angry], .7)
+preview.clearSlots('expression')
+assert.deepEqual(selectedSlots(), [])
+assert.equal(demo.body.morphTargetInfluences![morphIndices.happy], 0)
+assert.equal(demo.body.morphTargetInfluences![morphIndices.angry], 0)
+assert.equal(action('cheer').time, heldClipTime, 'slot clicks never rewind a paused animation')
+assert.equal(preview.getSnapshot().playbackRevision, heldPlaybackRevision)
+const inspectedSlots = await tools.get('inspect_3d_character')!.execute({}, {}) as ReturnType<typeof preview.inspect>
+assert.deepEqual(inspectedSlots, preview.inspect(), 'tools see every UI selection immediately')
+await assert.rejects(() => tools.get('configure_3d_preview')!.execute({ expectedRevision: revision + 1, weapon: 'axe' }, {}), 'a UI slot mutation invalidates the old tool revision')
+await tools.get('configure_3d_preview')!.execute({ expectedRevision: inspectedSlots.state.revision, armor: true, helmet: true, weapon: 'axe', expression: 'happy', expressionWeight: .4 }, {})
+assert.deepEqual(selectedSlots(), ['happy', 'armor', 'helmet', 'axe'])
+assert.equal(demo.body.morphTargetInfluences![morphIndices.happy], .4)
 unsubscribe(); dispose?.(); demo.dispose()
 for (const c of gltf.animations as AnimationClip[]) assert.equal(demo.mixer.existingAction(c), null, 'dispose uncaches every action')
 console.log('game-ready 3D: Viking skin/clips, playback/fades/seek, equipment/fingers, expressions and closed Mantle/WebMCP commands ok')

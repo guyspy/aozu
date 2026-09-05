@@ -39,6 +39,19 @@ export type Preview3D = Readonly<{
 }>
 export type Preview3DPatch = Partial<Omit<Preview3D, 'revision' | 'playbackRevision'>>
 
+// Workshop cards are a projection of the preview, never a second inventory or PNG draft.
+export const CHARACTER_3D_SLOTS = [
+  { group: 'expression', id: 'happy', label: 'Happy' },
+  { group: 'expression', id: 'angry', label: 'Angry' },
+  { group: 'outfit', id: 'armor', label: 'Armor' },
+  { group: 'outfit', id: 'helmet', label: 'Helmet' },
+  { group: 'prop', id: 'axe', label: 'Axe' },
+  { group: 'prop', id: 'sword', label: 'Sword' },
+] as const
+export type Character3DSlot = typeof CHARACTER_3D_SLOTS[number]
+export const isCharacter3DSlotSelected = (state: Preview3D, slot: Character3DSlot) =>
+  slot.group === 'outfit' ? state[slot.id] : slot.group === 'prop' ? state.weapon === slot.id : state.expression === slot.id
+
 export function createCharacter3DPreview() {
   let state: Preview3D = Object.freeze({
     revision: 0, clipName: 'idle', playing: true, loop: true, timeScale: 1, crossfade: .25,
@@ -50,6 +63,7 @@ export function createCharacter3DPreview() {
     asset: DEMO_GLB_URL, scope: 'shared-tab-demo', persistence: 'none', boneMap: 'VRM-1.0-semantics',
     animations: [...CHARACTER_3D_CLIPS], expressions: [...CHARACTER_3D_EXPRESSIONS],
     equipment: { armor: 'shared-skeleton mesh', helmet: 'shared-skeleton mesh', weapons: [...CHARACTER_3D_WEAPONS] },
+    slots: CHARACTER_3D_SLOTS.map(slot => ({ ...slot, selected: isCharacter3DSlotSelected(state, slot) })),
     sockets: ['rightHand'], handPoses: { none: 'hands-open', equipped: 'hands-grip' },
     playback: { seek: 'normalized clip position; command value, not a live clock', crossfade: 'seconds at 1x; next clip switch', once: 'holds final pose; seek:0 to replay' },
     state,
@@ -75,6 +89,17 @@ export function createCharacter3DPreview() {
     for (const listener of listeners) listener()
     return inspect()
   }
-  return { inspect, configure, getSnapshot: () => state, subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } } }
+  const toggleSlot = (slot: Character3DSlot) => {
+    const selected = isCharacter3DSlotSelected(state, slot)
+    const patch: Preview3DPatch = slot.group === 'outfit' ? { [slot.id]: !selected }
+      : slot.group === 'prop' ? { weapon: selected ? 'none' : slot.id }
+      : { expression: slot.id }
+    return configure({ expectedRevision: state.revision, ...patch })
+  }
+  const clearSlots = (group: Character3DSlot['group']) => configure({
+    expectedRevision: state.revision,
+    ...(group === 'outfit' ? { armor: false, helmet: false } : group === 'prop' ? { weapon: 'none' } : { expression: 'neutral' }),
+  })
+  return { inspect, configure, toggleSlot, clearSlots, getSnapshot: () => state, subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } } }
 }
 export const character3DPreview = createCharacter3DPreview()

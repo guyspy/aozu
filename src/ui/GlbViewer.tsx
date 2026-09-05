@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { CHARACTER_3D_CLIPS, CHARACTER_3D_EXPRESSIONS, CHARACTER_3D_WEAPONS, character3DPreview, type Preview3DPatch } from '@/core/application/character-3d'
+import { CHARACTER_3D_CLIPS, character3DPreview, type Preview3DPatch } from '@/core/application/character-3d'
 import { cn } from '@/ui/lib/utils'
 
 export function GlbViewer({ label, className, controls = true }: { label: string; className?: string; controls?: boolean }) {
@@ -40,21 +40,7 @@ export function GlbViewer({ label, className, controls = true }: { label: string
             <button className="rounded-md border px-2 py-1" aria-label={state.playing ? 'Pause animation' : 'Play animation'} onClick={() => configure({ playing: !state.playing })}>{state.playing ? 'Pause' : 'Play'}</button>
             <button className="rounded-md border px-2 py-1" onClick={() => configure({ seek: 0, playing: true })}>Restart</button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <label className="flex min-w-40 flex-1 items-center gap-2">Weapon
-              <select aria-label="Weapon" className={`${selectClass} flex-1`} value={state.weapon} onChange={e => configure({ weapon: e.target.value as typeof state.weapon })}>
-                {CHARACTER_3D_WEAPONS.map(name => <option key={name}>{name}</option>)}
-              </select>
-            </label>
-            <label className="flex min-w-40 flex-1 items-center gap-2">Face
-              <select aria-label="Expression" className={`${selectClass} flex-1`} value={state.expression} onChange={e => configure({ expression: e.target.value as typeof state.expression })}>
-                {CHARACTER_3D_EXPRESSIONS.map(name => <option key={name}>{name}</option>)}
-              </select>
-            </label>
-          </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            <label><input type="checkbox" checked={state.armor} onChange={e => configure({ armor: e.target.checked })} /> Armor</label>
-            <label><input type="checkbox" checked={state.helmet} onChange={e => configure({ helmet: e.target.checked })} /> Helmet</label>
             <label><input type="checkbox" checked={state.loop} onChange={e => configure({ loop: e.target.checked })} /> Loop</label>
             <label><input type="checkbox" checked={state.skeleton} onChange={e => configure({ skeleton: e.target.checked })} /> Bones</label>
           </div>
@@ -70,9 +56,6 @@ export function GlbViewer({ label, className, controls = true }: { label: string
               </label>
               <label className="flex items-center gap-2">Set pose
                 <input aria-label="Pose within clip" className="min-w-0 flex-1" type="range" min="0" max="1" step="0.01" value={state.seek} onChange={e => configure({ seek: Number(e.target.value), playing: false })} /><output>{Math.round(state.seek * 100)}%</output>
-              </label>
-              <label className="flex items-center gap-2">Expression
-                <input aria-label="Expression strength" className="min-w-0 flex-1" type="range" min="0" max="1" step="0.01" value={state.expressionWeight} onChange={e => configure({ expressionWeight: Number(e.target.value) })} /><output>{Math.round(state.expressionWeight * 100)}%</output>
               </label>
               <p className="text-muted-foreground">Set pose pauses at that point in the clip. Once holds the final pose; Restart plays again.</p>
             </div>

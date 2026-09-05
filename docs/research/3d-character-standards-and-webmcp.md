@@ -99,6 +99,18 @@ seek and paused clip changes apply immediately, without a fade. Configuration is
 shared, while mounted viewers keep independent clocks; inspect reports requested
 playback state and the last seek command rather than frame-by-frame telemetry.
 
+Equipment uses the existing Character workshop tabs and shared variant-card chrome.
+**Outfits** contains independent Armor/Helmet toggles; **None** removes both.
+**Props** contains Axe/Sword: choosing one replaces the other, and clicking the
+equipped card again or **None** empties the hand. **Expressions** selects Happy/Angry
+morphs with a strength slider; **Neutral** resets both morph targets. Equipment and
+expression controls live in these slots; transport and Bones remain in the preview.
+The workbench is available in 3D even without a PNG body. Switching back to 2D
+restores PNG variants, uploads, selection, history and any open variant detail URL.
+The catalog and its selected flags are derived from `character3DPreview`, also
+returned by `inspect_3d_character`; slot clicks use the same atomic configure command
+as WebMCP. No equipment state is copied into the PNG draft.
+
 Checks load the binary with GLTFLoader, verify joint chains, inverse binds, normalized
 weights and numeric deformation for **every body clip**, and verify garment motion,
 finger deformation, socket following, mutually exclusive morph presets and neutral
@@ -120,10 +132,13 @@ Implementation, license, command schema and reproduction:
 
 ## Browser evidence
 
-Chrome desktop captures of the shipped controls, configured through the registered
-WebMCP surface (a document.modelContext registration harness). Also checked human
-clip/equipment/expression/play controls, rejected invalid commands, 390px layout
-and repeated 2D/3D mounting with one canvas and no browser exceptions. This tests
+Chrome desktop captures show the existing workshop slots driving the Viking,
+alongside the registered WebMCP surface (a document.modelContext registration harness).
+Checked human equipment/expression slot clicks and strength, tool-to-card updates,
+stale revision rejection after a slot click, empty-draft access and 390px interaction.
+PNG upload, Pixi rendering, outfit selection, prop toggles, undo/redo, retained
+variant detail URLs and three 2D/3D round trips also pass, with unchanged PNG draft
+state during Viking edits and no duplicate canvases or browser exceptions. This tests
 registration and tool execution; native agent/browser discovery remains dependent
 on the host browser's WebMCP support.
 

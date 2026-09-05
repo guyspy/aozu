@@ -17,10 +17,13 @@ of historical accuracy. Source: [generate-viking.ts](../../scripts/generate-viki
    an empty character automatically; no PNG upload is needed to use the 3D demo.
 3. Pick a **Clip**, **Pause/Play**, or **Restart**. Toggle **Loop** off to play once and
    hold the final pose. Drag to orbit and scroll to zoom, including for facial details.
-4. Toggle **Armor** and **Helmet** independently. Choose **Weapon**: none, axe or sword.
+4. Use the existing workshop slots on the right: **Outfits** toggles **Armor** and
+   **Helmet** independently; **None** removes both. **Props** selects **Axe** or
+   **Sword**; click the equipped weapon again or **None** to unequip it.
    The right hand opens when empty and curls around the grip when equipped.
-5. Choose **Face**: neutral, happy or angry. **Pose & playback** contains expression
-   strength, speed, crossfade duration and a pose slider that seeks and pauses.
+5. In **Expressions**, select **Happy** or **Angry**, adjust **Strength**, or choose
+   **Neutral** to reset the face. **Pose & playback** in the preview contains speed,
+   crossfade duration and a pose slider that seeks and pauses.
 6. Toggle **Bones** to inspect the rig. Return to **2D** for the existing PNG/Pixi editor.
 
 The demo is shared across previews in this tab and resets on reload. It does not
@@ -62,7 +65,9 @@ The two existing public tools are extended through the normal Mantle Procedure â
 Trigger â†’ handler registration. The human controls call the same application command.
 
 - **`inspect_3d_character({})`** returns asset identity, clip/expression/equipment
-  catalogs, hand-pose mapping, playback semantics and current state/revision.
+  catalogs, workshop `slots` with group/id/label/selected, hand-pose mapping,
+  playback semantics and current state/revision. Slot selection is derived from
+  this same state; tool changes immediately update the workshop cards.
 - **`configure_3d_preview({...})`** applies one atomic configuration. Pass the latest
   `expectedRevision` from inspect; omitted fields retain their current settings.
 
