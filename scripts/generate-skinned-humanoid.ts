@@ -28,7 +28,7 @@ for (const [side, sign] of [['left', 1], ['right', -1]] as const) {
 }
 const positions: number[] = [], joints: number[] = [], weights: number[] = [], morph: number[] = [], colors: number[] = [], indices: number[] = []
 function vertex(p: number[], a: number, b: number, blend: number, color: number[], delta = [0, 0, 0]) {
-  positions.push(...p); joints.push(a, b, 0, 0); weights.push(1 - blend, blend, 0, 0)
+  positions.push(...p); joints.push(blend === 1 ? 0 : a, blend === 0 ? 0 : b, 0, 0); weights.push(1 - blend, blend, 0, 0)
   colors.push(...color); morph.push(...delta)
 }
 const blue = [.12, .52, .72], skin = [.95, .65, .38]
@@ -88,10 +88,16 @@ function accessor(values: number[], type: string, components: number, integer = 
   return accessors.length - 1
 }
 const primitive = { attributes: { POSITION: accessor(positions, 'VEC3', 3, false, true), JOINTS_0: accessor(joints, 'VEC4', 4, true), WEIGHTS_0: accessor(weights, 'VEC4', 4), COLOR_0: accessor(colors, 'VEC3', 3) }, indices: accessor(indices, 'SCALAR', 1, true), material: 0, targets: [{ POSITION: accessor(morph, 'VEC3', 3, false, true) }] }
+for (const index of [...Object.values(primitive.attributes), ...primitive.targets.flatMap(t => Object.values(t))]) {
+  const { bufferView } = accessors[index] as { bufferView: number }
+  ;(bufferViews[bufferView] as { target?: number }).target = 34962
+}
+const { bufferView: indexView } = accessors[primitive.indices] as { bufferView: number }
+;(bufferViews[indexView] as { target?: number }).target = 34963
 const inverseBindMatrices = accessor(world.flatMap(([x, y, z]) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -x, -y, -z, 1]), 'MAT4', 16)
 const times = accessor([0, .75, 1.5, 2.25, 3], 'SCALAR', 1, false, true)
 const rotations = accessor([0, -.6, 0, .4, 0].flatMap(a => [0, 0, Math.sin(a / 2), Math.cos(a / 2)]), 'VEC4', 4)
-const gltf = { asset: { version: '2.0', generator: 'AOZU procedural CC0 humanoid' }, scene: 0, scenes: [{ nodes: [hips, nodes.length] }], nodes: [...nodes, { name: 'Humanoid', mesh: 0, skin: 0 }], meshes: [{ name: 'Humanoid', primitives: [primitive], weights: [0], extras: { targetNames: ['happy'] } }], materials: [{ doubleSided: true, pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: .8 } }], skins: [{ joints: nodes.map((_, i) => i), skeleton: hips, inverseBindMatrices }], animations: [{ name: 'wave', samplers: [{ input: times, output: rotations, interpolation: 'LINEAR' }], channels: [{ sampler: 0, target: { node: nodes.findIndex(n => n.name === 'rightLowerArm'), path: 'rotation' } }] }], accessors, bufferViews, buffers: [{ byteLength }] }
+const gltf = { asset: { version: '2.0', generator: 'AOZU procedural CC0 humanoid' }, scene: 0, scenes: [{ nodes: [hips, nodes.length] }], nodes: [...nodes.map(({ children, ...node }) => ({ ...node, ...(children.length ? { children } : {}) })), { name: 'Humanoid', mesh: 0, skin: 0 }], meshes: [{ name: 'Humanoid', primitives: [primitive], weights: [0], extras: { targetNames: ['happy'] } }], materials: [{ doubleSided: true, pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: .8 } }], skins: [{ joints: nodes.map((_, i) => i), skeleton: hips, inverseBindMatrices }], animations: [{ name: 'wave', samplers: [{ input: times, output: rotations, interpolation: 'LINEAR' }], channels: [{ sampler: 0, target: { node: nodes.findIndex(n => n.name === 'rightLowerArm'), path: 'rotation' } }] }], accessors, bufferViews, buffers: [{ byteLength }] }
 const json = Buffer.from(JSON.stringify(gltf))
 const jsonPadded = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 32)])
 const binary = Buffer.concat(buffers)

@@ -44,19 +44,89 @@ Keep the existing Mantle alpha.14 backbone and Procedure → public MCP Trigger 
 
 | Atom | Spike behavior | Later scope |
 | --- | --- | --- |
-| `inspect-3d-character` | Read fixture identity, bone semantics, morph/socket capabilities and session revision | Import diagnostics and fit catalog |
-| `configure-3d-preview` | Set absolute happy weight, right-hand prop, animation and skeleton visibility with expected revision | Validated garment/material selections |
+| `inspect-3d-character` | Read Viking identity, animation/expression/equipment catalogs, automatic finger poses, playback semantics and session revision | Import diagnostics and fit catalog |
+| `configure-3d-preview` | Atomically set clip, play/pause, loop, speed, crossfade, normalized pose seek, armor/helmet visibility, weapon, facial preset/strength and skeleton visibility with expected revision | Persisted composition and validated imported garment/material selections |
 
-Both procedures are real backbone definitions and browser registrations. State is ephemeral, shared across 3D previews in this tab, reset on reload, and never mutates the selected PNG character. Mutation rejects unknown fields, stale revisions, nonfinite/out-of-range weights and invalid types. UI controls use the same state command. Rendering remains a browser adapter with no Three dependency in core.
+Both procedures are real backbone definitions and browser registrations. State is ephemeral, shared across 3D previews in this tab, reset on reload, and never mutates the selected PNG character. One closed configuration contract supplies both Mantle schemas and application validation. Mutation rejects unknown fields/catalog names, stale revisions, nonfinite/out-of-range numbers and invalid types without changing state. The public tool names are `inspect_3d_character` and `configure_3d_preview`. UI controls use the same state command. Rendering remains a browser adapter with no Three dependency in core.
 
 Future persisted composition, inspect/import/validate and export procedures should be introduced only when their storage and conformance guarantees exist. The four Mantle atoms remain architectural building blocks, not a requirement for four UI tools.
 
+## Review of the initial spike
+
+The original `demo-humanoid.glb` establishes a valid 17-joint hierarchy, inverse
+bind matrices, normalized blended skinning, one embedded `wave` channel, a `happy`
+mouth morph and a hand socket. Three is isolated in the lazy browser adapter and
+the core/Mantle path already shares observable revision-checked state with the UI.
+These are useful foundations, but not yet a readable character/equipment showcase.
+Khronos glTF Validator also found empty child arrays on leaf bones in the original
+export. Both generators now omit these invalid arrays, declare buffer targets and
+zero unused joint indices; both GLBs validate with zero errors, warnings or hints.
+
+Review gaps addressed in this iteration:
+
+- The adapter always played `animations[0]`; stopping reset the mixer to time zero.
+  It now selects named embedded clips, preserves the pose on pause, supports speed,
+  looping/hold-at-end and explicit normalized seek, and blends bounded action weights
+  across clip changes. Rapid switches retain the current blend and dispose of
+  outgoing actions when the fade finishes. [Three AnimationAction](https://threejs.org/docs/pages/AnimationAction.html), [AnimationMixer](https://threejs.org/docs/pages/AnimationMixer.html).
+- The original prop was created in the renderer and clothing was deferred. The Viking
+  GLB supplies fitted armor and helmet on the body skeleton, plus an axe and sword
+  under an authored right-hand socket. Composition uses these named assets.
+- A single expression and static hand could not demonstrate a character performing
+  different actions while equipped. Two facial morphs and disjoint finger-only clips
+  now run alongside six full-body animations; the empty hand opens and the equipped
+  hand grips. Neutral clears both face targets without replacing the head mesh.
+- The old `happy`/`prop` command is replaced by explicit closed expression/weapon
+  catalogs and animation controls. UI and WebMCP execute the same command; neither
+  accepts arbitrary paths, animation track payloads or PNG slot semantics.
+
 ## Bounded spike: prove and defer
 
-Prove: GLTFLoader + OrbitControls; generated licensed GLB under public/glb; full minimum humanoid joint chains with bind matrices and blended skinning; an embedded skeletal clip; a happy face morph on a stable mesh; a right-hand socket prop that follows animation; optional SkeletonHelper; existing 2D|3D toggle displays this path without altering Pixi. [Three GLTFLoader](https://threejs.org/docs/pages/GLTFLoader.html).
+The default bundled **Viking warrior** is original procedural CC0 demo art: a
+muscular male with beard, iron helmet, chest/shoulder armor, boots and bracers.
+It contains 47 joints (including fingers), separate shared-skeleton armor/helmet,
+`happy`/`angry` morph targets (neutral = zero), right-hand axe/sword meshes, six body
+clips (`idle`, `walk`, `battle-ready`, `attack`, `cheer`, `wave`) and two hand-pose clips
+(`hands-open`, `hands-grip`). The approximately 1.70 MB asset embeds every resource.
+Walk is in place; body clips key all body joints so switching is independent of
+previous motion. Hand tracks have disjoint bindings and expressions stay independent.
 
-Check actual GLB loading, joint hierarchy and bind pose, normalized weights, numerical vertex deformation, morph movement and socket motion. Exercise procedure compilation, runtime invocation, schema rejection, revision conflict and browser tool registration. `scripts/check-*.ts` are the repository's executable checks; add the 3D check to `scripts/check.ts` and expose generation/focused checks as package scripts. Run `pnpm lint`, `pnpm test`, `pnpm build` before PR.
+Human controls expose the same composition and playback settings as WebMCP. Play/
+pause and speed 0 hold the sampled pose. Disabling loop clamps at the final pose;
+Restart or `seek: 0` replays it. `seek` with `playing: false` provides a custom sampled
+pose. Crossfade is measured in seconds at 1× speed and freezes on pause. Explicit
+seek and paused clip changes apply immediately, without a fade. Configuration is
+shared, while mounted viewers keep independent clocks; inspect reports requested
+playback state and the last seek command rather than frame-by-frame telemetry.
 
-Defer: garment import/rendering and fit validation, arbitrary GLB upload, persistent 3D packs/compositions, engine retarget/export conformance, full VRM runtime, complete ARKit/viseme set, material variants, cloth simulation, sculpting, PNG dual representation and Mantle alpha.17. The UI must identify the shared demo and clothing deferral honestly.
+Checks load the binary with GLTFLoader, verify joint chains, inverse binds, normalized
+weights and numeric deformation for **every body clip**, and verify garment motion,
+finger deformation, socket following, mutually exclusive morph presets and neutral
+restoration. Playback checks cover pause/resume, zero/double speed, loop vs once,
+repeated seek, crossfade continuity, rapid switching and disposal. The real compiled
+Mantle runtime and registered browser tools are exercised, including schema rejection
+and atomic revision conflicts. The focused check remains in `pnpm test`.
 
-Implementation and reproduction: [public/glb/README.md](../../public/glb/README.md).
+Defer: arbitrary GLB/garment import and fit validation, persistent 3D packs/compositions,
+engine retarget/export conformance, full VRM runtime, complete ARKit/viseme set,
+material variants, physics/root-motion integration, cloth simulation, sculpting,
+PNG dual representation and Mantle package upgrades. The procedural art proves
+skinning, animation and composition; final art still needs a DCC fit/clipping pass.
+Pixi 2D is untouched. This remains a trusted-fixture browser path, not a general
+avatar importer or an assertion of compatibility with arbitrary rigs.
+
+Implementation, license, command schema and reproduction:
+[public/glb/README.md](../../public/glb/README.md).
+
+## Browser evidence
+
+Chrome desktop captures of the shipped controls, configured through the registered
+WebMCP surface (a document.modelContext registration harness). Also checked human
+clip/equipment/expression/play controls, rejected invalid commands, 390px layout
+and repeated 2D/3D mounting with one canvas and no browser exceptions. This tests
+registration and tool execution; native agent/browser discovery remains dependent
+on the host browser's WebMCP support.
+
+| Armor + helmet + axe, angry, battle-ready | Unequipped, open hand, happy, idle |
+| --- | --- |
+| ![Armored Viking preview](viking-armored.png) | ![Unequipped Viking preview](viking-unequipped.png) |

@@ -11,7 +11,7 @@
     "test": "node --experimental-strip-types scripts/check.ts",
     "preview": "pnpm build && vite preview",
     "deploy": "pnpm build && wrangler deploy",
-    "generate:glb": "node --experimental-strip-types scripts/generate-skinned-humanoid.ts",
+    "generate:glb": "node --experimental-strip-types scripts/generate-skinned-humanoid.ts && node --experimental-strip-types scripts/generate-viking.ts",
     "check:3d": "node --experimental-strip-types scripts/check-character-3d.ts"
   },
   "engines": {
