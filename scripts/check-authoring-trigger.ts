@@ -39,6 +39,7 @@ const runtime = await bootMantleRuntime({
     },
   },
   handlers: {
+    'companion.update-character-model-sheet': async (input) => ({ status: 'ok', data: input }),
     'companion.update-collection-profile': async (input) => ({ status: 'ok', data: input }),
     'companion.inspect-workspace': async () => ({ status: 'ok', data: {} }),
     'companion.navigate-character': async (input) => ({ status: 'ok', data: input }),

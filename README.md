@@ -40,7 +40,7 @@ The agent generates the creative pixels with its available image tools. AOZU mak
 
 ## WebMCP workflow
 
-AOZU exposes ten public tools on every page:
+AOZU exposes these public tools on every page:
 
 | Tool | Purpose |
 | --- | --- |
@@ -48,6 +48,8 @@ AOZU exposes ten public tools on every page:
 | `navigate_character` | Open the character library or an exact character category or variant without guessing a route |
 | `inspect_character_contract` | Obtain allowed operations, exact hashes, placement/alignment references, ownership, dimensions, and diagnostics for one target |
 | `update_character_profile` | Update a character's name, description, multiline backstory, or scalar attributes against its exact revision |
+| `update_collection_profile` | Update a collection's name, description, or shared world backstory against its exact revision |
+| `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides, and set or clear character height against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
 | `set_character_variant_selection` | Select or remove an expression, outfit, or prop against its exact revision; newly added props stack above earlier ones |
@@ -90,7 +92,24 @@ Characters are stored locally in IndexedDB and can be duplicated, edited, delete
 - TexturePacker/Pixi-compatible atlas JSON; and
 - enough data to import the character back into AOZU.
 
-The editor and thumbnails render from the same compiled atlas used by the export path.
+The editor and thumbnails compose the original PNG layers directly. The texture atlas is compiled for export.
+
+## Character model sheets
+
+Switch from **Appearance** to **Model sheet** to collect front, three-quarter,
+side, and back full-body references in the same outfit and standing pose. Upload
+one PNG per view, or capture the current appearance as the front reference. PNGs
+keep their original canvas, may be opaque, and can be up to 4096 × 4096 and 5 MiB.
+
+Height in cm is optional. Open a reference to add notes and position its head and
+feet guides; these measure the character independently of image margins, hats,
+and props. Replacing a reference clears its calibration and retains its notes.
+References, notes, height, and guides use the existing save, undo, duplicate,
+single-character ZIP, and library backup flows. They do not become appearance
+layers or atlas frames. Cross-character scale lineups are a subsequent step.
+
+Run `/scripts/check-model-sheet.html?responsive` with `pnpm dev` for the
+memory-only browser check at 320, 390, 900, and 1280px.
 
 ## Collections, library backups, and PNGs
 
@@ -142,7 +161,7 @@ WebMCP ───┘                 │
 - A thin **WebMCP adapter** projects public Mantle procedures into browser tools and dispatches calls back through the same runtime.
 - The **React SPA** and WebMCP tools share application and domain behavior rather than maintaining parallel business logic.
 - **IndexedDB** keeps character metadata and image blobs browser-local.
-- **PixiJS** renders trimmed atlas frames while preserving their registered placement.
+- **PixiJS** renders original PNG layers while preserving their registered placement.
 - **Cloudflare Workers Static Assets** hosts the deployed SPA.
 
 The dependency direction stays inward:
@@ -161,7 +180,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open the local URL in ChatGPT's in-app browser or another WebMCP-compatible browser. The header reports whether the nine tools are ready.
+Then open the local URL in ChatGPT's in-app browser or another WebMCP-compatible browser. The header reports when the tools are ready.
 
 ```bash
 pnpm lint

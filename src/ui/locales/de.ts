@@ -1,6 +1,7 @@
 import { en, type Messages } from './en'
 
 export const de: Messages = {
+  modelSheet: en.modelSheet,
   common: { close: 'Schließen', productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
   navigation: { ...en.navigation, primary: 'Hauptnavigation' },
   startup: {

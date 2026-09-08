@@ -93,7 +93,24 @@ export interface CharacterAssetTarget {
   layer: CharacterVariantLayer
 }
 
-export interface CharacterDraft {
+export const CHARACTER_REFERENCE_VIEWS = ['front', 'three-quarter', 'side', 'back'] as const
+export type CharacterReferenceView = typeof CHARACTER_REFERENCE_VIEWS[number]
+export interface CharacterReference<Asset = CharacterDraftAsset> {
+  asset: Asset
+  notes?: string
+  /** Fractions of the original image height, explicitly calibrated by the author. */
+  guides?: { head: number; feet: number }
+}
+export interface CharacterModelSheet<Asset = CharacterDraftAsset> {
+  heightCm?: number
+  views: Partial<Record<CharacterReferenceView, CharacterReference<Asset>>>
+}
+export interface CharacterAssetContent<Asset> {
+  variants: Array<Omit<CharacterDraftVariant, 'layers'> & { layers: Partial<Record<CharacterVariantLayer, Asset>> }>
+  modelSheet?: CharacterModelSheet<Asset>
+}
+
+export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsset> {
   id: string
   schemaVersion: 4
   packId: string
@@ -102,7 +119,6 @@ export interface CharacterDraft {
   description?: string
   backstory?: string
   attributes?: Record<string, CharacterAttributeValue>
-  variants: CharacterDraftVariant[]
   headRegistration?: { variantId: string }
   selected: {
     expression?: string
@@ -115,11 +131,8 @@ export interface CharacterDraft {
 
 export const characterAssetScope = (packId: string) => `character:${packId}`
 
-export type CharacterWorkspaceData = Omit<CharacterDraft, 'id' | 'updatedAt' | 'variants'> & {
-  variants: Array<Omit<CharacterDraftVariant, 'layers'> & {
-    layers: Partial<Record<CharacterVariantLayer, Omit<CharacterDraftAsset, 'blob'> & { blobId: string }>>
-  }>
-}
+export type StoredCharacterAsset = Omit<CharacterDraftAsset, 'blob'> & { blobId: string }
+export type CharacterWorkspaceData = Omit<CharacterDraft, 'id' | 'updatedAt' | 'variants' | 'modelSheet'> & CharacterAssetContent<StoredCharacterAsset>
 
 export interface AppearanceRef {
   packId: string

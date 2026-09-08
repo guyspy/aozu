@@ -1,10 +1,12 @@
 import { strToU8, zipSync } from 'fflate'
+import { mapCharacterAssets } from '../../core/application/character-assets.ts'
+import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
 
 import {
   characterLibraryDigest, inspectCharacterLibrarySnapshot,
   type CharacterLibrarySnapshot,
 } from '../../core/application/character-library.ts'
-import type { CharacterAssetInspection, CharacterDraft } from '../../core/domain/character.ts'
+import type { CharacterAssetContent, CharacterAssetInspection, CharacterDraft, CharacterDraftAsset } from '../../core/domain/character.ts'
 import { parseZipJson, readSafeZip, type ZipLimits } from './archive.ts'
 import { inspectCharacterImage } from '../browser/character-image.ts'
 
@@ -15,11 +17,8 @@ const accepts = (path: string) => path === 'library.json' || path === 'integrity
 const json = (value: unknown) => strToU8(JSON.stringify(value))
 interface IntegrityFile { path: string; byteLength: number; sha256: string }
 interface AssetDescriptor { bundleId: string; id: string; path: string; mediaType: string }
-type ArchivedDraft = Omit<CharacterDraft, 'variants'> & {
-  variants: Array<Omit<CharacterDraft['variants'][number], 'layers'> & {
-    layers: Record<string, Omit<NonNullable<CharacterDraft['variants'][number]['layers']['body']>, 'blob'> & { path: string; mediaType: string }>
-  }>
-}
+type ArchivedDraft = Omit<CharacterDraft, 'variants' | 'modelSheet'> & CharacterAssetContent<Omit<CharacterDraftAsset, 'blob'> & { path: string; mediaType: string }>
+
 interface Manifest {
   format: 'aozu-character-library'
   version: 1
@@ -50,18 +49,13 @@ export async function exportCharacterLibraryZip(snapshot: CharacterLibrarySnapsh
     assets.push({ bundleId: asset.bundleId, id: asset.id, path, mediaType: asset.blob.type })
   }
   const legacyDrafts: ArchivedDraft[] = []
+  let nextAsset = assets.length
   for (const draft of snapshot.legacyDrafts) {
-    const variants: ArchivedDraft['variants'] = []
-    for (const variant of draft.variants) {
-      const layers: ArchivedDraft['variants'][number]['layers'] = {}
-      for (const [layer, asset] of Object.entries(variant.layers)) {
-        const { blob, ...descriptor } = asset!
-        const path = await add(`assets/${integrity.length}.png`, blob, descriptor.inspection.sha256)
-        layers[layer] = { ...descriptor, path, mediaType: blob.type }
-      }
-      variants.push({ ...variant, layers })
-    }
-    legacyDrafts.push({ ...draft, variants })
+    const content = await mapCharacterAssets(draft, async ({ blob, ...descriptor }) => {
+      const path = await add(`assets/${nextAsset++}.png`, blob, descriptor.inspection.sha256)
+      return { ...descriptor, path, mediaType: blob.type }
+    })
+    legacyDrafts.push({ ...draft, ...content })
   }
   await add('library.json', new Blob([json({ format: 'aozu-character-library', version: 1, entries: snapshot.entries, assets, legacyDrafts } satisfies Manifest)]))
   files['integrity.json'] = json({ version: 1, files: integrity })
@@ -95,17 +89,16 @@ export async function readCharacterLibraryZip(blob: Blob, inspect: (blob: Blob) 
     return new Blob([files[descriptor.path]], { type: descriptor.mediaType })
   }
   const assets = manifest.assets.map((asset) => ({ bundleId: asset.bundleId, id: asset.id, blob: take(asset) }))
-  const legacyDrafts = manifest.legacyDrafts.map((draft) => {
+  const legacyDrafts = await Promise.all(manifest.legacyDrafts.map(async (draft) => {
     if (!draft || !Array.isArray(draft.variants)) throw new Error('Invalid legacy Character library draft')
-    return { ...draft, variants: draft.variants.map((variant) => {
-      if (!variant || !variant.layers || typeof variant.layers !== 'object' || Array.isArray(variant.layers)) throw new Error('Invalid legacy Character library layers')
-      return { ...variant, layers: Object.fromEntries(Object.entries(variant.layers).map(([layer, asset]) => {
-        const blob = take(asset)
-        const { path: _path, mediaType: _mediaType, ...descriptor } = asset
-        return [layer, { ...descriptor, blob }]
-      })) }
+    for (const variant of draft.variants) if (!variant || !variant.layers || typeof variant.layers !== 'object' || Array.isArray(variant.layers)) throw new Error('Invalid legacy Character library layers')
+    if (draft.modelSheet !== undefined) validateModelSheet(draft.modelSheet)
+    return { ...draft, ...await mapCharacterAssets(draft, (asset) => {
+      const blob = take(asset)
+      const { path: _path, mediaType: _mediaType, ...descriptor } = asset
+      return { ...descriptor, blob }
     }) }
-  }) as CharacterDraft[]
+  }))
   if (assetPaths.size) throw new Error('Unreferenced Character library archive asset')
   const snapshot = { entries: manifest.entries, assets, legacyDrafts }
   await inspectCharacterLibrarySnapshot(snapshot, inspect)

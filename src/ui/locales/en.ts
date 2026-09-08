@@ -158,6 +158,18 @@ export const en = {
       failed: 'WebMCP tool registration failed',
     },
   },
+  modelSheet: {
+    title: 'Model sheet', appearance: 'Appearance', mode: 'Character workspace', fullBody: 'Full-body views',
+    description: 'Keep the character’s shape consistent across views. Add reference art here or ask ChatGPT to help.',
+    count: '{{count}} / 4 views', height: 'Height (cm)', unknownHeight: 'Not set',
+    brief: 'Use the same outfit and a relaxed standing pose. Keep the whole character in frame.',
+    views: { front: 'Front', 'three-quarter': '¾ view', side: 'Side', back: 'Back' },
+    add: 'Add reference', uploadView: 'Upload {{view}} reference', openView: 'Open {{view}} reference',
+    missing: 'Missing view', uncalibrated: 'Height guides not set', calibrated: 'Height guides set',
+    useCurrent: 'Use current appearance', scaleNote: 'Height belongs to the character. Set head and feet guides on each image so margins, hats and props do not change the scale. PNG · up to 4096 × 4096 · 5 MiB.',
+    calibrateHelp: 'Place the two lines at the top of the head and the soles. Keep hats and held props outside the height measurement.',
+    head: 'Head', feet: 'Feet', notes: 'View notes', replace: 'Replace PNG', saveReference: 'Save notes & guides',
+  },
   data: {
     export: 'Export character',
     import: 'Import character',

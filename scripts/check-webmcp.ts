@@ -10,6 +10,7 @@ import { CHARACTER_VISUAL_REVIEW } from '../src/core/application/character-agent
 // A fresh inspection follows UI-only changes, independent of the saved variant selection.
 const page = {
   dataset: { workspaceView: 'character', characterId: 'id', category: 'expressions', variantId: 'happy', previewMode: 'overlay', hasUncommittedInput: 'false' } as Record<string, string>,
+  querySelector: () => null,
   querySelectorAll: () => CHARACTER_VISUAL_REVIEW.checks.map(({ mode, label }) => ({
     dataset: { alignmentMode: mode },
     textContent: label,

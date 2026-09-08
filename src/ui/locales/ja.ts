@@ -1,6 +1,7 @@
 import { en, type Messages } from './en'
 
 export const ja: Messages = {
+  modelSheet: en.modelSheet,
   common: { close: '閉じる', productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
   navigation: { ...en.navigation, primary: 'メインナビゲーション' },
   startup: {

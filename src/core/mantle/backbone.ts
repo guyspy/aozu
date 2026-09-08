@@ -10,7 +10,8 @@ import {
   PROGRESS_LOOP_IDS,
   PROGRESS_BINDING_SCHEMA,
 } from '../domain/playbook.ts'
-import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
+import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
+import { MAX_REFERENCE_BYTES, MAX_REFERENCE_DIMENSION } from '../application/character-model-sheet.ts'
 import { compileBundle } from '../bundle.ts'
 import { CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
 
@@ -206,13 +207,39 @@ const characterInspectionSchema = objectSchema({
   sha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
 }, ['width', 'height', 'hasTransparentPixels', 'hasVisiblePixels', 'genuineRgba', 'size', 'sha256'])
 
-const characterAssetDescriptorSchema = objectSchema({
+const characterAssetDescriptor = (inspection: JsonSchema) => objectSchema({
   blobId: { type: 'string', pattern: '^[0-9a-f]{64}$' },
   filename: { type: 'string', minLength: 1, maxLength: 200 },
   source: { enum: ['user', 'agent', 'starter'] },
-  inspection: characterInspectionSchema,
+  inspection,
   canonicalSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
 }, ['blobId', 'filename', 'source', 'inspection'])
+const characterAssetDescriptorSchema = characterAssetDescriptor(characterInspectionSchema)
+const referenceInspectionSchema = objectSchema({
+  ...characterInspectionSchema.properties,
+  width: { type: 'integer', minimum: 1, maximum: MAX_REFERENCE_DIMENSION },
+  height: { type: 'integer', minimum: 1, maximum: MAX_REFERENCE_DIMENSION },
+  size: { type: 'integer', minimum: 1, maximum: MAX_REFERENCE_BYTES },
+  hasTransparentPixels: { type: 'boolean' },
+  genuineRgba: { type: 'boolean' },
+  visibleBounds: objectSchema({
+    x: { type: 'integer', minimum: 0 }, y: { type: 'integer', minimum: 0 },
+    width: { type: 'integer', minimum: 1, maximum: MAX_REFERENCE_DIMENSION },
+    height: { type: 'integer', minimum: 1, maximum: MAX_REFERENCE_DIMENSION },
+  }, ['x', 'y', 'width', 'height']),
+}, ['width', 'height', 'hasTransparentPixels', 'hasVisiblePixels', 'genuineRgba', 'size', 'sha256'])
+const referenceGuidesSchema = objectSchema({
+  head: { type: 'number', minimum: 0, maximum: 1 },
+  feet: { type: 'number', minimum: 0, maximum: 1 },
+}, ['head', 'feet'])
+const modelSheetSchema = objectSchema({
+  heightCm: { type: 'number', exclusiveMinimum: 0, maximum: 100_000 },
+  views: objectSchema(Object.fromEntries(CHARACTER_REFERENCE_VIEWS.map((view) => [view, objectSchema({
+    asset: characterAssetDescriptor(referenceInspectionSchema),
+    notes: { type: 'string', maxLength: 1000 },
+    guides: referenceGuidesSchema,
+  }, ['asset'])]))),
+}, ['views'])
 
 const characterAttributesSchema: JsonSchema = {
   type: 'object',
@@ -231,6 +258,7 @@ const characterWorkspaceProperties = {
   description: { type: 'string', maxLength: 500 },
   backstory: { type: 'string', maxLength: 8_000 },
   attributes: characterAttributesSchema,
+  modelSheet: modelSheetSchema,
   variants: {
     type: 'array',
     minItems: 1,
@@ -569,7 +597,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-workspace.yaml',
     envelope('Procedure', 'inspect-workspace', {
       title: 'Inspect Workspace',
-      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. For opinions on the user's current character or outfit, call with includeSnapshot:true and actually view snapshot.dataUrl before commenting. The clean composite includes the viewed variant, applied outfit/expression/props, transforms, and layer order, without diagnostic overlays. Taking a snapshot never navigates, saves, or changes selections. If snapshot is unavailable, follow its reason instead of describing unseen artwork. Returns the current route, Collection, Character, viewed variant, applied selections, preview mode, localized alignment buttons, open panel, and uncommitted-input flag. Asset-production rules apply only when creating or editing layers; a request for an opinion does not request changes. Follow assetPolicy.workflow.visualReview when editing. ${CHARACTER_BACKGROUND_GUIDANCE}`,
+      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. For opinions on the user's current character or outfit, call with includeSnapshot:true and actually view snapshot.dataUrl before commenting. The clean composite includes the viewed variant, applied outfit/expression/props, transforms, and layer order, without diagnostic overlays. Taking a snapshot never navigates, saves, or changes selections. If snapshot is unavailable, follow its reason instead of describing unseen artwork. Returns the current route, Collection, Character, viewed variant, applied selections, preview mode, localized alignment buttons, open panel, and uncommitted-input flag. For model sheets, follow the returned modelSheet policy: reference PNGs may have opaque backgrounds and keep their original dimensions. The alpha and 512×768 production rules below apply only to appearance layers. Asset-production rules apply only when creating or editing layers; a request for an opinion does not request changes. Follow assetPolicy.workflow.visualReview when editing. ${CHARACTER_BACKGROUND_GUIDANCE}`,
       input: {
         ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include a clean PNG of the current Character preview for visual feedback. Omit for lightweight metadata only.' } }),
         readOnly: true,
@@ -646,7 +674,7 @@ const ALL_BACKBONE_SOURCES = [
       title: 'Navigate Character',
       description: `Navigate to the Character library or an exact Character category or variant returned by inspect_workspace. A successful call pushes that route in the SPA without mutating Character data. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
-        destination: { enum: ['characters', 'character-expressions', 'character-outfits', 'character-props'] },
+        destination: { enum: ['characters', 'character-expressions', 'character-outfits', 'character-props', 'character-model-sheet'] },
         characterId: { type: 'string', minLength: 1 },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
       }, ['destination']),
@@ -785,6 +813,32 @@ const ALL_BACKBONE_SOURCES = [
     envelope('Trigger', 'update-character-profile', {
       source: { kind: 'mcp', surface: 'public' },
       target: { procedure: 'update-character-profile' },
+    }),
+  ),
+  source(
+    'authoring/update-character-model-sheet.yaml',
+    envelope('Procedure', 'update-character-model-sheet', {
+      title: 'Update Character Model Sheet',
+      description: `Edit a Character's full-body references or optional height after inspect_workspace. Use one front, three-quarter, side or back PNG per view; opaque backgrounds and original dimensions up to 4096 × 4096 / 5 MiB are accepted. Keep the same outfit and standing pose. Send dataUrl with filename and expectedAssetSha256 (null for an empty view) to replace art. Replacement clears old height guides. Notes and guides require existing art. Guides are fractions of original image height, head above feet, excluding hats and held props; null clears guides. Height is in cm; null clears it. Omitted fields stay unchanged. Reference images do not alter appearance layers. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      input: objectSchema({
+        characterId: { type: 'string', minLength: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
+        heightCm: { type: ['number', 'null'], exclusiveMinimum: 0, maximum: 100_000 },
+        view: { enum: CHARACTER_REFERENCE_VIEWS },
+        notes: { type: 'string', maxLength: 1000 },
+        guides: { oneOf: [{ type: 'null' }, referenceGuidesSchema] },
+        dataUrl: { type: 'string', pattern: '^data:image/png;base64,', maxLength: 7_100_000 },
+        filename: { type: 'string', minLength: 1, maxLength: 200 },
+        expectedAssetSha256: { type: ['string', 'null'], pattern: '^[0-9a-f]{64}$' },
+      }, ['characterId', 'expectedRevision']),
+      output: toolResultSchema,
+      handler: { kind: 'ref', ref: 'companion.update-character-model-sheet' },
+    }),
+  ),
+  source(
+    'authoring/update-character-model-sheet-mcp.yaml',
+    envelope('Trigger', 'update-character-model-sheet', {
+      source: { kind: 'mcp', surface: 'public' }, target: { procedure: 'update-character-model-sheet' },
     }),
   ),
   source(

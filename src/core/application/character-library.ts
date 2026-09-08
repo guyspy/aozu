@@ -1,13 +1,15 @@
 import { EntryDataValidator, type Entry } from '@aotter/mantle-spec'
 
 import { AUTHORING_NAMESPACE } from './authoring.ts'
+import { characterAssets } from './character-assets.ts'
+import { validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
 import { validateCharacterAssetInspection } from './character-creation.ts'
 import { CHARACTER_COLLECTIONS } from '../domain/character-collection.ts'
 import { compileAuthoringBackbone } from '../mantle/backbone.ts'
 import {
   CHARACTER_RIG, CHARACTER_VARIANT_GROUPS, CHARACTER_VARIANT_LAYERS,
   characterAssetScope, resolveCharacterComposition, validateCharacterPack, validateCharacterVariantTransform,
-  type CharacterAssetInspection, type CharacterDraft, type CharacterPack, type CharacterWorkspaceData,
+  type CharacterAssetInspection, type CharacterDraft, type CharacterDraftAsset, type CharacterPack, type CharacterWorkspaceData, type StoredCharacterAsset,
 } from '../domain/character.ts'
 
 export const CHARACTER_LIBRARY_PACK_NAMESPACE = 'character-pack-library'
@@ -61,6 +63,19 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
     Object.entries(draft.attributes).some(([key, value]) => !text(key, 40) ||
       !['string', 'number', 'boolean'].includes(typeof value) || (typeof value === 'string' && value.length > 200) ||
       (typeof value === 'number' && !Number.isFinite(value))))) fail('attributes')
+  const validateAsset = (asset: CharacterDraftAsset | StoredCharacterAsset, reference = false) => {
+    if (!record(asset) || !text(asset.filename) || !['user', 'agent', 'starter'].includes(asset.source) || !record(asset.inspection) ||
+      !hash(asset.inspection.sha256) || (asset.canonicalSha256 !== undefined && !hash(asset.canonicalSha256))) fail('asset descriptor')
+    if (reference) validateReferenceInspection(asset.inspection)
+    else validateCharacterAssetInspection(asset.inspection)
+    const blob = 'blob' in asset ? asset.blob : assets.get(characterLibraryKey({ bundleId: characterAssetScope(draft.packId), id: asset.blobId }))?.blob
+    if (!(blob instanceof Blob) || blob.type !== 'image/png' || blob.size !== asset.inspection.size ||
+      ('blobId' in asset && asset.blobId !== asset.inspection.sha256)) fail('missing or inconsistent Character asset')
+  }
+  if (draft.modelSheet !== undefined) {
+    validateModelSheet(draft.modelSheet)
+    for (const { asset } of Object.values(draft.modelSheet.views)) validateAsset(asset, true)
+  }
   const variants = new Set<string>()
   for (const variant of draft.variants) {
     if (!record(variant) || !CHARACTER_VARIANT_GROUPS.includes(variant.group) ||
@@ -71,13 +86,8 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
     if (variant.group === 'body' && variant.transform !== undefined) fail('locked body transform')
     if (variant.transform) validateCharacterVariantTransform(variant.transform)
     for (const [layer, asset] of Object.entries(variant.layers)) {
-      if (!(CHARACTER_VARIANT_LAYERS[variant.group] as readonly string[]).includes(layer) || !record(asset) ||
-        !text(asset.filename) || typeof asset.source !== 'string' || !['user', 'agent', 'starter'].includes(asset.source) || !record(asset.inspection) ||
-        !hash(asset.inspection.sha256) || (asset.canonicalSha256 !== undefined && !hash(asset.canonicalSha256))) fail('asset descriptor')
-      validateCharacterAssetInspection(asset.inspection)
-      const blob = 'blob' in asset ? asset.blob : assets.get(characterLibraryKey({ bundleId: characterAssetScope(draft.packId), id: asset.blobId }))?.blob
-      if (!(blob instanceof Blob) || blob.type !== 'image/png' || blob.size !== asset.inspection.size ||
-        ('blobId' in asset && asset.blobId !== asset.inspection.sha256)) fail('missing or inconsistent Character asset')
+      if (!(CHARACTER_VARIANT_LAYERS[variant.group] as readonly string[]).includes(layer)) fail('asset layer')
+      validateAsset(asset)
     }
   }
   if (!variants.has('body:base') || [...variants].some((key) => key.startsWith('body:') && key !== 'body:base')) fail('base body')
@@ -134,12 +144,13 @@ export function validateCharacterLibrarySnapshot(snapshot: CharacterLibrarySnaps
   const draftIds = new Set<string>()
   for (const draft of snapshot.legacyDrafts) {
     validateDraft(draft, assets)
-    const { id: _id, updatedAt: _updatedAt, approvedAt: _approvedAt, variants, ...data } = draft as CharacterDraft & { approvedAt?: number }
+    const { id: _id, updatedAt: _updatedAt, approvedAt: _approvedAt, variants, modelSheet, ...data } = draft as CharacterDraft & { approvedAt?: number }
+    const descriptorFor = ({ blob: _blob, ...asset }: CharacterDraftAsset) => ({ ...asset, blobId: asset.inspection.sha256 })
     validateAuthoringData('character-workspaces', {
       ...data,
+      ...(modelSheet ? { modelSheet: { ...modelSheet, views: Object.fromEntries(Object.entries(modelSheet.views).map(([view, reference]) => [view, { ...reference, asset: descriptorFor(reference.asset) }])) } } : {}),
       variants: variants.map(({ layers, ...variant }) => ({ ...variant, layers: Object.fromEntries(Object.entries(layers).map(([layer, asset]) => {
-        const { blob: _blob, ...descriptor } = asset!
-        return [layer, { ...descriptor, blobId: descriptor.inspection.sha256 }]
+        return [layer, descriptorFor(asset!)]
       })) })),
     })
     if (draftIds.has(draft.id) || characterIds.has(draft.id) || packIds.has(draft.packId)) fail('duplicate legacy Character ID or pack ID')
@@ -160,19 +171,13 @@ export function validateCharacterLibrarySnapshot(snapshot: CharacterLibrarySnaps
 export async function inspectCharacterLibrarySnapshot(snapshot: CharacterLibrarySnapshot, inspect: (blob: Blob) => Promise<CharacterAssetInspection>) {
   validateCharacterLibrarySnapshot(snapshot)
   const inspectPng = async (blob: Blob) => {
-    // Guard allocation before a browser decoder sees untrusted PNG dimensions, including highly compressed PNGs.
-    const header = new Uint8Array(await blob.slice(0, 33).arrayBuffer())
-    const view = new DataView(header.buffer)
-    if (blob.size > 5 * 1024 * 1024 || header.length < 33 ||
-      ![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => header[index] === byte) ||
-      view.getUint32(8) !== 13 || view.getUint32(12) !== 0x49484452 ||
-      view.getUint32(16) !== CHARACTER_RIG.canvas.width || view.getUint32(20) !== CHARACTER_RIG.canvas.height || header[25] !== 6) fail('PNG header or canvas dimensions')
+    await validateReferencePng(blob)
     return inspect(blob)
   }
   const inspections = new Map<string, CharacterAssetInspection>()
   for (const asset of snapshot.assets) {
     const result = await inspectPng(asset.blob)
-    validateCharacterAssetInspection(result)
+    validateReferenceInspection(result)
     if (asset.bundleId.startsWith('character:') && result.sha256 !== asset.id) fail('asset digest identity')
     inspections.set(characterLibraryKey(asset), result)
   }
@@ -184,8 +189,8 @@ export async function inspectCharacterLibrarySnapshot(snapshot: CharacterLibrary
   for (const entry of snapshot.entries) {
     if (entry.collection === 'character-workspaces') {
       const data = entry.data as unknown as CharacterWorkspaceData
-      for (const variant of data.variants) for (const asset of Object.values(variant.layers)) {
-        if (asset) verifyDescriptor(inspections.get(characterLibraryKey({ bundleId: characterAssetScope(data.packId), id: asset.blobId }))!, asset.inspection)
+      for (const asset of characterAssets(data)) {
+        verifyDescriptor(inspections.get(characterLibraryKey({ bundleId: characterAssetScope(data.packId), id: asset.blobId }))!, asset.inspection)
       }
     } else if (entry.collection === 'character-packs') {
       const pack = entry.data.pack as CharacterPack
@@ -194,8 +199,8 @@ export async function inspectCharacterLibrarySnapshot(snapshot: CharacterLibrary
       resolveCharacterComposition(pack, entry.data.composition as CharacterPack['defaultComposition'])
     }
   }
-  for (const draft of snapshot.legacyDrafts) for (const variant of draft.variants) for (const asset of Object.values(variant.layers)) {
-    if (asset) verifyDescriptor(await inspectPng(asset.blob), asset.inspection)
+  for (const draft of snapshot.legacyDrafts) for (const asset of characterAssets(draft)) {
+    verifyDescriptor(await inspectPng(asset.blob), asset.inspection)
   }
 }
 
@@ -222,9 +227,10 @@ export async function mergeCharacterLibraries(current: CharacterLibrarySnapshot,
     const previous = drafts.get(draft.id)
     if (previous) {
       if (characterLibraryJson(previous) !== characterLibraryJson(draft)) throw new Error(`Character library merge draft conflict: ${draft.id}`)
-      for (let index = 0; index < draft.variants.length; index++) for (const [layer, asset] of Object.entries(draft.variants[index].layers)) {
-        const old = previous.variants[index].layers[layer as keyof typeof previous.variants[number]['layers']]
-        if (!old || await characterLibraryDigest(old.blob) !== await characterLibraryDigest(asset!.blob)) throw new Error(`Character library merge draft asset conflict: ${draft.id}`)
+      const oldAssets = new Map(characterAssets(previous).map((asset) => [asset.inspection.sha256, asset]))
+      for (const asset of characterAssets(draft)) {
+        const old = oldAssets.get(asset.inspection.sha256)
+        if (!old || await characterLibraryDigest(old.blob) !== await characterLibraryDigest(asset.blob)) throw new Error(`Character library merge draft asset conflict: ${draft.id}`)
       }
     } else drafts.set(draft.id, draft)
   }

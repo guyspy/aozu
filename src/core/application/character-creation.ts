@@ -1,4 +1,5 @@
 import type { EntryReader } from '@aotter/mantle-runtime'
+import { characterAssets } from './character-assets.ts'
 import { CHARACTER_BACKGROUND_GUIDANCE } from './character-agent-guidance.ts'
 
 import {
@@ -410,14 +411,13 @@ const characterContentJson = (draft: CharacterDraft) => {
 
 const samePersistedCharacterContent = async (left: CharacterDraft, right: CharacterDraft) => {
   if (characterContentJson(left) !== characterContentJson(right)) return false
-  for (let index = 0; index < left.variants.length; index++) {
-    for (const [layer, asset] of Object.entries(left.variants[index].layers)) {
-      const other = right.variants[index].layers[layer as CharacterVariantLayer]
-      if (!asset || !other || asset.blob.type !== other.blob.type || asset.blob.size !== other.blob.size) return false
-      const [leftBytes, rightBytes] = await Promise.all([asset.blob.arrayBuffer(), other.blob.arrayBuffer()])
-      const expected = new Uint8Array(rightBytes)
-      if (!new Uint8Array(leftBytes).every((byte, offset) => byte === expected[offset])) return false
-    }
+  const others = new Map(characterAssets(right).map((asset) => [asset.inspection.sha256, asset]))
+  for (const asset of characterAssets(left)) {
+    const other = others.get(asset.inspection.sha256)
+    if (!other || asset.blob.type !== other.blob.type || asset.blob.size !== other.blob.size) return false
+    const [leftBytes, rightBytes] = await Promise.all([asset.blob.arrayBuffer(), other.blob.arrayBuffer()])
+    const expected = new Uint8Array(rightBytes)
+    if (!new Uint8Array(leftBytes).every((byte, offset) => byte === expected[offset])) return false
   }
   return true
 }

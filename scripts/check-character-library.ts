@@ -95,14 +95,14 @@ await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => val
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[1].data.characterIds = ['missing']), inspect), /Collection Character reference/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries.push({ ...value.entries[1], id: 'second-collection' })), inspect), /duplicate.*Collection Character reference/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.variants[0].layers.body.inspection.sha256 = '0'.repeat(64)), inspect), /inconsistent Character asset/)
-await assert.rejects(readCharacterLibraryZip(zip, async (blob) => ({ ...await inspect(blob), width: 1024 })), /512|dimensions|canvas/i)
+await assert.rejects(readCharacterLibraryZip(zip, async (blob) => ({ ...await inspect(blob), width: 1024 })), /asset inspection mismatch/i)
 let decodes = 0
 const hugeHeader = pngHeader.slice()
 new DataView(hugeHeader.buffer).setUint32(16, 100_000)
 const hugeImage = new Blob([hugeHeader, 'fixture-art-one'], { type: 'image/png' })
 const oversized = structuredClone(snapshot)
 oversized.assets[0].blob = hugeImage
-await assert.rejects(exportCharacterLibraryZip(oversized, async (blob) => { decodes++; return inspect(blob) }), /PNG header or canvas dimensions/)
+await assert.rejects(exportCharacterLibraryZip(oversized, async (blob) => { decodes++; return inspect(blob) }), /PNG.*4096/)
 assert.equal(decodes, 0)
 const invalidInstalled = structuredClone(snapshot)
 ;(invalidInstalled.entries[2].data.pack as typeof pack).assets[0].sha256 = '0'.repeat(64)

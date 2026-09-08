@@ -8,6 +8,7 @@ import {
   type CharacterDraftAsset,
 } from '../domain/character.ts'
 import { copyCharacter, createCharacterDraft, migrateCharacterDraft, validateCharacterAssetInspection } from './character-creation.ts'
+import { validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
 import {
   CharacterRevisionConflict,
   type AssetRepositoryFactory,
@@ -197,11 +198,13 @@ export function createCharacterEditor(
       return record.character
     },
     /** Inspects, validates, and stores the Blob in the active Character's asset scope before any command runs. */
-    async stageAsset(blob: Blob, filename: string, source: CharacterDraftAsset['source'], inspection?: CharacterAssetInspection): Promise<Omit<CharacterDraftAsset, 'canonicalSha256'>> {
+    async stageAsset(blob: Blob, filename: string, source: CharacterDraftAsset['source'], inspection?: CharacterAssetInspection, purpose: 'layer' | 'reference' = 'layer'): Promise<Omit<CharacterDraftAsset, 'canonicalSha256'>> {
       const { character } = store.getState()
       if (!character) throw new Error('No Character is open')
+      if (purpose === 'reference') await validateReferencePng(blob)
       const inspected = inspection ?? await inspect(blob)
-      validateCharacterAssetInspection(inspected)
+      if (purpose === 'reference') validateReferenceInspection(inspected)
+      else validateCharacterAssetInspection(inspected)
       const repository = assets(characterAssetScope(character.packId))
       if (!await repository.get(inspected.sha256)) await repository.put(inspected.sha256, blob)
       return { blob, filename, source, inspection: inspected }

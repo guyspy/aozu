@@ -10,6 +10,7 @@ export function readWorkspaceView(document: Document) {
   const page = document.querySelector<HTMLElement>('main[data-workspace-view]')
   if (!page) return null
   const view = page.dataset
+  const referenceView = page.querySelector<HTMLElement>('[data-reference-view]')?.dataset.referenceView
   return {
     surface: view.workspaceView,
     characterId: view.characterId ?? null,
@@ -18,7 +19,8 @@ export function readWorkspaceView(document: Document) {
     category: view.category ?? null,
     viewedVariantId: view.variantId ?? null,
     previewMode: view.previewMode ?? null,
-    panel: view.panel ?? null,
+    panel: referenceView ? 'reference' : view.panel ?? null,
+    ...(referenceView ? { referenceView } : {}),
     hasUncommittedInput: view.hasUncommittedInput === 'true',
     alignmentControls: [...page.querySelectorAll<HTMLButtonElement>('button[data-alignment-mode]')].map((button) => ({
       mode: button.dataset.alignmentMode,

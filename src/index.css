@@ -1251,3 +1251,25 @@ button.gate-action {
     transition: none;
   }
 }
+
+/* Reference sheets share the workshop shell and the collection's parchment cards. */
+.model-sheet-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+.model-sheet-height { display: grid; gap: 0.35rem; font-size: 0.875rem; }
+.model-sheet-height > span { display: flex; align-items: center; gap: 0.4rem; }
+.model-sheet-height input { width: 10rem; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.4rem 0.6rem; background: var(--background); }
+.model-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.85rem; }
+.model-sheet-card { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 0.7rem; border: 1px solid #b58b58; border-radius: 0.85rem; background: #fff0c933; }
+.model-sheet-card h3 { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }
+.model-sheet-art { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 1px solid var(--border); border-radius: 0.5rem; background: #fff; }
+.model-sheet-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; color: var(--muted-foreground); font-size: 0.875rem; background: #fffaf066; border-style: dashed; }
+.model-sheet-empty input, .model-sheet-replace input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.model-sheet-empty:focus-within, .model-sheet-replace:focus-within { outline: 2px solid var(--ring); outline-offset: 3px; }
+.model-sheet-state { font-size: 0.75rem; color: var(--muted-foreground); }
+.model-sheet-detail[data-side=right] { width: min(100%, 44rem); max-width: 44rem; }
+.model-sheet-calibration { position: relative; flex: none; align-self: center; background: #fff; border: 1px solid var(--border); }
+.model-sheet-guide { position: absolute; inset-inline: 0; border-top: 1px dashed #ad4617; pointer-events: none; }
+.model-sheet-guide span { position: absolute; left: 0; bottom: 0; padding: 0.05rem 0.3rem; background: #fffef2ee; color: #803012; font-size: 0.7rem; }
+.model-sheet-guide.is-feet { border-color: #286647; }
+.model-sheet-guide.is-feet span { color: #286647; }
+.model-sheet-replace { position: relative; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; }
+@media (max-width: 699px) { .model-sheet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; } }

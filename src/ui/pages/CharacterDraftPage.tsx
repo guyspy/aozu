@@ -7,7 +7,8 @@ import { useStore } from 'zustand'
 import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
-import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
+import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceView } from '@/core/domain/character.ts'
+import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
@@ -75,7 +76,7 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, saveAs, deleteCharacter }: {
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
@@ -83,13 +84,15 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
+  replaceReference(view: CharacterReferenceView, blob: Blob): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
   deleteCharacter(): Promise<void>
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
-  const category = characterCategories.find(({ id }) => id === step)
+  const isModelSheet = step === 'model-sheet'
+  const category = isModelSheet ? characterCategories[0] : characterCategories.find(({ id }) => id === step)
   const activeCharacterId = useStore(editor.store, (state) => state.activeCharacterId)
   const character = useStore(editor.store, (state) => state.character)
   const saveStatus = useStore(editor.store, (state) => state.saveStatus)
@@ -164,7 +167,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       .finally(() => { if (refreshingRevision.current === externalRevision) refreshingRevision.current = undefined })
   }, [activeCharacterId, characterId, editor, externalRevision, local, profileForm, saveStatus])
   const assetKey = useMemo(() => committed ? characterDraftAtlasKey(committed) : undefined, [committed])
-  const fitGroup = category?.group === 'expression' || category?.group === 'outfit' ? category.group : undefined
+  const fitGroup = !isModelSheet && (category?.group === 'expression' || category?.group === 'outfit') ? category.group : undefined
   const fitKey = committed && assetKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${assetKey}` : undefined
   useEffect(() => {
     if (!fitKey || !fitGroup || !variantId) return
@@ -315,6 +318,24 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     setProfileForm(undefined)
   }
 
+  const saveFeedback = <span role="status" title={saveError} className={`ml-1 text-xs ${saveStatus === 'failed' || saveStatus === 'conflict' ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {t(persistedRevision === 0 && saveStatus === 'saved' ? 'books.unsaved' : `characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
+              {externalRevision && <> · <button type="button" className="underline" onClick={() => { setLocal(undefined); setProfileForm(undefined); void runBusy('reload', () => editor.reload()) }}>{t('characterDraft.status.reload')}</button></>}
+              {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
+              {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
+            </span>
+
+  const actions = <div className="workbench-footer">
+          <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
+            {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo, () => void editor.undo())}
+            {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo, () => void editor.redo())}
+            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('draft.download')} />
+            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
+            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
+            {saveFeedback}
+          </div></TooltipProvider>
+        </div>
+
   const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')} inert={profileOpen ? true : undefined} aria-hidden={profileOpen}>
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
@@ -454,37 +475,34 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </div>
         {!hasBase && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
         </div>
-        <div className="workbench-footer">
-          <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
-            {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo, () => void editor.undo())}
-            {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo, () => void editor.redo())}
-            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('draft.download')} />
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
-            <span role="status" title={saveError} className={`ml-1 text-xs ${saveStatus === 'failed' || saveStatus === 'conflict' ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {t(persistedRevision === 0 && saveStatus === 'saved' ? 'books.unsaved' : `characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
-              {externalRevision && <> · <button type="button" className="underline" onClick={() => { setLocal(undefined); setProfileForm(undefined); void runBusy('reload', () => editor.reload()) }}>{t('characterDraft.status.reload')}</button></>}
-              {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
-              {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
-            </span>
-          </div></TooltipProvider>
-        </div>
+        {actions}
       </section>
 
   return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
     <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
-      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={category.id}
+      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : category.id}
       data-variant-id={selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={profileOpen ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
       <aside className="character-spell-guide" aria-labelledby="character-spell-title">
         <div className="spell-icon"><AozuIcon name="book" /></div>
         <div className="min-w-0 flex-1">
-          <h1 id="character-spell-title" className="font-heading text-2xl font-semibold">{t('characterDraft.title')}</h1>
-          <p>{t('characterDraft.description')}</p>
+          <h1 id="character-spell-title" className="font-heading text-2xl font-semibold">{t(isModelSheet ? 'modelSheet.title' : 'characterDraft.title')}</h1>
+          <p>{t(isModelSheet ? 'modelSheet.description' : 'characterDraft.description')}</p>
         </div>
       </aside>
 
+      <nav className="my-3 flex shrink-0 gap-1" aria-label={t('modelSheet.mode')}>
+        {(['expressions', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={(mode === 'model-sheet') === isModelSheet ? 'secondary' : 'ghost'} aria-current={(mode === 'model-sheet') === isModelSheet ? 'page' : undefined}
+          onClick={() => { revert(); setProfileForm(undefined); setProfileOpen(false); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : 'modelSheet.appearance')}</Button>)}
+      </nav>
+      {isModelSheet ? <>
+        <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
+          upload={(view, file) => void runBusy('reference', async () => { await replaceReference(view, file); revert() })}
+          useCurrent={previewLayers.length ? () => void runBusy('reference', async () => { await replaceReference('front', await exportCharacterPng(draft)); revert() }) : undefined} />
+        {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
+        {actions}
+      </> :
       <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${profileOpen ? 'is-profile-open' : ''}`}>
       <section className="character-stage-panel rounded-2xl border bg-background">
         <div className="character-stage-heading">
@@ -575,7 +593,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       {narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
         {workbench}
       </SheetContent> : workbench}
-      </div>
+      </div>}
     </main>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
       <AlertDialogContent>

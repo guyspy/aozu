@@ -14,6 +14,9 @@ import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
   CHARACTER_GENERATION_CANVAS,
+  CHARACTER_REFERENCE_VIEWS,
+  type CharacterReferenceView,
+  type CharacterReference,
   CHARACTER_RESIZE_MODES,
   CHARACTER_RIG,
   NO_CHARACTER_NORMALIZATION,
@@ -46,6 +49,7 @@ import {
   updateCharacterProfile,
   saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
+import { updateCharacterModelSheet } from './core/application/character-model-sheet.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
@@ -61,6 +65,34 @@ const readDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
   reader.onerror = () => reject(reader.error)
   reader.readAsDataURL(blob)
 })
+
+const pngFromDataUrl = (dataUrl: string) => {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
+  if (!match || dataUrl.length > 7_100_000) throw new Error('Expected a PNG data URL under 5 MiB')
+  return new Blob([Uint8Array.from(atob(match[1]), (character) => character.charCodeAt(0))], { type: 'image/png' })
+}
+const describeModelSheet = (character: CharacterDraft) => ({
+  heightCm: character.modelSheet?.heightCm ?? null,
+  views: Object.fromEntries(Object.entries(character.modelSheet?.views ?? {}).map(([view, { asset, ...reference }]) => [view, {
+    ...reference, filename: asset.filename, sha256: asset.inspection.sha256, width: asset.inspection.width, height: asset.inspection.height,
+  }])),
+})
+const MODEL_SHEET_POLICY = {
+  tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
+  input: { mediaType: 'image/png', maxBytes: 5 * 1024 * 1024, maxWidth: 4096, maxHeight: 4096, background: 'opaque or transparent', preserveOriginalCanvas: true },
+  instruction: 'One complete full-body reference per view, same outfit and relaxed standing pose. Preserve identity and proportions. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
+}
+interface ModelSheetInput {
+  characterId: string
+  expectedRevision: number
+  heightCm?: number | null
+  view?: CharacterReferenceView
+  notes?: string
+  guides?: CharacterReference['guides'] | null
+  filename?: string
+  dataUrl?: string
+  expectedAssetSha256?: string | null
+}
 
 type CharacterBounds = NonNullable<CharacterAssetInspection['visibleBounds']>
 type CharacterAlignmentMeasurement = ReturnType<typeof measureCharacterMaskAlignment>
@@ -137,6 +169,7 @@ const CHARACTER_WEBMCP_TRIGGERS = [
   'navigate-character',
   'inspect-character-contract',
   'update-character-profile',
+  'update-character-model-sheet',
   'replace-character-asset',
   'repair-character-asset',
   'set-character-variant-selection',
@@ -170,6 +203,7 @@ export function createApplication(document: Document) {
       'companion.update-collection-profile': updateCollectionProfile,
       'companion.navigate-character': navigateCharacter,
       'companion.update-character-profile': updateProfile,
+      'companion.update-character-model-sheet': (input) => updateModelSheet(input),
       'companion.set-character-variant-selection': setCharacterSelection,
       'companion.create-local-companion': storyModeUnavailable,
       'companion.inspect-experience-contract': storyModeUnavailable,
@@ -333,6 +367,14 @@ export function createApplication(document: Document) {
       if (!result.data.accepted) throw new Error('rejection' in result.data ? result.data.rejection?.message : 'Character asset was rejected')
       return result.data
     },
+    async replaceCharacterReference(characterId: string, view: CharacterReferenceView, blob: Blob) {
+      await editor.open(characterId)
+      const { character, revision } = activeCharacter()
+      return updateModelSheet({ characterId, expectedRevision: revision, view,
+        filename: blob instanceof File ? blob.name : `${view}.png`,
+        expectedAssetSha256: character.modelSheet?.views[view]?.asset.inspection.sha256 ?? null,
+      }, blob, 'user')
+    },
     async deleteCharacter(characterId: string) {
       await editor.close(characterId)
       await characterDrafts.delete(characterId)
@@ -370,7 +412,7 @@ export function createApplication(document: Document) {
   const characterPath = (characterId: string, group: CharacterVariantGroup = 'expression', variantId?: string) =>
     `/characters/${encodeURIComponent(characterId)}/${categoryFor(group)}${variantId && group !== 'body' ? `/${encodeURIComponent(variantId)}` : ''}`
   const routeSelection = (path: string) => {
-    const match = /^\/characters\/([^/]+)(?:\/(expressions|outfits|props)(?:\/([^/]+))?)?$/.exec(path)
+    const match = /^\/characters\/([^/]+)(?:\/(expressions|outfits|props|model-sheet)(?:\/([^/]+))?)?$/.exec(path)
     if (!match) return null
     try {
       return { characterId: decodeURIComponent(match[1]!), category: match[2] ?? null, variantId: match[3] ? decodeURIComponent(match[3]) : null }
@@ -425,6 +467,7 @@ export function createApplication(document: Document) {
     const character = current?.character ?? null
     const renderSnapshot = async () => {
       const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
+      if (view?.category === 'model-sheet') return unavailable('This page shows reference art. Read the visible model sheet and open a view for visual review; the appearance composite is a separate image.')
       if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
       if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
       const state = editor.store.getState()
@@ -464,6 +507,7 @@ export function createApplication(document: Document) {
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
       { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
+      { destination: 'character-model-sheet', path: `/characters/${encodeURIComponent(character.id)}/model-sheet` },
     ] : [])]
     const nextActions = character ? characterNextActions(character) : [{
       tool: 'navigate_character', required: false, reason: records.length ? 'Open a Character before editing its assets.' : 'Open a new Character workshop.', input: records.length ? { destination: 'characters' } : { destination: 'character-expressions', characterId: 'new' },
@@ -489,6 +533,7 @@ export function createApplication(document: Document) {
           description: character.description ?? '',
           backstory: character.backstory ?? '',
           attributes: character.attributes ?? {},
+          modelSheet: describeModelSheet(character),
           collection: await collectionFor(character.id),
           revision: current.version,
           updatedAt: character.updatedAt,
@@ -498,15 +543,15 @@ export function createApplication(document: Document) {
         ...(includeSnapshot ? { snapshot: await renderSnapshot() } : {}),
         history: historyStatus(),
         navigation,
-        assetPolicy: CHARACTER_ASSET_POLICY,
+        assetPolicy: view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
       },
-      nextActions,
+      nextActions: view?.category === 'model-sheet' ? [] : nextActions,
     }
   }
 
   async function navigateCharacter(rawInput: unknown) {
     const { destination, characterId, variantId } = rawInput as {
-      destination: 'characters' | 'character-expressions' | 'character-outfits' | 'character-props'
+      destination: 'characters' | 'character-expressions' | 'character-outfits' | 'character-props' | 'character-model-sheet'
       characterId?: string
       variantId?: string
     }
@@ -515,6 +560,10 @@ export function createApplication(document: Document) {
     }
     const character = characterId ? await editor.open(characterId) : null
     if (!character) throw new Error('A valid Character ID is required for this destination')
+    if (destination === 'character-model-sheet') {
+      const path = `/characters/${encodeURIComponent(character.id)}/model-sheet`
+      return { status: 'ok', data: { path }, effects: { navigation: { path, mode: 'push', reason: 'Open the Character model sheet.' } } }
+    }
     const group = destination === 'character-expressions' ? 'expression' : destination === 'character-outfits' ? 'outfit' : 'prop'
     if (variantId && !character.variants.some((variant) => variant.group === group && variant.id === variantId)) throw new Error('Character variant not found')
     const path = characterPath(character.id, group, variantId)
@@ -831,6 +880,8 @@ export function createApplication(document: Document) {
             selected: draft.selected,
             revision: version,
           },
+          modelSheet: describeModelSheet(draft),
+          modelSheetPolicy: MODEL_SHEET_POLICY,
           registrationFrame: characterRegistrationFrame(draft),
           canonicalReference: canonical ? {
             filename: canonical.filename,
@@ -874,6 +925,41 @@ export function createApplication(document: Document) {
     normalization?: CharacterNormalization
   }
 
+  async function updateModelSheet(rawInput: unknown, providedBlob?: Blob, source: 'user' | 'agent' = 'agent') {
+    const input = rawInput as ModelSheetInput
+    const { characterId, expectedRevision, view } = input
+    if (view !== undefined && !CHARACTER_REFERENCE_VIEWS.includes(view)) throw new Error('Unknown reference view')
+    if (input.heightCm === undefined && input.notes === undefined && input.guides === undefined && !input.dataUrl && !providedBlob) throw new Error('No model sheet changes supplied')
+    if (!view && (input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob)) throw new Error('Choose a reference view')
+    await editor.open(characterId)
+    const { character, revision } = activeCharacter()
+    if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
+    const previous = view ? character.modelSheet?.views[view] : undefined
+    const blob = providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
+    if (blob && (input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null) || !input.filename?.trim() || input.filename.length > 200)) throw new Error('Reference changed or filename is invalid; inspect it again')
+    const asset = blob ? await editor.stageAsset(blob, input.filename!, source, undefined, 'reference') : undefined
+    await editor.dispatch((current) => {
+      if (current.id !== character.id) throw new Error('Active Character changed; inspect it again')
+      const sheet = current.modelSheet ?? { views: {} }
+      const reference = view ? sheet.views[view] : undefined
+      if (view && !asset && !reference) throw new Error('Add reference art before setting its notes or guides')
+      return updateCharacterModelSheet(current, {
+        ...sheet,
+        ...(input.heightCm !== undefined ? { heightCm: input.heightCm ?? undefined } : {}),
+        views: view ? { ...sheet.views, [view]: {
+          ...reference,
+          ...(asset ? { asset, guides: undefined } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          ...(input.guides !== undefined ? { guides: input.guides ?? undefined } : {}),
+        } as CharacterReference } : sheet.views,
+      })
+    }, expectedRevision)
+    const saved = activeCharacter().character
+    const path = `/characters/${encodeURIComponent(saved.id)}/model-sheet`
+    return { status: 'ok', data: { characterId: saved.id, revision: settledRevision('Model sheet'), modelSheet: describeModelSheet(saved) },
+      effects: { navigation: { path, mode: 'push', reason: 'Review the Character model sheet.' } } }
+  }
+
   const replaceCharacterAssetTool = (rawInput: unknown) => mutateCharacterAsset('replace', rawInput as CharacterAssetMutationInput)
   const repairCharacterAssetTool = (rawInput: unknown) => mutateCharacterAsset('repair', rawInput as CharacterAssetMutationInput)
 
@@ -904,16 +990,7 @@ export function createApplication(document: Document) {
       }
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
-      let submitted = providedBlob
-      if (!submitted) {
-        const dataUrl = input.dataUrl ?? ''
-        const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
-        if (!match || dataUrl.length > 7_100_000) throw new Error('Expected a PNG data URL under 5 MiB')
-        const binary = atob(match[1])
-        const bytes = new Uint8Array(binary.length)
-        for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
-        submitted = new Blob([bytes], { type: 'image/png' })
-      }
+      const submitted = providedBlob ?? pngFromDataUrl(input.dataUrl ?? '')
       const submittedInspection = await inspectCharacterImage(submitted)
       const registrationFrame = characterRegistrationFrame(current)
       const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined

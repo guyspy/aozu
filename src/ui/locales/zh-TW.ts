@@ -1,6 +1,18 @@
 import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
+  modelSheet: {
+    title: '設定集', appearance: '造型', mode: '角色工作區', fullBody: '全身四視圖',
+    description: '把同一個角色的外形定下來。加入參考圖，或請 ChatGPT 協助補齊。',
+    count: '{{count}} / 4 個視角', height: '身高（cm）', unknownHeight: '尚未設定',
+    brief: '使用同一套造型與自然站姿，保留完整頭部與腳底。',
+    views: { front: '正面', 'three-quarter': '¾ 側前方', side: '側面', back: '背面' },
+    add: '加入參考圖', uploadView: '上傳{{view}}參考圖', openView: '開啟{{view}}參考圖',
+    missing: '待補圖', uncalibrated: '身高基準尚未校正', calibrated: '身高基準已校正',
+    useCurrent: '使用目前造型', scaleNote: '身高屬於角色本身。每張圖可校正頭頂與腳底，讓圖片留白、帽子與道具不影響比例。PNG · 最大 4096 × 4096 · 5 MiB。',
+    calibrateHelp: '將兩條線移到頭頂與腳底；帽子和手持道具不計入身高。',
+    head: '頭頂', feet: '腳底', notes: '視角註記', replace: '替換 PNG', saveReference: '儲存註記與基準',
+  },
   common: { close: '關閉', productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
   navigation: { primary: '主要導覽', home: '首頁', notFound: '找不到這個頁面' },
   startup: {

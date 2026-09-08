@@ -1,8 +1,12 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 
+import { mapCharacterAssets } from '../../core/application/character-assets.ts'
+import { validateModelSheet, validateReferenceInspection, validateReferencePng } from '../../core/application/character-model-sheet.ts'
 import { buildCharacterPack, validateCharacterAssetInspection } from '../../core/application/character-creation.ts'
 import {
   CHARACTER_VARIANT_GROUPS,
+  type CharacterDraftAsset,
+  type CharacterModelSheet,
   CHARACTER_VARIANT_LAYERS,
   CHARACTER_RIG,
   validateCharacterVariantTransform,
@@ -68,6 +72,22 @@ export async function readCharacterDraftZip(
   const profileAttributes = attributes(raw.attributes)
   if (!Array.isArray(raw.variants)) throw new Error('Invalid Character Draft variants')
   const assetPaths = new Set(Object.keys(files).filter((path) => path.startsWith('assets/')))
+  const readAsset = async (value: unknown, expectedPath: string, reference = false): Promise<CharacterDraftAsset> => {
+    const descriptor = object(value, 'Character asset')
+    const path = string(descriptor.path, 'Character asset path', 200)
+    const bytes = files[path]
+    if (path !== expectedPath || !bytes || !assetPaths.delete(path)) throw new Error(`Character asset is missing or duplicated: ${expectedPath}`)
+    const filename = string(descriptor.filename, 'Character asset filename', 200)
+    if (descriptor.source !== 'user' && descriptor.source !== 'agent' && descriptor.source !== 'starter') throw new Error('Invalid Character asset source')
+    if (descriptor.canonicalSha256 !== undefined && (typeof descriptor.canonicalSha256 !== 'string' || !sha256Pattern.test(descriptor.canonicalSha256))) throw new Error('Invalid Character canonical hash')
+    const assetBlob = new Blob([bytes], { type: 'image/png' })
+    if (reference) await validateReferencePng(assetBlob)
+    const inspection = await inspect(assetBlob)
+    if (reference) validateReferenceInspection(inspection)
+    else validateCharacterAssetInspection(inspection)
+    return { blob: assetBlob, filename, source: descriptor.source, inspection,
+      ...(descriptor.canonicalSha256 ? { canonicalSha256: descriptor.canonicalSha256 as string } : {}) }
+  }
   const keys = new Set<string>()
   const variants: CharacterDraftVariant[] = []
   for (const value of raw.variants) {
@@ -83,31 +103,19 @@ export async function readCharacterDraftZip(
     const layers: CharacterDraftVariant['layers'] = {}
     for (const [layer, layerValue] of Object.entries(archivedLayers)) {
       if (!(CHARACTER_VARIANT_LAYERS[group] as readonly string[]).includes(layer)) throw new Error(`Invalid Character Draft layer: ${key}:${layer}`)
-      const descriptor = object(layerValue, `Character Draft asset ${key}:${layer}`)
-      const path = string(descriptor.path, `Character Draft asset path ${key}:${layer}`, 200)
-      const expectedPath = `assets/${assetId(group, id, layer as CharacterVariantLayer)}.png`
-      const bytes = files[path]
-      if (path !== expectedPath || !bytes || !assetPaths.delete(path)) throw new Error(`Character Draft asset is missing or duplicated: ${expectedPath}`)
-      const filename = string(descriptor.filename, `Character Draft asset filename ${key}:${layer}`, 200)
-      if (descriptor.source !== 'user' && descriptor.source !== 'agent' && descriptor.source !== 'starter') throw new Error(`Invalid Character Draft asset source: ${key}:${layer}`)
-      if (descriptor.canonicalSha256 !== undefined && (typeof descriptor.canonicalSha256 !== 'string' || !sha256Pattern.test(descriptor.canonicalSha256))) {
-        throw new Error(`Invalid Character Draft canonical hash: ${key}:${layer}`)
-      }
-      const assetBlob = new Blob([bytes], { type: 'image/png' })
-      const inspection = await inspect(assetBlob)
-      validateCharacterAssetInspection(inspection)
-      layers[layer as CharacterVariantLayer] = {
-        blob: assetBlob,
-        filename,
-        source: descriptor.source,
-        inspection,
-        ...(descriptor.canonicalSha256 ? { canonicalSha256: descriptor.canonicalSha256 } : {}),
-      }
+      layers[layer as CharacterVariantLayer] = await readAsset(layerValue, `assets/${assetId(group, id, layer as CharacterVariantLayer)}.png`)
     }
     const rawTransform = archived.transform === undefined ? undefined : object(archived.transform, `Character Draft transform ${key}`)
     const transform = rawTransform && { x: rawTransform.x, y: rawTransform.y, scale: rawTransform.scale } as CharacterVariantTransform
     if (transform) validateCharacterVariantTransform(transform)
     variants.push({ group, id, label, layers, ...(transform ? { transform } : {}) })
+  }
+  let modelSheet: CharacterModelSheet | undefined
+  if (raw.modelSheet !== undefined) {
+    const archived = raw.modelSheet as CharacterModelSheet<unknown>
+    validateModelSheet(archived)
+    modelSheet = { ...archived, views: Object.fromEntries(await Promise.all(Object.entries(archived.views).map(async ([view, reference]) =>
+      [view, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${view}.png`, true) }]))), }
   }
   if (assetPaths.size) throw new Error(`Character Draft contains an unreferenced asset: ${[...assetPaths][0]}`)
 
@@ -133,6 +141,7 @@ export async function readCharacterDraftZip(
       ...(backstory ? { backstory } : {}),
       ...(profileAttributes && Object.keys(profileAttributes).length ? { attributes: profileAttributes } : {}),
       variants,
+      ...(modelSheet ? { modelSheet } : {}),
       ...(headRegistration ? { headRegistration: { variantId: headRegistration.variantId as string } } : {}),
       selected: {
         ...(selected.expression ? { expression: selected.expression as string } : {}),
@@ -149,23 +158,11 @@ export async function exportCharacterDraftZip(
   atlas?: CharacterTextureAtlas,
 ): Promise<Blob> {
   const files: Record<string, Uint8Array> = {}
-  const variants = []
-  for (const { layers, ...variant } of draft.variants) {
-    const archivedLayers: Record<string, unknown> = {}
-    for (const [layer, asset] of Object.entries(layers)) {
-      const id = assetId(variant.group, variant.id, layer as CharacterVariantLayer)
-      const path = `assets/${id}.png`
-      files[path] = new Uint8Array(await asset!.blob.arrayBuffer())
-      archivedLayers[layer] = {
-        path,
-        filename: asset!.filename,
-        source: asset!.source,
-        inspection: asset!.inspection,
-        canonicalSha256: asset!.canonicalSha256,
-      }
-    }
-    variants.push({ ...variant, layers: archivedLayers })
-  }
+  const content = await mapCharacterAssets(draft, async ({ blob, ...descriptor }, key) => {
+    const path = `assets/${key}.png`
+    files[path] = new Uint8Array(await blob.arrayBuffer())
+    return { ...descriptor, path }
+  })
 
   files['draft.json'] = json({
     archiveVersion: 1,
@@ -179,7 +176,7 @@ export async function exportCharacterDraftZip(
     headRegistration: draft.headRegistration,
     selected: draft.selected,
     updatedAt: draft.updatedAt,
-    variants,
+    ...content,
   })
   try {
     const pack = buildCharacterPack(draft)
