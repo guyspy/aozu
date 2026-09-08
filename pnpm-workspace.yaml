@@ -6,6 +6,6 @@ allowBuilds:
   workerd: true
 
 minimumReleaseAgeExclude:
-  - '@aotter/mantle-runtime@0.1.0-alpha.14'
-  - '@aotter/mantle-spec@0.1.0-alpha.14'
-  - '@aotter/mantle-web@0.1.0-alpha.14'
+  - '@aotter/mantle-runtime@0.1.0-alpha.16'
+  - '@aotter/mantle-spec@0.1.0-alpha.16'
+  - '@aotter/mantle-web@0.1.0-alpha.16'
