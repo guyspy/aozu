@@ -1,24 +1,53 @@
 import { ArrowLeftIcon, BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, FolderInputIcon, PlusIcon } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 
-import type { CharacterDraft, ResolvedCharacterLayer } from '@/core/domain/character'
+import type { CharacterDraft } from '@/core/domain/character'
 import { DEFAULT_CHARACTER_COLLECTION, type CharacterCollection, type CharacterCollectionProfile } from '@/core/domain/character-collection'
 import { CharacterLibraryTransfer, type CharacterLibraryTransferProps } from '@/ui/CharacterLibraryTransfer'
 import { AozuIcon } from '@/ui/AozuIcon'
-import { CharacterRenderer } from '@/ui/CharacterRenderer'
+import { RenderStatus } from '@/ui/CharacterRenderer'
+import { useBlobUrl } from '@/ui/useBlobUrl'
 import { DataControls } from '@/ui/DataControls'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
 
 export type CharacterLibraryItem = Pick<CharacterDraft, 'id' | 'name' | 'updatedAt'> & {
-  layers: Array<ResolvedCharacterLayer & { blob: Blob }>
+  previewKey: string
 }
 
-export function CharacterLibraryPage({ characters, collections, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
+type LoadThumbnail = (id: string, previewKey: string, signal: AbortSignal) => Promise<Blob | null>
+function CharacterCardPortrait({ character, loadThumbnail }: { character: CharacterLibraryItem; loadThumbnail: LoadThumbnail }) {
+  const host = useRef<HTMLDivElement>(null)
+  const [result, setResult] = useState<{ key: string; blob?: Blob | null; failed?: boolean }>()
+  const key = `${character.id}:${character.previewKey}`
+  useEffect(() => {
+    const controller = new AbortController()
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return
+      observer.disconnect()
+      void loadThumbnail(character.id, character.previewKey, controller.signal).then(
+        (blob) => { if (!controller.signal.aborted) setResult({ key, blob }) },
+        () => { if (!controller.signal.aborted) setResult({ key, failed: true }) },
+      )
+    })
+    if (host.current) observer.observe(host.current)
+    return () => { controller.abort(); observer.disconnect() }
+  }, [character.id, character.previewKey, key, loadThumbnail])
+  const current = result?.key === key ? result : undefined
+  const src = useBlobUrl(current?.blob ?? undefined)
+  return <div ref={host} className="relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40" role="img" aria-label={character.name}>
+    {src ? <img src={src} alt="" loading="lazy" decoding="async" className="size-full object-contain" />
+      : current?.blob === null ? <div className="character-empty-placeholder absolute inset-0 p-8"><img src="/assets/placeholders/companion-body-faint.webp" alt="" /></div>
+        : <RenderStatus failed={current?.failed} />}
+  </div>
+}
+
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
   characters: CharacterLibraryItem[]
+  loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
   createCollection(name: string): Promise<CharacterCollection>
   updateCollection(id: string, profile: CharacterCollectionProfile, version: number): Promise<void>
@@ -86,7 +115,7 @@ export function CharacterLibraryPage({ characters, collections, createCollection
         {visible.length ? <div className="book-card-grid" role="list">
           {visible.map((character) => <article key={character.id} role="listitem" className="book-character-card">
             <button type="button" className="companion-card-open" aria-label={`${t('characters.edit')} ${character.name}`} onClick={() => openCharacter(character.id)}>
-              <span className="companion-card-portrait"><CharacterRenderer label={character.name} layers={character.layers} /></span>
+              <span className="companion-card-portrait"><CharacterCardPortrait character={character} loadThumbnail={loadThumbnail} /></span>
               <span className="companion-card-name">{character.name}</span>
             </button>
             <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button className="book-card-action" variant="ghost" size="icon" aria-label={t('books.characterActions', { name: character.name })}><EllipsisIcon /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="book-menu" align="end" sideOffset={4}>

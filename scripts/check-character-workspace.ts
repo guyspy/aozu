@@ -9,6 +9,7 @@ import { CharacterRevisionConflict } from '../src/core/application/ports.ts'
 let row: Entry | null = null
 let now = 1
 let writes = 0
+let assetReads: string[] = []
 const assets = new Map<string, Map<string, Blob>>()
 const runtime = {
   entries: {
@@ -36,7 +37,7 @@ const repository = createCharacterWorkspaceRepository(
   async () => runtime,
   (scope) => ({
     async put(id, blob) { const scoped = assets.get(scope) ?? new Map(); scoped.set(id, blob); assets.set(scope, scoped) },
-    async get(id) { return assets.get(scope)?.get(id) ?? null },
+    async get(id) { assetReads.push(id); return assets.get(scope)?.get(id) ?? null },
     async list() { return [...(assets.get(scope) ?? [])].map(([id, blob]) => ({ id, blob })) },
     async deleteAll() { assets.delete(scope) },
   }),
@@ -68,6 +69,49 @@ assert.deepEqual(created.character.selected.props, ['prop-2', 'prop-1'])
 assert.equal('blob' in ((row!.data.variants as Array<{ layers: { body: object } }>)[0]!.layers.body), false)
 assert.equal((row!.data.variants as Array<{ layers: { body: { blobId: string } } }>)[0]!.layers.body.blobId, 'a'.repeat(64))
 assert.equal('revision' in row!.data, false)
+
+// Metadata refreshes must not touch PNGs; previews hydrate only selected, current layers.
+const base = draft.variants[0]!.layers.body!
+const happy = draft.variants.find((variant) => variant.id === 'happy')!
+happy.layers.head = { ...base, canonicalSha256: base.inspection.sha256, inspection: { ...base.inspection, sha256: 'b'.repeat(64) } }
+const sad = draft.variants.find((variant) => variant.id === 'sad')!
+sad.layers.head = { ...base, canonicalSha256: base.inspection.sha256, inspection: { ...base.inspection, sha256: 'c'.repeat(64) } }
+draft.selected.expression = 'happy'
+await repository.put({ ...draft, id: created.character.id }, 1)
+assetReads = []
+const [summary] = await repository.listSummaries()
+assert.deepEqual(assetReads, [])
+const preview = await repository.getPreview(created.character.id)
+assert.deepEqual(assetReads.sort(), ['a'.repeat(64), 'b'.repeat(64)])
+assert.deepEqual(preview.map(({ id }) => id), ['body-base-body', 'expression-happy-head'])
+const metadata = row!.data as unknown as import('../src/core/domain/character.ts').CharacterWorkspaceData
+metadata.name = 'Renamed only'
+assert.equal((await repository.listSummaries())[0]!.previewKey, summary!.previewKey)
+metadata.variants.find((variant) => variant.id === 'happy')!.transform = { x: 10, y: 0, scale: 1 }
+assert.notEqual((await repository.listSummaries())[0]!.previewKey, summary!.previewKey)
+assetReads = []
+await assert.rejects(repository.getPreview(created.character.id, summary!.previewKey), /preview changed/)
+assert.deepEqual(assetReads, [], 'Stale thumbnail request read newer PNGs under an old cache key')
+metadata.variants.find((variant) => variant.id === 'happy')!.layers.head!.canonicalSha256 = 'stale'
+assetReads = []
+assert.equal((await repository.getPreview(created.character.id)).length, 1)
+assert.deepEqual(assetReads, ['a'.repeat(64)])
+// An outfit still validates against canonical metadata without reading the hidden body PNG.
+metadata.variants.push({ group: 'outfit', id: 'uniform', label: 'Uniform', layers: { body: {
+  ...metadata.variants.find((variant) => variant.id === 'sad')!.layers.head!,
+} } })
+metadata.selected.outfit = 'uniform'
+assetReads = []
+assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['outfit-uniform-body'])
+assert.deepEqual(assetReads, ['c'.repeat(64)])
+// A stale outfit falls back to the body without ever reading the stale PNG.
+metadata.variants.at(-1)!.layers.body!.canonicalSha256 = 'stale'
+assetReads = []
+assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['body-base-body'])
+assert.deepEqual(assetReads, ['a'.repeat(64)])
+// Restore the original fixture for the write/conflict checks below.
+row!.version = 1
+row!.data = structuredClone({ ...row!.data, name: draft.name })
 
 // Legacy metadata stays stored until the next real save; hydration drops it without writing.
 row!.data.revision = 4

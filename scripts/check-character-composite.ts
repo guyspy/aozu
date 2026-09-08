@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { renderCharacterCompositeBlob, renderCharacterCompositeDataUrl } from '../src/adapters/browser/character-image.ts'
+import { renderCharacterCompositeBlob, renderCharacterCompositeDataUrl, renderCharacterThumbnail, renderCharacterAssetThumbnail } from '../src/adapters/browser/character-image.ts'
 import { CHARACTER_RIG, type ResolvedCharacterLayer } from '../src/core/domain/character.ts'
 
 const layers: Array<ResolvedCharacterLayer & { blob: Blob }> = [
@@ -31,6 +31,9 @@ let failPaint: string | undefined
 let unavailable = false
 let failEncoding = false
 let createdCanvases = 0
+let expectedSize = { width: 512, height: 768 }
+let cropPaint: number[][] = []
+let onDecode = () => {}
 
 Object.defineProperty(globalThis, 'document', { configurable: true, value: {
   createElement(tag: string) {
@@ -46,8 +49,9 @@ Object.defineProperty(globalThis, 'document', { configurable: true, value: {
           save() { saves++ },
           restore() { restores++ },
           setTransform(...values: number[]) { transform = values },
-          drawImage(bitmap: { id: string }, x: number, y: number) {
-            assert.deepEqual([x, y], [0, 0])
+          drawImage(bitmap: { id: string }, ...coordinates: number[]) {
+            if (coordinates.length === 2) assert.deepEqual(coordinates, [0, 0])
+            else cropPaint.push(coordinates)
             if (bitmap.id === failPaint) throw new Error('Drawing failed')
             paint.push({ id: bitmap.id, transform: [...transform] })
           },
@@ -55,12 +59,12 @@ Object.defineProperty(globalThis, 'document', { configurable: true, value: {
       },
       toBlob(callback: (blob: Blob | null) => void, mime: string) {
         assert.equal(mime, 'image/png')
-        assert.deepEqual({ width: this.width, height: this.height }, CHARACTER_RIG.canvas)
+        assert.deepEqual({ width: this.width, height: this.height }, expectedSize)
         callback(failEncoding ? null : encoded)
       },
       toDataURL(mime: string) {
         assert.equal(mime, 'image/png')
-        assert.deepEqual({ width: this.width, height: this.height }, CHARACTER_RIG.canvas)
+        assert.deepEqual({ width: this.width, height: this.height }, expectedSize)
         return 'data:image/png;base64,fixture'
       },
     }
@@ -70,11 +74,13 @@ Object.defineProperty(globalThis, 'createImageBitmap', { configurable: true, val
   const id = await blob.text()
   if (id === failDecode) throw new Error('Image decoding failed')
   decoded.push(id)
-  return { id, close() { closed.push(id) } }
+  onDecode()
+  return { id, ...CHARACTER_RIG.canvas, close() { closed.push(id) } }
 } })
 
 const reset = () => {
   paint = []; decoded = []; closed = []; saves = 0; restores = 0
+  onDecode = () => {}; cropPaint = []; expectedSize = { ...CHARACTER_RIG.canvas }
   failDecode = undefined; failPaint = undefined; unavailable = false; failEncoding = false
 }
 
@@ -117,6 +123,32 @@ try {
   failEncoding = true
   await assert.rejects(() => renderCharacterCompositeBlob(layers), /Could not encode character image/)
   assert.deepEqual(closed, layers.map(({ id }) => id))
+
+  reset()
+  expectedSize = { width: 160, height: 240 }
+  await renderCharacterThumbnail(layers)
+  assert.deepEqual(paint, expectedPaint.map(({ id, transform }) => ({ id, transform: transform.map((n) => n * 160 / 512) })))
+  assert.deepEqual(closed, decoded)
+
+  reset()
+  expectedSize = { width: 80, height: 160 }
+  const bounds = { x: 30, y: 40, width: 100, height: 200 }
+  assert.equal(await renderCharacterAssetThumbnail(layers[0]!.blob, bounds), encoded)
+  assert.deepEqual(cropPaint, [[30, 40, 100, 200, 0, 0, 80, 160]])
+  await renderCharacterAssetThumbnail(layers[0]!.blob, bounds)
+  assert.equal(decoded.length, 1, 'Unchanged asset thumbnail was decoded twice')
+  assert.deepEqual(closed, decoded)
+
+  reset()
+  const aborted = new AbortController()
+  aborted.abort()
+  await assert.rejects(renderCharacterThumbnail(layers, aborted.signal), { name: 'AbortError' })
+  await assert.rejects(renderCharacterAssetThumbnail(layers[1]!.blob, bounds, aborted.signal), { name: 'AbortError' })
+  assert.deepEqual(decoded, [], 'Cancelled thumbnail decoded an original')
+  const duringDecode = new AbortController()
+  onDecode = () => duringDecode.abort()
+  await assert.rejects(renderCharacterAssetThumbnail(layers[1]!.blob, bounds, duringDecode.signal), { name: 'AbortError' })
+  assert.deepEqual(closed, decoded, 'Cancelled thumbnail leaked its bitmap')
 } finally {
   if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
   else Reflect.deleteProperty(globalThis, 'document')

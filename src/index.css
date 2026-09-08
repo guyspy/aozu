@@ -1243,36 +1243,11 @@ button.gate-action {
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Character layer crossfade (unchanged from main)
-   --------------------------------------------------------------------------- */
-
-.character-layer-exit {
-  animation: 180ms ease-out both character-fade-out;
-}
-
-.character-layer-enter {
-  animation: 180ms ease-out both character-fade-in;
-}
-
-@keyframes character-fade-out {
-  to { opacity: 0; }
-}
-
-@keyframes character-fade-in {
-  from { opacity: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .draft-workshop-grid,
   .character-stage-content,
   .character-profile-panel,
   .doll-workbench {
     transition: none;
-  }
-
-  .character-layer-exit,
-  .character-layer-enter {
-    animation: none;
   }
 }

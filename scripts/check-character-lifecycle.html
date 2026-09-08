@@ -8,9 +8,8 @@
   import { createRoot } from 'react-dom/client'
   import { MemoryRouter } from 'react-router'
   import { createCharacterEditor } from '/src/core/application/character-editor.ts'
-  import { createCharacterDraft, resolveCharacterDraftLayers } from '/src/core/application/character-creation.ts'
+  import { createCharacterDraft } from '/src/core/application/character-creation.ts'
   import { AppRoutes } from '/src/ui/routes/AppRoutes.tsx'
-  import { createApplication } from '/src/bootstrap.ts'
   import '/src/ui/i18n.ts'
   import '/src/index.css'
 
@@ -40,30 +39,34 @@
   }
   const characters = await Promise.all([makeCharacter('a', '#b44'), makeCharacter('b', '#46b')])
   const reads = new Map(characters.map((c) => [c.id, deferred()]))
-  const atlases = new Map(characters.map((c) => [c.id, deferred()]))
+  const decodes = new Map(characters.map((c) => [c.variants[0].layers.body.blob, deferred()]))
+  const nativeBitmap = globalThis.createImageBitmap
+  let failDecode = false
+  globalThis.createImageBitmap = async (blob, ...args) => {
+    if (failDecode) throw new Error('Simulated image decode failure')
+    await decodes.get(blob)?.promise
+    return nativeBitmap(blob, ...args)
+  }
   const editor = createCharacterEditor({
     get: async (id) => { await reads.get(id).promise; return { character: characters.find((c) => c.id === id), version: 1 } },
   }, () => {}, async () => { throw new Error('Fixture inspections already exist') })
-  let failAtlas = false, navigateTo
+  let navigateTo
   const application = {
     editor,
     webmcp: { getState: () => ({ status: 'ready', toolCount: 0 }), setNavigate: (navigate) => { navigateTo = navigate; return () => {} }, subscribe: () => () => {} },
     subscribeCharacterChanges: () => () => {},
-    loadCharacterLibrary: async () => ({ collections: [{ id: 'default', name: 'My characters', description: '', backstory: '', version: 0, updatedAt: 0, characterIds: characters.map((c) => c.id) }], characters: characters.map((c) => ({ ...c, revision: 1, layers: resolveCharacterDraftLayers(c) })) }),
-    compileCharacterAtlas: (c) => failAtlas ? Promise.reject(new Error('Simulated atlas failure')) : atlases.get(c.id).promise,
+    loadCharacterLibrary: async () => ({ collections: [{ id: 'default', name: 'My characters', description: '', backstory: '', version: 0, updatedAt: 0, characterIds: characters.map((c) => c.id) }], characters: characters.map((c) => ({ id: c.id, name: c.name, revision: 1, updatedAt: c.updatedAt, previewKey: c.id })) }),
+    loadCharacterThumbnail: async (id) => characters.find((c) => c.id === id).variants[0].layers.body.blob,
     characterFitSuggestion: async () => ({ status: 'aligned' }),
   }
   const root = createRoot(document.querySelector('#root'))
-  root.render(h(StrictMode, null, h(MemoryRouter, { initialEntries: ['/characters'] }, h(AppRoutes, { application }))))
-  const releaseAtlas = (character) => {
-    const frame = { frame: { x: 0, y: 0, w: 512, h: 768 }, rotated: false, trimmed: false, spriteSourceSize: { x: 0, y: 0, w: 512, h: 768 }, sourceSize: { w: 512, h: 768 } }
-    atlases.get(character.id).resolve({ image: character.variants[0].layers.body.blob, data: { frames: { 'body-base-body': frame, 'expression-happy-head': frame }, meta: { app: 'Companion', version: '1', image: 'character.atlas.webp', format: 'RGBA8888', size: { w: 512, h: 768 }, scale: '1' } } })
-  }
+  root.render(h(StrictMode, null, h(MemoryRouter, { initialEntries: ['/collections/default'] }, h(AppRoutes, { application }))))
+  const releaseDecode = (character) => decodes.get(character.variants[0].layers.body.blob).resolve()
   try {
     for (const character of characters) {
       await ready(() => document.querySelector('.companion-card-open'))
       const cards = [...document.querySelectorAll('.companion-card-open')]
-      cards.find((button) => button.textContent === character.name).click()
+      cards.find((button) => button.querySelector('.companion-card-name').textContent === character.name).click()
       await wait(80)
       check(!document.querySelector('.character-stage-canvas'), 'Pending character read must not show the previous editor')
       reads.get(character.id).resolve()
@@ -72,12 +75,12 @@
         document.querySelector('.character-stage-heading button').click()
         await ready(() => document.querySelector('.doll-workbench'))
       }
-      check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')), 'Preview must show loading until its atlas is ready')
-      check(Boolean(document.querySelector('.variant-preview [role="status"]')), 'Thumbnails must show loading until their atlas is ready')
-      check(!document.querySelector('.character-stage-canvas img, .variant-preview img[alt="Happy"]'), 'Pending atlas must never display raw images first')
-      releaseAtlas(character)
+      check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')), 'Preview must show loading until its pixels are ready')
+      check(Boolean(document.querySelector('.variant-preview [role="status"]')), 'Thumbnails must show loading until their pixels are ready')
+      check(!document.querySelector('.character-stage-canvas img, .variant-preview img[alt="Happy"]'), 'Pending decode must never display raw images first')
+      releaseDecode(character)
       await ready(() => document.querySelector('.character-stage-canvas canvas') && !document.querySelector('.character-stage-canvas [role="status"]'))
-      await ready(() => document.querySelector('.variant-preview img[alt="Happy"]')?.style.visibility === 'visible')
+      await ready(() => document.querySelector('.variant-preview img[alt="Happy"]')?.naturalWidth > 0)
       const stage = document.querySelector('.character-stage-canvas canvas')
       const thumbnail = document.querySelector('.variant-preview img[alt="Happy"]')
       editor.store.setState({ character: { ...editor.store.getState().character, selected: { props: [] } } })
@@ -89,36 +92,29 @@
       document.querySelector('header button').click()
     }
     await ready(() => document.querySelector('.book-page'))
-    for (const character of characters) atlases.set(character.id, deferred())
+    for (const character of characters) decodes.set(character.variants[0].layers.body.blob, deferred())
     navigateTo('/characters/a/expressions')
     await ready(() => document.querySelector('.character-stage-canvas [role="status"]'))
     navigateTo('/characters/b/expressions')
     await ready(() => document.querySelector('.character-stage-canvas [role="img"]')?.getAttribute('aria-label') === 'b')
-    releaseAtlas(characters[0])
+    releaseDecode(characters[0])
     await wait(80)
-    check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')) && !document.querySelector('.character-stage-canvas canvas, .character-stage-canvas img'), 'Late previous-character atlas escaped into the new character')
-    releaseAtlas(characters[1])
+    check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')) && document.querySelector('.character-stage-canvas canvas')?.parentElement.style.visibility === 'hidden', 'Late previous-character decode escaped into the new character')
+    releaseDecode(characters[1])
     await ready(() => document.querySelector('.character-stage-canvas canvas') && !document.querySelector('.character-stage-canvas [role="status"]'))
-    failAtlas = true
+    failDecode = true
     navigateTo('/characters/a/expressions')
-    await ready(() => document.querySelector('[role="alert"]')?.textContent === 'Simulated atlas failure')
-    check(!document.querySelector('.character-stage-canvas'), 'Failed atlas must not fall back to raw art')
-    failAtlas = false
-    ;[...document.querySelectorAll('button')].find((button) => button.textContent === 'Retry').click()
+    await ready(() => document.querySelector('.character-stage-canvas [role="alert"]'))
+    check(document.querySelector('.character-stage-canvas canvas')?.parentElement.style.visibility === 'hidden', 'Failed decode must not fall back to raw art')
+    failDecode = false
+    ;document.querySelector('.character-stage-canvas button[aria-label="Retry"]').click()
     await ready(() => document.querySelector('.character-stage-canvas canvas') && !document.querySelector('.character-stage-canvas [role="status"]'))
-    const compile = createApplication(document.implementation.createHTMLDocument()).compileCharacterAtlas
-    const broken = structuredClone(characters[0])
-    for (const variant of broken.variants) for (const asset of Object.values(variant.layers)) asset.blob = new Blob(['invalid image'])
-    const rejected = compile(broken)
-    await rejected.catch(() => {})
-    const retried = compile(characters[0])
-    check(retried !== rejected && Boolean(await retried), 'Rejected atlas stayed cached and prevented retry')
-    check(compile(characters[0]) === retried, 'Successful atlas was not reused')
-    result.textContent = failures.length ? `FAIL: ${failures.join('; ')}` : 'PASS: loading without raw-image flash, one stable canvas/thumbnail, StrictMode, late atlas cancellation, and failure/retry'
+    result.textContent = failures.length ? `FAIL: ${failures.join('; ')}` : 'PASS: loading without raw-image flash, one stable canvas/thumbnail, StrictMode, late decode cancellation, and failure/retry'
   } catch (error) {
     result.textContent = `FAIL: ${error.message}`
     throw error
   } finally {
+    globalThis.createImageBitmap = nativeBitmap
     if (result.textContent.startsWith('PASS')) root.unmount()
   }
 </script>

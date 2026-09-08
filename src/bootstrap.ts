@@ -35,7 +35,6 @@ import {
   hasCurrentCharacterLayer,
   isCharacterDraftAssetCurrent,
   characterAssetPlacement,
-  characterDraftAtlasKey,
   characterAssetInspectionRejection,
   characterRegistrationFrame,
   resolveCharacterDraftAtlasSources,
@@ -49,8 +48,7 @@ import {
 } from './core/application/character-creation.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
-import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
-import { compileCharacterTextureAtlas } from './adapters/browser/character-atlas.ts'
+import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
 import { createCharacterWorkspaceEvents } from './adapters/browser/character-workspace-events.ts'
 import { exportCharacterDraftZip, readCharacterDraftZip } from './adapters/zip/character-draft.ts'
@@ -157,19 +155,9 @@ export function createApplication(document: Document) {
   const characterChanges = createCharacterWorkspaceEvents(browser && 'BroadcastChannel' in browser
     ? new browser.BroadcastChannel('aozu-character-workspaces')
     : null)
-  // Derived atlas output lives outside the tracked Character and outside the Mantle entry.
-  let authoringAtlas: { key: string; value: ReturnType<typeof compileCharacterTextureAtlas> } | undefined
-  const compileAuthoringAtlas = (draft: CharacterDraft) => {
-    const key = characterDraftAtlasKey(draft)
-    if (authoringAtlas?.key !== key) {
-      const value = compileCharacterTextureAtlas(resolveCharacterDraftAtlasSources(draft)).catch((error) => {
-        if (authoringAtlas?.value === value) authoringAtlas = undefined
-        throw error
-      })
-      authoringAtlas = { key, value }
-    }
-    return authoringAtlas.value
-  }
+  // Only small, completed thumbnails survive navigation; originals and GPU textures belong to the editor.
+  const thumbnails = new Map<string, Blob | null>()
+  let thumbnailQueue = Promise.resolve()
   const authoringPlan = compileAuthoringBackbone()
   let authoringRuntime: Promise<MantleRuntime> | undefined
   const invokeContext = { user: null, staff: null, env: {} }
@@ -259,18 +247,25 @@ export function createApplication(document: Document) {
     editor,
     subscribeCharacterChanges: characterChanges.subscribe,
     async loadCharacterLibrary() {
-      const records = await listCharacterDrafts()
-      return {
-        collections: await collections.list(),
-        characters: records.map(({ character, version }) => ({
-          id: character.id,
-          name: character.name,
-          description: character.description ?? '',
-          revision: version,
-          updatedAt: character.updatedAt,
-          layers: resolveCharacterDraftLayers(character),
-        })),
-      }
+      await migrateLegacyCharacters()
+      return { collections: await collections.list(), characters: await storedCharacterDrafts.listSummaries() }
+    },
+    loadCharacterThumbnail(id: string, previewKey: string, signal: AbortSignal): Promise<Blob | null> {
+      const key = `${id}:${previewKey}`
+      // ponytail: one thumbnail decode at a time; increase concurrency only if visible cards lag.
+      const result = thumbnailQueue.then(async () => {
+        signal.throwIfAborted()
+        if (thumbnails.has(key)) return thumbnails.get(key)!
+        const layers = await storedCharacterDrafts.getPreview(id, previewKey)
+        signal.throwIfAborted()
+        const blob = layers.length ? await renderCharacterThumbnail(layers, signal) : null
+        signal.throwIfAborted()
+        thumbnails.set(key, blob)
+        if (thumbnails.size > 64) thumbnails.delete(thumbnails.keys().next().value!)
+        return blob
+      })
+      thumbnailQueue = result.then(() => {}, () => {})
+      return result
     },
     async createCollection(name: string) {
       const collection = await collections.create(name)
@@ -305,7 +300,7 @@ export function createApplication(document: Document) {
       const activeId = editor.store.getState().activeCharacterId
       if (activeId) await editor.close(activeId)
       legacyCharactersMigrated = undefined
-      authoringAtlas = undefined
+      thumbnails.clear()
       characterChanges.publish({ characterId: 'character-library', revision: null })
       await requestPersistentStorage(browser?.navigator.storage)
     }),
@@ -324,7 +319,6 @@ export function createApplication(document: Document) {
       if (fit.status !== 'suggested') throw new Error('No high-confidence fit is available; use the visual alignment controls.')
       await editor.dispatch((current) => setCharacterVariantTransform(current, group, variantId, fit.transform), revision)
     },
-    compileCharacterAtlas: compileAuthoringAtlas,
     async replaceCharacterAsset(characterId: string, target: CharacterAssetTarget, blob: Blob) {
       await editor.open(characterId)
       const { character, revision } = activeCharacter()
@@ -344,8 +338,9 @@ export function createApplication(document: Document) {
       await characterDrafts.delete(characterId)
     },
     async exportCharacter(characterId: string) {
+      const { compileCharacterTextureAtlas } = await import('./adapters/browser/character-atlas.ts')
       const { character } = await editor.view(characterId)
-      return exportCharacterDraftZip(character, await compileAuthoringAtlas(character))
+      return exportCharacterDraftZip(character, await compileCharacterTextureAtlas(resolveCharacterDraftAtlasSources(character)))
     },
     exportCharacterPng: (character: CharacterDraft, preview?: { group: CharacterVariantGroup; id: string }) =>
       renderCharacterCompositeBlob(resolveCharacterDraftLayers(character, preview)),
@@ -366,8 +361,8 @@ export function createApplication(document: Document) {
     const variant = character.variants.find((candidate) => candidate.group === group && candidate.id === variantId)
     const layer = variant && CHARACTER_CREATION_GROUPS.find((candidate) => candidate.group === group)?.layers.find((candidate) => variant.layers[candidate])
     if (!variant || !layer) throw new Error('Character variant is empty or missing')
-    const target = await characterTarget(character, revision, { group, variantId, layer })
-    return { revision, fit: target?.alignment.autoFit ?? { status: 'unavailable' as const } }
+    const { fit } = await measureCharacterFit(character, { group, variantId, layer })
+    return { revision, fit }
   }
 
   const categoryFor = (group: CharacterVariantGroup) => group === 'expression' ? 'expressions'
@@ -580,6 +575,26 @@ export function createApplication(document: Document) {
     }
   }
 
+  const measureCharacterFit = async (draft: CharacterDraft, target: Pick<CharacterAssetTarget, 'group' | 'variantId' | 'layer'>) => {
+    const { asset, canonical, headRegistration, transform, alignmentReference, referenceTransform } = resolveCharacterAssetSources(draft, target)
+    const measurement = asset ? measureCharacterMaskAlignment(
+      target.group,
+      alignmentReference ? await readCharacterAlphaMask(alignmentReference.blob) : null,
+      await readCharacterAlphaMask(asset.blob),
+      transform,
+      referenceTransform,
+    ) : null
+    const visualFit = asset && canonical && target.group === 'expression' && headRegistration?.variant.id === target.variantId
+      ? suggestCharacterVisualRegistration(await readCharacterVisualSample(canonical.blob), await readCharacterVisualSample(asset.blob), transform)
+      : null
+    const fit = suggestCharacterFit({
+      measurement,
+      visualFit,
+      headAnchor: target.group === 'expression' && headRegistration?.variant.id === target.variantId,
+    })
+    return { measurement, visualFit, fit }
+  }
+
   const characterTarget = async (draft: CharacterDraft, revision: number, rawInput: unknown) => {
     const input = rawInput as Partial<{ group: CharacterVariantGroup; variantId: string; layer: CharacterVariantLayer }>
     if (!input.group && !input.variantId && !input.layer) return null
@@ -587,7 +602,7 @@ export function createApplication(document: Document) {
     const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)
     if (!group || !group.layers.includes(input.layer) || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(input.variantId)) throw new Error('Unknown character asset target')
     if (input.group === 'body' && input.variantId !== 'base') throw new Error('The body group only supports body/base/body')
-    const { asset, canonical, headRegistration, current, transform, alignmentReference, referenceTransform, editSource, editSourceTransform } = resolveCharacterAssetSources(draft, input as CharacterAssetTarget)
+    const { asset, headRegistration, current, transform, alignmentReference, referenceTransform, editSource, editSourceTransform } = resolveCharacterAssetSources(draft, input as CharacterAssetTarget)
     const label = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)?.label ?? input.variantId
     const registrationFrame = characterRegistrationFrame(draft)
     const allowedOperations = [
@@ -595,13 +610,7 @@ export function createApplication(document: Document) {
       ...(current && input.group === 'expression' ? ['repair' as const] : []),
       ...(current && input.group !== 'body' ? ['transform' as const] : []),
     ]
-    const measurement = asset ? measureCharacterMaskAlignment(
-      input.group,
-      alignmentReference ? await readCharacterAlphaMask(alignmentReference.blob) : null,
-      await readCharacterAlphaMask(asset.blob),
-      transform,
-      referenceTransform,
-    ) : null
+    const { measurement, visualFit, fit } = await measureCharacterFit(draft, input as CharacterAssetTarget)
     const currentBounds = asset?.inspection.visibleBounds ? transformCharacterBounds(asset.inspection.visibleBounds, transform) : undefined
     const overflow = currentBounds ? {
       left: Math.max(0, -currentBounds.x),
@@ -615,15 +624,7 @@ export function createApplication(document: Document) {
       : input.group === 'expression' ? headRegistration ? 'derive-from-head-registration' : 'establish-head-registration'
         : input.group === 'outfit' ? 'replace-character-skin'
           : 'place-against-current-composite'
-    const visualFit = asset && canonical && input.group === 'expression' && headRegistration?.variant.id === input.variantId
-      ? suggestCharacterVisualRegistration(await readCharacterVisualSample(canonical.blob), await readCharacterVisualSample(asset.blob), transform)
-      : null
     const editableRegion = current && input.group === 'expression' ? registrationFrame.editableRegions.expression : undefined
-    const fit = suggestCharacterFit({
-      measurement,
-      visualFit,
-      headAnchor: input.group === 'expression' && headRegistration?.variant.id === input.variantId,
-    })
     const referenceBounds = characterReferenceBounds(registrationFrame, input.group)
     const normalization = {
       ...characterNormalizationContract(Boolean(referenceBounds)),
@@ -1054,7 +1055,7 @@ export function createApplication(document: Document) {
       const draft = activeCharacter().character
       const savedRevision = settledRevision('Character asset')
       const savedVariant = draft.variants.find(({ group, id }) => group === target.group && id === target.variantId)!
-      const specification = await characterTarget(draft, savedRevision, target)
+      const specification = source === 'user' ? null : await characterTarget(draft, savedRevision, target)
       protectedRegionDelta = stitchedBlob && sources.editSource && editableRegion
         ? measureProtectedRegionDelta(
             await readCharacterPixels(sources.editSource.blob, sources.editSourceTransform),
