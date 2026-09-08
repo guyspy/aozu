@@ -8,7 +8,8 @@ import { createIndexedDbCharacterLibraryRepository } from './adapters/indexeddb/
 import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/zip/character-library.ts'
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
-import { createWebMcpController } from './adapters/webmcp/controller.ts'
+import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
+import { CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
@@ -71,6 +72,8 @@ const CHARACTER_ASSET_POLICY = {
     inspectBeforeMutation: true,
     exactRevisionAndAssetSha256: 'required',
     canonicalBodyBeforeDerivedLayers: 'required',
+    navigation: CHARACTER_NAVIGATION_GUIDANCE,
+    visualReview: CHARACTER_VISUAL_REVIEW,
   },
   input: {
     mediaType: 'image/png',
@@ -81,10 +84,12 @@ const CHARACTER_ASSET_POLICY = {
       required: true,
       websiteRemovesBackground: false,
       opaqueInput: 'reject',
-      fallback: {
+      instruction: CHARACTER_BACKGROUND_GUIDANCE,
+      preparation: {
+        default: 'solid-background-then-remove',
         generateOn: 'one flat high-contrast color absent from the subject',
         avoid: ['gradient', 'shadow', 'glow', 'texture', 'cropped silhouette'],
-        beforeSubmission: ['remove the background with an available image tool', 'verify genuine alpha', 'submit PNG'],
+        beforeSubmission: ['discover a permitted background-removal tool, image editor, or local image-processing CLI/library', 'remove the solid background without cropping or reframing', 'verify real alpha and inspect edges on light and dark backgrounds', 'submit RGBA PNG'],
       },
     },
   },
@@ -119,7 +124,7 @@ const characterNormalizationContract = (alignAvailable: boolean) => ({
   generateAt: { ...CHARACTER_GENERATION_CANVAS },
   finalizeAt: { ...CHARACTER_RIG.canvas },
   requirements: [
-    `Submit genuine RGBA PNG with real alpha. Opaque input is rejected. If direct transparency is unavailable, generate on one flat high-contrast color absent from the subject, remove it with an image tool, and verify alpha before submission. Painted transparency grids and matte backgrounds are forbidden and never repaired.`,
+    CHARACTER_BACKGROUND_GUIDANCE,
     `Default submissions must already be exactly ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}.`,
     `"exact-aspect-downscale" accepts only genuine RGBA at the exact ${CHARACTER_RIG.canvas.width}:${CHARACTER_RIG.canvas.height} aspect and at least that size; it never upscales, crops, or reframes.`,
     alignAvailable
@@ -413,13 +418,51 @@ export function createApplication(document: Document) {
     return { id: book.id, name: book.name, description: book.description, backstory: book.backstory, revision: book.version }
   }
 
-  async function inspectWorkspace() {
+  async function inspectWorkspace(rawInput: unknown) {
+    const { includeSnapshot = false } = rawInput as { includeSnapshot?: boolean }
     const route = browser?.location.pathname ?? '/'
+    const view = readWorkspaceView(document)
+    const books = await collections.list()
     const selectedRoute = routeSelection(route)
     const records = await listCharacterDrafts()
     const saved = records.find(({ character }) => character.id === selectedRoute?.characterId)
     const current = saved ? await editor.view(saved.character.id) : selectedRoute?.characterId === 'new' ? (await editor.open('new'), await editor.view('new')) : null
     const character = current?.character ?? null
+    const renderSnapshot = async () => {
+      const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
+      if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
+      if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
+      const state = editor.store.getState()
+      if (state.saveStatus !== 'saved') return unavailable('Character changes are not saved. Wait for saving, or resolve the save error, then inspect again.')
+      if (view?.characterId !== character.id || view.revision !== current.version || state.activeCharacterId !== character.id
+        || state.persistedRevision !== current.version || view.category !== selectedRoute?.category || view.viewedVariantId !== selectedRoute?.variantId) {
+        return unavailable('The rendered view and Character revision do not match. Let the page finish rendering, then inspect again.')
+      }
+      const preview = view.viewedVariantId ? character.variants.find((variant) =>
+        variant.id === view.viewedVariantId && categoryFor(variant.group) === view.category && variant.group !== 'body'
+      ) : undefined
+      if (view.viewedVariantId && !preview) return unavailable('The viewed variant is no longer available. Inspect the current page again.')
+      const layers = resolveCharacterDraftLayers(character, preview)
+      if (!layers.length) return unavailable('This Character preview has no artwork to review yet.')
+      const dataUrl = await renderCharacterCompositeDataUrl(layers)
+      const latest = editor.store.getState()
+      if (browser?.location.pathname !== route || JSON.stringify(readWorkspaceView(document)) !== JSON.stringify(view)
+        || latest.character !== state.character || latest.persistedRevision !== current.version || latest.saveStatus !== 'saved') {
+        return unavailable('The Character or page changed while rendering the snapshot. Inspect again for the current result.')
+      }
+      return {
+        status: 'ready' as const,
+        characterId: character.id,
+        revision: current.version,
+        source: 'current-view-composite',
+        preview: preview ? { group: preview.group, id: preview.id } : null,
+        layerIds: layers.map(({ id }) => id),
+        mediaType: 'image/png',
+        ...CHARACTER_RIG.canvas,
+        dataUrl,
+        instruction: 'Open or decode and view this PNG before giving visual feedback. It is the full current composition with real alpha, without Overlay/Difference/Align guides. Metadata or a base64 string alone is not visual evidence. Give the requested opinion; modify artwork only when the user asks.',
+      }
+    }
     const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
     const navigation = [{ destination: 'characters', path: '/characters' }, ...(character ? [
@@ -434,7 +477,10 @@ export function createApplication(document: Document) {
       status: 'ok',
       data: {
         route: { path: route, ...selectedRoute },
-        collections: await collections.list(),
+        view,
+        contextFreshness: 'Snapshot at tool invocation, not a live subscription. Re-inspect after user navigation, panel/preview changes, and tool mutations. viewedVariantId is the variant being previewed; currentCharacter.selected is the applied composition. Uncommitted form, numeric, and drag inputs are not included in the Character contract; inspect the visible UI and let those edits settle before mutating.',
+        currentCollection: books.find(({ id }) => id === view?.collectionId) ?? null,
+        collections: books,
         characters: records.map(({ character: draft, version }) => ({
           id: draft.id,
           name: draft.name,
@@ -454,6 +500,7 @@ export function createApplication(document: Document) {
           selected: character.selected,
           missingTargets: missingCharacterTargets,
         } : null,
+        ...(includeSnapshot ? { snapshot: await renderSnapshot() } : {}),
         history: historyStatus(),
         navigation,
         assetPolicy: CHARACTER_ASSET_POLICY,
@@ -590,12 +637,10 @@ export function createApplication(document: Document) {
         )
       : null
     const reviewPath = characterPath(draft.id, input.group, input.variantId)
-    const visualReview = input.group === 'expression' || input.group === 'outfit' ? {
+    const visualReview = input.group !== 'body' ? {
+      ...CHARACTER_VISUAL_REVIEW,
       requiredAfterMutation: true,
-      surface: 'browser' as const,
       path: reviewPath,
-      modes: ['Composite', 'Overlay', 'Difference', 'Align'],
-      instruction: 'Use the browser to inspect the rendered Character in all four modes. Diagnostics are supporting evidence, not final proof. Do not continue to the next asset until the placement passes visual review.',
       correctionTool: 'set_character_variant_transform',
       correctionScope: 'translation-and-uniform-scale-only',
       current: transform,
@@ -713,6 +758,7 @@ export function createApplication(document: Document) {
           dataUrl: await renderCharacterCompositeDataUrl(placementLayers),
         } : null,
         preserveCanvasCoordinates: true,
+        backgroundPreparation: CHARACTER_BACKGROUND_GUIDANCE,
         output: {
           generateAt: { ...CHARACTER_GENERATION_CANVAS },
           finalizeAt: { ...CHARACTER_RIG.canvas },
@@ -796,14 +842,16 @@ export function createApplication(document: Document) {
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
             'An outfit replaces the character-skin slot: replace it with the complete dressed character, never a clothing-only overlay. Preserve pose, body center, head position, and foot line. Generate props against the returned current composite.',
             'Generate at 1024×1536. When the inspected target recommends exact-aspect-downscale, request it during submission; otherwise finalize externally at the exact 512×768 canvas. Never crop, reframe, or stretch.',
-            'If direct transparency is unavailable, generate on one flat high-contrast color absent from the subject, without gradients, shadows, glow, texture, or cropped edges. Remove that background with an available image tool and verify genuine alpha before submission. The website validates but never removes backgrounds.',
+            CHARACTER_BACKGROUND_GUIDANCE,
             'Use replace_character_asset for every outfit and any other complete finished layer; it never preserves old pixels. Use repair_character_asset only for an existing expression; transparent mask pixels are editable, opaque pixels are protected, and protectedRegionDelta must be 0.',
             'Submit only full-canvas RGBA PNG proposals, either already at 512×768 or with the explicit normalization allowed by the inspected target. The website never generates, removes backgrounds, or guesses geometry; expression repair alone uses the deterministic editable region.',
             'Expression layers contain only the whole aligned head, including the same fixed hairstyle and facial hair; every pixel outside head ownership must be transparent.',
             'No expression overlay means the default face baked into the body. Optional whole-head variants include happy, sad, angry, surprised, and sleepy; additional variants are allowed.',
             'Outfits are full-body variants. Props are independent, multi-select, full-canvas overlays and may contain front and back layers. A prop may be positioned anywhere, including on the head or in a hand.',
             'selected.props is the persisted bottom-to-top activation order within each front/back rig slot. Use set_character_variant_selection to add or remove variants: later-added props stack above earlier props; an already-active prop keeps its order; remove then add it to move it to the top.',
-            'After every accepted expression or outfit, use the browser page opened by AOZU and inspect Composite, Overlay, Difference, and Align. If the pixels only need translation or uniform scale, call set_character_variant_transform with absolute x, y, and scale, then inspect all four modes again. Regenerate or replace local deformation, wrong pose, identity drift, or bad transparency. Do not continue to the next asset until visual review passes.',
+            CHARACTER_NAVIGATION_GUIDANCE,
+            CHARACTER_VISUAL_REVIEW.instruction,
+            CHARACTER_VISUAL_REVIEW.finish,
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,
           target,
