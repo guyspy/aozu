@@ -11,12 +11,14 @@ export function DataControls({
   exportFilename = 'companion.zip',
   exportIconOnly = false,
   exportLabel,
+  importLabel,
   prepareImport,
 }: {
   exportData?(): Promise<Blob>
   exportFilename?: string
   exportIconOnly?: boolean
   exportLabel?: string
+  importLabel?: string
   prepareImport?(blob: Blob): Promise<void>
 }) {
   const { t } = useTranslation()
@@ -46,7 +48,7 @@ export function DataControls({
       {prepareImport && <Button asChild variant={exportData ? 'ghost' : 'default'} className={exportData ? 'justify-start' : 'w-full'}>
         <label>
           <AozuIcon name="import" />
-          {t('data.import')}
+          {importLabel ?? t('data.import')}
           <input className="sr-only" type="file" accept=".zip,application/zip" disabled={status === 'busy'} onChange={(event) => {
             const file = event.target.files?.[0]
             event.target.value = ''

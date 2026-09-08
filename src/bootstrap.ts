@@ -3,6 +3,10 @@ import { bootMantleRuntime, type MantleRuntime } from '@aotter/mantle-runtime'
 import { createIndexedDbAssetRepository } from './adapters/indexeddb/asset-repository.ts'
 import { createIndexedDbCharacterDraftRepository } from './adapters/indexeddb/character-draft-repository.ts'
 import { createCharacterWorkspaceRepository } from './adapters/indexeddb/character-workspace-repository.ts'
+import { createIndexedDbCharacterCollectionRepository } from './adapters/indexeddb/character-collection-repository.ts'
+import { createIndexedDbCharacterLibraryRepository } from './adapters/indexeddb/character-library-repository.ts'
+import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/zip/character-library.ts'
+import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
 import { createWebMcpController } from './adapters/webmcp/controller.ts'
 import { loadStarterCatalog } from './adapters/browser/starter-packages.ts'
@@ -26,9 +30,10 @@ import {
   CHARACTER_CREATION_GROUPS,
   REQUIRED_CHARACTER_TARGETS,
   activateCharacterVariant,
+  deactivateCharacterVariant,
   createCharacterDraftFromStarter,
   createCharacterDraft,
-  migrateCharacterDraft,
+  migrateLegacyCharacterLibrary,
   hasCurrentCharacterLayer,
   isCharacterDraftAssetCurrent,
   characterAssetPlacement,
@@ -46,7 +51,7 @@ import {
 } from './core/application/character-creation.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
-import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
+import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
 import { compileCharacterTextureAtlas } from './adapters/browser/character-atlas.ts'
 import { inspectSceneImage } from './adapters/browser/scene-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
@@ -134,6 +139,7 @@ const CHARACTER_WEBMCP_TRIGGERS = [
   'update-character-profile',
   'replace-character-asset',
   'repair-character-asset',
+  'set-character-variant-selection',
   'set-character-variant-transform',
   'undo-character-change',
   'redo-character-change',
@@ -142,6 +148,10 @@ const CHARACTER_WEBMCP_TRIGGERS = [
 export function createApplication(document: Document) {
   const legacyCharacterDrafts = createIndexedDbCharacterDraftRepository()
   const browser = document.defaultView
+  // Legacy migration spans asset staging, Mantle creation and legacy cleanup. Serialize it with
+  // backup/restore across tabs so cleanup cannot delete a just-restored legacy identity.
+  const withLibraryLock = <T>(task: () => Promise<T>): Promise<T> => browser?.navigator.locks
+    ? browser.navigator.locks.request('aozu-character-library', task) : task()
   const characterChanges = createCharacterWorkspaceEvents(browser && 'BroadcastChannel' in browser
     ? new browser.BroadcastChannel('aozu-character-workspaces')
     : null)
@@ -170,6 +180,7 @@ export function createApplication(document: Document) {
       'companion.inspect-workspace': inspectWorkspace,
       'companion.navigate-character': navigateCharacter,
       'companion.update-character-profile': updateProfile,
+      'companion.set-character-variant-selection': setCharacterSelection,
       'companion.create-local-companion': storyModeUnavailable,
       'companion.inspect-experience-contract': storyModeUnavailable,
       'companion.submit-experience-candidate': storyModeUnavailable,
@@ -200,6 +211,8 @@ export function createApplication(document: Document) {
     },
   }
   const editor = createCharacterEditor(characterDrafts, createIndexedDbAssetRepository, inspectCharacterImage)
+  const collections = createIndexedDbCharacterCollectionRepository()
+  const libraryRepository = createIndexedDbCharacterLibraryRepository()
   const webmcp = createWebMcpController(document, authoringPlan, CHARACTER_WEBMCP_TRIGGERS, async (trigger, input) =>
     (await getAuthoringRuntime()).invokeTrigger({ trigger, input, ctx: invokeContext }))
 
@@ -208,19 +221,12 @@ export function createApplication(document: Document) {
   }
 
   let legacyCharactersMigrated: Promise<void> | undefined
-  const migrateLegacyCharacters = () => legacyCharactersMigrated ??= (async () => {
-    const legacy = await legacyCharacterDrafts.list()
-    if (!legacy.length) return
-    const packIds = new Set((await characterDrafts.list()).map(({ character }) => character.packId))
-    for (const stored of legacy) {
-      const draft = migrateCharacterDraft(stored)
-      if (!packIds.has(draft.packId)) {
-        await characterDrafts.create(draft)
-        packIds.add(draft.packId)
-      }
-      await legacyCharacterDrafts.delete(stored.id)
+  const migrateLegacyCharacters = () => legacyCharactersMigrated ??= withLibraryLock(async () => {
+    if (!browser?.navigator.locks && (await legacyCharacterDrafts.list()).length) {
+      throw new Error('Legacy Character migration requires Web Locks. Export the library and restore it in a browser with Web Locks support.')
     }
-  })().catch((error) => {
+    await migrateLegacyCharacterLibrary(legacyCharacterDrafts, characterDrafts)
+  }).catch((error) => {
     legacyCharactersMigrated = undefined
     throw error
   })
@@ -252,6 +258,7 @@ export function createApplication(document: Document) {
     subscribeCharacterChanges: characterChanges.subscribe,
     async loadCharacterLibrary() {
       return {
+        collections: await collections.list(),
         characters: (await listCharacterDrafts()).map(({ character, version }) => ({
           id: character.id,
           name: character.name,
@@ -262,6 +269,41 @@ export function createApplication(document: Document) {
         })),
       }
     },
+    async createCollection(name: string) {
+      const collection = await collections.create(name)
+      characterChanges.publish({ characterId: collection.id, revision: null })
+      await requestPersistentStorage(browser?.navigator.storage)
+      return collection
+    },
+    async renameCollection(id: string, name: string, version: number) {
+      await collections.rename(id, name, version)
+      characterChanges.publish({ characterId: id, revision: null })
+    },
+    async deleteCollection(id: string, version: number) {
+      await collections.delete(id, version)
+      characterChanges.publish({ characterId: id, revision: null })
+    },
+    async assignCollection(characterId: string, collectionId: string | null) {
+      await collections.assign(characterId, collectionId)
+      characterChanges.publish({ characterId, revision: null })
+    },
+    exportCharacterLibrary: () => withLibraryLock(async () => {
+      await editor.settle()
+      if (editor.store.getState().saveStatus !== 'saved') throw new Error('Save or reload your unsaved Character before downloading the library')
+      return exportCharacterLibraryZip(await libraryRepository.snapshot())
+    }),
+    prepareCharacterLibraryImport: (blob: Blob) => readCharacterLibraryZip(blob, inspectCharacterImage),
+    importCharacterLibrary: (snapshot: CharacterLibrarySnapshot, mode: 'merge' | 'replace') => withLibraryLock(async () => {
+      await editor.settle()
+      if (editor.store.getState().saveStatus !== 'saved') throw new Error('Save or reload your unsaved Character before restoring the library')
+      await libraryRepository.restore(snapshot, mode)
+      const activeId = editor.store.getState().activeCharacterId
+      if (activeId) await editor.close(activeId)
+      legacyCharactersMigrated = undefined
+      authoringAtlas = undefined
+      characterChanges.publish({ characterId: 'character-library', revision: null })
+      await requestPersistentStorage(browser?.navigator.storage)
+    }),
     listStarters: loadStarters,
     async createCharacter(characterChoice: StarterCharacterSelection) {
       let character: CharacterDraft
@@ -313,6 +355,8 @@ export function createApplication(document: Document) {
       const { character } = await editor.view(characterId)
       return exportCharacterDraftZip(character, await compileAuthoringAtlas(character))
     },
+    exportCharacterPng: (character: CharacterDraft, preview?: { group: CharacterVariantGroup; id: string }) =>
+      renderCharacterCompositeBlob(resolveCharacterDraftLayers(character, preview)),
     async importCharacter(blob: Blob) {
       const imported = await readCharacterDraftZip(blob, inspectCharacterImage)
       const duplicateIdentity = (await listCharacterDrafts()).some(({ character }) => character.packId === imported.draft.packId)
@@ -454,6 +498,33 @@ export function createApplication(document: Document) {
       },
       nextActions: characterNextActions(character),
       effects: { navigation: { path, mode: 'push', reason: 'Open the updated Character profile.' } },
+    }
+  }
+
+  async function setCharacterSelection(rawInput: unknown) {
+    const { characterId, expectedRevision, group, variantId, active } = rawInput as {
+      characterId: string
+      expectedRevision: number
+      group: 'expression' | 'outfit' | 'prop'
+      variantId: string
+      active: boolean
+    }
+    await editor.open(characterId)
+    const target = { group, id: variantId }
+    const changed = await editor.dispatch((character) => active
+      ? activateCharacterVariant(character, target)
+      : deactivateCharacterVariant(character, target), expectedRevision)
+    const character = activeCharacter().character
+    return {
+      status: 'ok',
+      data: {
+        characterId: character.id,
+        selected: character.selected,
+        revision: settledRevision('Character selection'),
+        changed,
+      },
+      nextActions: characterNextActions(character),
+      effects: { navigation: { path: characterPath(character.id, group), mode: 'push', reason: 'Show the selected Character composition.' } },
     }
   }
 
@@ -724,6 +795,7 @@ export function createApplication(document: Document) {
             'Expression layers contain only the whole aligned head, including the same fixed hairstyle and facial hair; every pixel outside head ownership must be transparent.',
             'No expression overlay means the default face baked into the body. Optional whole-head variants include happy, sad, angry, surprised, and sleepy; additional variants are allowed.',
             'Outfits are full-body variants. Props are independent, multi-select, full-canvas overlays and may contain front and back layers. A prop may be positioned anywhere, including on the head or in a hand.',
+            'selected.props is the persisted bottom-to-top activation order within each front/back rig slot. Use set_character_variant_selection to add or remove variants: later-added props stack above earlier props; an already-active prop keeps its order; remove then add it to move it to the top.',
             'After every accepted expression or outfit, use the browser page opened by AOZU and inspect Composite, Overlay, Difference, and Align. If the pixels only need translation or uniform scale, call set_character_variant_transform with absolute x, y, and scale, then inspect all four modes again. Regenerate or replace local deformation, wrong pose, identity drift, or bad transparency. Do not continue to the next asset until visual review passes.',
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,

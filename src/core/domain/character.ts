@@ -107,6 +107,7 @@ export interface CharacterDraft {
   selected: {
     expression?: string
     outfit?: string
+    /** Bottom to top within each prop rig slot; activating an absent prop appends it. */
     props: string[]
   }
   updatedAt: number

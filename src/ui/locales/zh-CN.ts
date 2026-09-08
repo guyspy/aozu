@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const zhCN: Messages = {
   common: { productName: 'AOZU', back: '返回', cancel: '取消', language: '语言' },
@@ -8,6 +8,7 @@ export const zhCN: Messages = {
     error: '无法加载本地数据，请刷新后重试。',
   },
   draft: { name: '角色名称', download: '导出角色' },
+  library: en.library,
   characters: {
     kicker: 'AOZU 角色档案',
     title: '我的角色',
@@ -45,6 +46,7 @@ export const zhCN: Messages = {
     missingRequired: '请先添加基础角色，以建立姿势与对齐基准。',
     saveAs: '复制',
     savingAs: '正在复制…',
+    downloadPng: '下载 PNG',
     undo: '撤销',
     redo: '重做',
     backToActive: '回到 {{name}}',

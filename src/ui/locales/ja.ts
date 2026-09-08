@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const ja: Messages = {
   common: { productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
@@ -8,6 +8,7 @@ export const ja: Messages = {
     error: 'ローカルデータを読み込めませんでした。ページを再読み込みしてもう一度お試しください。',
   },
   draft: { name: 'キャラクター名', download: 'キャラクターを書き出す' },
+  library: en.library,
   characters: {
     kicker: 'AOZU キャラクターアーカイブ',
     title: 'あなたのキャラクター',
@@ -45,6 +46,7 @@ export const ja: Messages = {
     missingRequired: 'ポーズと位置合わせの基準となるベースキャラクターを追加してください。',
     saveAs: '複製',
     savingAs: '複製しています…',
+    downloadPng: 'PNG をダウンロード',
     undo: '元に戻す',
     redo: 'やり直す',
     backToActive: '{{name}} に戻る',

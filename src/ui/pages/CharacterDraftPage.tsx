@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
 
-import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, characterDraftAtlasKey, characterRegistrationFrame, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
+import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterTextureAtlas, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
@@ -52,13 +52,6 @@ const withVariant = (source: CharacterDraft, target: Pick<CharacterDraftVariant,
   ...source,
   variants: source.variants.map((variant) => variant.group === target.group && variant.id === target.id ? { ...variant, ...patch } : variant),
 })
-const activateVariant = (source: CharacterDraft, variant: CharacterDraftVariant) => {
-  const { group, id } = variant
-  if (group === 'body') return source
-  if (group === 'expression') return source.selected.expression === id ? source : { ...source, selected: { ...source.selected, expression: id } }
-  if (group === 'prop') return source.selected.props.includes(id) ? source : { ...source, selected: { ...source.selected, props: [...source.selected.props, id] } }
-  return source.selected.outfit === id ? source : { ...source, selected: { ...source.selected, outfit: id } }
-}
 const fitNumber = (value: number | null) => value === null ? '—' : `${Math.round(value * 10_000) / 10_000}`
 const fitMetrics = (t: (key: string) => string, suggestion: Extract<CharacterFitSuggestion, { status: 'suggested' }>) => [
   ...(['iou', 'footLine', 'match'] as const).flatMap((field) => {
@@ -82,13 +75,14 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, compileAtlas, exportCharacter, replaceAsset, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, compileAtlas, exportCharacter, exportCharacterPng, replaceAsset, saveAs, deleteCharacter }: {
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
   fitSuggestion(group: CharacterVariantGroup, variantId: string): Promise<CharacterFitSuggestion>
   compileAtlas(draft: CharacterDraft): Promise<CharacterTextureAtlas | undefined>
   exportCharacter(): Promise<Blob>
+  exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
   deleteCharacter(): Promise<void>
@@ -266,17 +260,12 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     if (group === 'outfit') return draft.selected.outfit
     return undefined
   }
-  const selectVariant = (variant: CharacterDraftVariant) => commit((current) => activateVariant(current, variant))
-  const clearVariant = (group: CharacterVariantGroup) => commit((current) => {
-    if (group === 'expression') return current.selected.expression === undefined ? current : { ...current, selected: { ...current.selected, expression: undefined } }
-    if (group === 'outfit') return current.selected.outfit === undefined ? current : { ...current, selected: { ...current.selected, outfit: undefined } }
-    if (group === 'prop') return current.selected.props.length === 0 ? current : { ...current, selected: { ...current.selected, props: [] } }
-    return current
-  })
+  const selectVariant = (variant: CharacterDraftVariant) => commit((current) => activateCharacterVariant(current, variant))
+  const clearVariant = (group: CharacterVariantGroup) => commit((current) => clearCharacterVariantSelection(current, group))
   const isSelected = (variant: CharacterDraftVariant) => variant.group === 'prop' ? draft.selected.props.includes(variant.id) : selectedId(variant.group) === variant.id
   const toggleVariant = (variant: CharacterDraftVariant) => {
     if (variant.group !== 'prop' || !isSelected(variant)) return selectVariant(variant)
-    commit((current) => ({ ...current, selected: { ...current.selected, props: current.selected.props.filter((id) => id !== variant.id) } }))
+    commit((current) => deactivateCharacterVariant(current, variant))
   }
   const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length) : Boolean(selectedId(group))
   const addVariant = (group: CharacterVariantGroup) => {
@@ -377,6 +366,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
+        {previewLayers.length > 0 && <div className="mt-2 flex justify-center"><DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename="companion-character.png" exportLabel={t('characterDraft.downloadPng')} /></div>}
         </div>
         <section id="character-profile" className="character-profile-panel" inert={!profileOpen ? true : undefined} aria-hidden={!profileOpen}>
           {profileForm ? <>

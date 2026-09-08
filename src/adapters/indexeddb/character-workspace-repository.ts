@@ -111,7 +111,6 @@ export function createCharacterWorkspaceRepository(
         procedure: 'delete-character-workspace', input: { id }, ctx: context,
       })
       if (!result.ok) throw new Error(result.diagnostic.message ?? 'Character could not be deleted')
-      await assets(characterAssetScope(String(current.data.packId))).deleteAll?.()
     },
   }
 }

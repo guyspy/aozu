@@ -150,9 +150,9 @@ export async function renderStitchedCharacterEditBlob(
   return pngBlob(canvas)
 }
 
-export async function renderCharacterCompositeDataUrl(
+const renderCharacterCompositeCanvas = async (
   layers: ReadonlyArray<ResolvedCharacterLayer & { blob: Blob }>,
-) {
+) => {
   const canvas = document.createElement('canvas')
   canvas.width = CHARACTER_RIG.canvas.width
   canvas.height = CHARACTER_RIG.canvas.height
@@ -160,13 +160,33 @@ export async function renderCharacterCompositeDataUrl(
   if (!context) throw new Error('Canvas is unavailable')
   for (const { blob, transform } of layers) {
     const bitmap = await createImageBitmap(blob)
-    context.save()
-    context.setTransform(transform.scale, 0, 0, transform.scale, transform.x, transform.y)
-    context.drawImage(bitmap, 0, 0)
-    context.restore()
-    bitmap.close()
+    try {
+      context.save()
+      try {
+        context.setTransform(transform.scale, 0, 0, transform.scale, transform.x, transform.y)
+        context.drawImage(bitmap, 0, 0)
+      } finally {
+        context.restore()
+      }
+    } finally {
+      bitmap.close()
+    }
   }
-  return canvas.toDataURL('image/png')
+  return canvas
+}
+
+/** The same resolved paint order and rig transforms used by the workshop preview, on transparent pixels. */
+export async function renderCharacterCompositeBlob(
+  layers: ReadonlyArray<ResolvedCharacterLayer & { blob: Blob }>,
+): Promise<Blob> {
+  if (!layers.length) throw new Error('Select character artwork before downloading PNG')
+  return pngBlob(await renderCharacterCompositeCanvas(layers))
+}
+
+export async function renderCharacterCompositeDataUrl(
+  layers: ReadonlyArray<ResolvedCharacterLayer & { blob: Blob }>,
+) {
+  return (await renderCharacterCompositeCanvas(layers)).toDataURL('image/png')
 }
 
 export function renderCharacterEditMaskDataUrl(region: CharacterEditableRegion) {

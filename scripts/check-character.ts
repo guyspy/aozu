@@ -30,4 +30,12 @@ const inspections = new Map(pack.assets.map(({ blobId }) => [blobId, inspection]
 assert.deepEqual(validateCharacterPack(pack, inspections).map(({ slot }) => slot), ['item-back', 'character-skin', 'expression-head', 'item-front'])
 assert.throws(() => validateCharacterPack({ ...pack, license: { ...pack.license, embedding: 'denied' as never } }, inspections), /embedded/)
 assert.throws(() => validateCharacterPack(pack, new Map([['skin', { ...inspection, genuineRgba: false }]])), /asset/)
+assert.throws(() => validateCharacterPack({ ...pack, assets: [...pack.assets, pack.assets[0]!] }, inspections), /Duplicate or invalid character asset ID/)
+assert.throws(() => validateCharacterPack({ ...pack, appearances: [...pack.appearances, pack.appearances[0]!] }, inspections), /Duplicate or invalid appearance ID/)
+assert.throws(() => validateCharacterPack(pack, new Map(pack.assets.map(({ blobId }) => [blobId, { ...inspection, sha256: 'b'.repeat(64) }]))), /Invalid character asset/)
+assert.throws(() => validateCharacterPack({
+  ...pack,
+  appearances: [...pack.appearances, { ...pack.appearances[0]!, id: 'another-hat' }],
+  defaultComposition: [...pack.defaultComposition, { packId: pack.id, packVersion: pack.version, appearanceId: 'another-hat' }],
+}, inspections), /Composition layer order collision/)
 console.log('character: ok')

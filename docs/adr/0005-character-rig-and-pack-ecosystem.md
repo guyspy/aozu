@@ -141,6 +141,15 @@ are multi-select, full-canvas overlays that may be positioned anywhere relative
 to the canonical character. The required base body includes the default face;
 no expression overlay means that default appearance.
 
+`selected.props` persists activation order, from bottom to top within each rig
+slot. Adding a prop places it above earlier props; deactivating and adding it
+again moves it to the top. Activating an already selected prop leaves its order
+unchanged. The rig still keeps every back layer behind the character and every
+front layer in front. React and WebMCP use the same selection commands. A preview
+of an inactive prop appends it temporarily without changing persisted order.
+Pack export assigns explicit layer orders from this selection, so its default
+composition, the workshop, and flattened PNG downloads agree.
+
 Happy, sad, angry, surprised, and sleepy are initial optional expression
 variants, not a closed expression vocabulary. Users and agents may add, name,
 populate, or remove expression overlays through the same contract. Draft schema

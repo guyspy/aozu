@@ -27,6 +27,7 @@ const runtime = {
       row = { ...row, data: structuredClone(data), version: row.version + 1, updatedAt: now++ }
       return { ok: true as const, data: row }
     }
+    if (row) assets.delete(`character:${String(row.data.packId)}`)
     row = null
     return { ok: true as const, data: { removed: true } }
   },
@@ -45,6 +46,8 @@ const draft = createCharacterDraft('boar-pack', 'legacy-id')
 draft.description = 'A steadfast trail guide.'
 draft.backstory = 'First line.\n\nSecond line.'
 draft.attributes = { courage: 8, nocturnal: true }
+draft.variants.push({ group: 'prop', id: 'prop-2', label: 'Second prop', layers: {} })
+draft.selected.props = ['prop-2', 'prop-1']
 const blob = new Blob(['boar'], { type: 'image/png' })
 draft.variants[0]!.layers.body = {
   blob,
@@ -61,6 +64,7 @@ assert.equal(created.version, 1)
 assert.equal(await created.character.variants[0]!.layers.body!.blob.text(), 'boar')
 assert.equal(created.character.backstory, draft.backstory)
 assert.deepEqual(created.character.attributes, draft.attributes)
+assert.deepEqual(created.character.selected.props, ['prop-2', 'prop-1'])
 assert.equal('blob' in ((row!.data.variants as Array<{ layers: { body: object } }>)[0]!.layers.body), false)
 assert.equal((row!.data.variants as Array<{ layers: { body: { blobId: string } } }>)[0]!.layers.body.blobId, 'a'.repeat(64))
 assert.equal('revision' in row!.data, false)
@@ -71,6 +75,7 @@ row!.data.published = { version: 2, revision: 4 }
 const writesBeforeRead = writes
 const read = await repository.get('workspace-1')
 assert.equal(read?.version, 1)
+assert.deepEqual(read?.character.selected.props, ['prop-2', 'prop-1'])
 assert.equal('revision' in read!.character, false)
 assert.equal('published' in read!.character, false)
 assert.equal(row!.data.revision, 4)

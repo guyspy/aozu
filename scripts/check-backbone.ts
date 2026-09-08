@@ -7,7 +7,7 @@ const authoring = compileAuthoringBackbone()
 
 assert.equal(FIXED_BACKBONE_VERSION, "6")
 assert.deepEqual(Object.keys(plan.schemas).sort(), ["character-loadouts", "character-packs", "character-states", "inventory-items", "item-definitions", "journal-entries", "pending-agent-turns", "progress-events", "rules", "runs", "scene-assets", "scene-compositions", "stages"])
-assert.deepEqual(Object.keys(authoring.schemas).sort(), ['character-workspaces', 'experience-drafts'])
+assert.deepEqual(Object.keys(authoring.schemas).sort(), ['character-collections', 'character-workspaces', 'experience-drafts'])
 assert.equal(plan.views["current-stage"]?.query.kind, "declarative")
 assert.deepEqual(Object.keys(plan.procedures).sort(), ['inspect-companion', 'resolve-companion-turn', 'submit-companion-action'])
 assert.equal(plan.procedures["submit-companion-action"]?.manifest.spec.handler.kind, "ref")
@@ -23,6 +23,9 @@ const validate = (collection: keyof typeof plan.schemas, data: Record<string, un
   new EntryDataValidator().validate(plan.schemas[collection]!.manifest, data)
 const validateAuthoring = (collection: keyof typeof authoring.schemas, data: Record<string, unknown>) =>
   new EntryDataValidator().validate(authoring.schemas[collection]!.manifest, data)
+assert.equal(validateAuthoring('character-collections', { name: 'Forest', characterIds: ['hero'] }).length, 0)
+assert.ok(validateAuthoring('character-collections', { name: 'Forest', characterIds: [], gameplay: true }).length)
+assert.ok(validateAuthoring('character-collections', { name: '', characterIds: [] }).length)
 assert.equal(authoring.triggers['undo-character-change']?.target, 'undo-character-change')
 assert.equal(authoring.triggers['redo-character-change']?.target, 'redo-character-change')
 assert.equal(validateAuthoring('character-workspaces', {
