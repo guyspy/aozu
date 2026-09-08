@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DownloadIcon, LoaderCircleIcon } from 'lucide-react'
+import { CheckIcon, CircleAlertIcon, DownloadIcon, LoaderCircleIcon } from 'lucide-react'
 
 import { AozuIcon } from '@/ui/AozuIcon'
 import { Button } from '@/ui/components/ui/button'
@@ -25,6 +25,12 @@ export function DataControls({
   const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
   const downloadLabel = exportLabel ?? t('data.export')
+  const statusLabel = status === 'error' ? `${t('data.error')}${error ? ` ${error}` : ''}` : status === 'idle' ? downloadLabel : t(`data.${status}`)
+  useEffect(() => {
+    if (!exportIconOnly || status !== 'done') return
+    const timer = setTimeout(() => setStatus('idle'), 2_000)
+    return () => clearTimeout(timer)
+  }, [exportIconOnly, status])
   const run = async (task: () => Promise<void>) => {
     setStatus('busy'); setError('')
     try { await task(); setStatus('done') } catch (reason) {
@@ -44,7 +50,7 @@ export function DataControls({
         link.click()
         link.remove()
         setTimeout(() => URL.revokeObjectURL(url), 1_000)
-      })}>{status === 'busy' ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />}{exportIconOnly ? <span className="sr-only">{downloadLabel}</span> : downloadLabel}</Button></TooltipTrigger>{exportIconOnly && <TooltipContent>{status === 'busy' ? t('data.busy') : status === 'error' ? `${t('data.error')}${error ? ` ${error}` : ''}` : downloadLabel}</TooltipContent>}</Tooltip></TooltipProvider>}
+      })}>{status === 'busy' ? <LoaderCircleIcon className="animate-spin" /> : exportIconOnly && status === 'done' ? <CheckIcon /> : exportIconOnly && status === 'error' ? <CircleAlertIcon className="text-destructive" /> : <DownloadIcon />}{exportIconOnly ? <span className="sr-only">{downloadLabel}</span> : downloadLabel}</Button></TooltipTrigger>{exportIconOnly && <TooltipContent>{statusLabel}</TooltipContent>}</Tooltip></TooltipProvider>}
       {prepareImport && <Button asChild variant={exportData ? 'ghost' : 'default'} className={exportData ? 'justify-start' : 'w-full'}>
         <label>
           <AozuIcon name="import" />
@@ -57,7 +63,7 @@ export function DataControls({
         </label>
       </Button>}
       {status !== 'idle' && <p role={status === 'error' ? 'alert' : 'status'} className={exportIconOnly ? 'sr-only' : `px-4 text-xs ${status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-        {status === 'error' ? `${t('data.error')}${error ? ` ${error}` : ''}` : t(`data.${status}`)}
+        {statusLabel}
       </p>}
     </div>
   )

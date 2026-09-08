@@ -159,7 +159,13 @@ export function createApplication(document: Document) {
   let authoringAtlas: { key: string; value: ReturnType<typeof compileCharacterTextureAtlas> } | undefined
   const compileAuthoringAtlas = (draft: CharacterDraft) => {
     const key = characterDraftAtlasKey(draft)
-    if (authoringAtlas?.key !== key) authoringAtlas = { key, value: compileCharacterTextureAtlas(resolveCharacterDraftAtlasSources(draft)) }
+    if (authoringAtlas?.key !== key) {
+      const value = compileCharacterTextureAtlas(resolveCharacterDraftAtlasSources(draft)).catch((error) => {
+        if (authoringAtlas?.value === value) authoringAtlas = undefined
+        throw error
+      })
+      authoringAtlas = { key, value }
+    }
     return authoringAtlas.value
   }
   let starterPackages: ReturnType<typeof loadStarterCatalog> | undefined

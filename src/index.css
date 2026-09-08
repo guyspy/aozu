@@ -1234,8 +1234,8 @@ button.gate-action {
 
 .asset-upload-card {
   display: block;
+  min-width: 0;
   overflow: hidden;
-  margin-top: 0.75rem;
   border: 1px dashed #93612c;
   border-radius: 0.8rem;
   background: rgb(249 231 187 / 38%);
@@ -1255,17 +1255,6 @@ button.gate-action {
   display: block;
   padding: 0.6rem;
   font-weight: 700;
-}
-
-.back-layer-upload {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.6rem;
-  padding: 0.6rem;
-  border: 1px dashed #93612c;
-  border-radius: 0.7rem;
-  cursor: pointer;
 }
 
 .workbench-footer {
@@ -1311,6 +1300,53 @@ button.gate-action {
 /* ---------------------------------------------------------------------------
    Responsive
    --------------------------------------------------------------------------- */
+
+.character-workbench-drawer {
+  width: min(26rem, calc(100vw - 2rem));
+  max-width: none;
+}
+
+.character-workbench-drawer > .doll-workbench {
+  flex: 1;
+  padding: 1rem;
+  border: 0;
+  border-radius: 0;
+}
+
+.character-workbench-drawer .workbench-heading {
+  padding-right: 2rem;
+}
+
+@media (max-width: 899px) {
+  .draft-workshop-grid,
+  .draft-workshop-grid.is-profile-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workbench-tabs {
+    height: 3.5rem;
+  }
+
+  #root .workbench-tabs [data-slot="tabs-trigger"],
+  .character-workbench-drawer .workbench-tabs [data-slot="tabs-trigger"] {
+    flex-direction: column;
+    gap: 0.1rem;
+    padding-inline: 0.15rem;
+    font-size: 0.875rem;
+  }
+
+  .alignment-switch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Short windows scroll the editor instead of squeezing its canvas and controls to zero. */
+@media (max-height: 600px) {
+  .draft-workshop-shell {
+    flex: none;
+    height: 44rem;
+  }
+}
 
 @media (max-width: 700px) {
   #root > header nav {
@@ -1403,6 +1439,10 @@ button.gate-action {
     grid-template-rows: minmax(10rem, 1fr) minmax(12rem, 1fr);
   }
 
+  .character-attribute-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .character-stage-panel,
   .doll-workbench {
     padding: 0.5rem;
@@ -1424,7 +1464,7 @@ button.gate-action {
     display: none;
   }
 
-  /* The right column is ~7rem wide here; headings truncate instead of wrapping. */
+  /* Full-width panels keep headings readable on phones. */
   .character-stage-heading > div,
   .workbench-heading > div {
     min-width: 0;
@@ -1433,29 +1473,7 @@ button.gate-action {
   .character-stage-heading strong,
   .workbench-heading h2,
   .workbench-content > h3 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .workbench-tabs [data-slot="tabs-trigger"] {
-    gap: 0.2rem;
-    padding-inline: 0.15rem;
-    font-size: 0.625rem;
-  }
-
-  .workbench-tabs .aozu-icon {
-    width: 0.75rem;
-    height: 0.75rem;
-  }
-
-  .variant-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .variant-edit {
-    width: 1.6rem;
-    height: 1.6rem;
+    white-space: normal;
   }
 }
 
@@ -1502,6 +1520,13 @@ button.gate-action {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .draft-workshop-grid,
+  .character-stage-content,
+  .character-profile-panel,
+  .doll-workbench {
+    transition: none;
+  }
+
   .character-layer-exit,
   .character-layer-enter,
   .companion-card {

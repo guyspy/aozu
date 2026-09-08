@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { CircleAlertIcon, LoaderCircleIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { CHARACTER_RIG, IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetInspection, type CharacterTextureAtlas, type CharacterVariantTransform } from '@/core/domain/character'
-import { BlobImage, CrossfadeBlobImage } from '@/ui/BlobImage'
+import { CrossfadeBlobImage } from '@/ui/BlobImage'
 import { cn } from '@/ui/lib/utils'
 
 type Layer = { id: string; blob: Blob; slotOrder: number; layerOrder: number; transform?: CharacterVariantTransform }
@@ -26,8 +28,16 @@ const Layers = ({ layers, style }: { layers: Layer[]; style?: CSSProperties }) =
   style={layerStyle(layer, style)}
 />)
 
-/** Pixi canvas for the compiled atlas. Reports when it has drawn so the DOM layers underneath can step aside. */
-function AtlasLayers({ atlas, layers, onReadyChange }: { atlas: CharacterTextureAtlas; layers: Layer[]; onReadyChange(ready: boolean): void }) {
+function RenderStatus({ failed = false }: { failed?: boolean }) {
+  const { t } = useTranslation()
+  return <span className="absolute inset-0 grid place-content-center text-muted-foreground" role={failed ? 'alert' : 'status'}>
+    {failed ? <CircleAlertIcon className="mx-auto size-5" /> : <LoaderCircleIcon className="mx-auto size-5 animate-spin" />}
+    <span className="sr-only">{t(failed ? 'startup.error' : 'startup.loading')}</span>
+  </span>
+}
+
+/** Publish readiness only after Pixi has drawn; loading never paints the raw layers first. */
+function AtlasLayers({ atlas, layers, onStatus }: { atlas: CharacterTextureAtlas; layers: Layer[]; onStatus(status: 'loading' | 'ready' | 'failed'): void }) {
   const host = useRef<HTMLDivElement>(null)
   const controller = useRef<{ update(atlas: CharacterTextureAtlas, frameIds: readonly string[]): Promise<boolean>; destroy(): void }>(undefined)
   const latest = useRef({ atlas, frameIds: layers.map(({ id }) => id) })
@@ -43,25 +53,27 @@ function AtlasLayers({ atlas, layers, onReadyChange }: { atlas: CharacterTexture
       controller.current = mounted
       const rendered = await mounted.update(latest.current.atlas, latest.current.frameIds)
       if (disposed) return
-      if (rendered) onReadyChange(true)
+      if (rendered) onStatus('ready')
     })().catch((error) => {
       console.error('Character atlas render failed', error)
+      if (!disposed) onStatus('failed')
     })
     return () => {
       disposed = true
       controller.current?.destroy()
       controller.current = undefined
-      onReadyChange(false)
+      onStatus('loading')
     }
-  // onReadyChange is a stable setState from the parent.
+  // onStatus is a stable setState from the parent.
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     let active = true
     latest.current = { atlas, frameIds: frameIds.split('\n') }
-    void controller.current?.update(atlas, frameIds.split('\n')).then((rendered) => { if (active && rendered) onReadyChange(true) }).catch((error) => {
+    void controller.current?.update(atlas, frameIds.split('\n')).then((rendered) => { if (active && rendered) onStatus('ready') }).catch((error) => {
       console.error('Character atlas update failed', error)
+      if (active) onStatus('failed')
     })
     return () => { active = false }
   // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -70,16 +82,16 @@ function AtlasLayers({ atlas, layers, onReadyChange }: { atlas: CharacterTexture
   return <div ref={host} aria-hidden="true" className="absolute inset-0" />
 }
 
-export function CharacterRenderer({ label, layers, atlas, className }: { label: string; layers: Layer[]; atlas?: CharacterTextureAtlas; className?: string }) {
-  // The DOM layers stay mounted in one slot until the canvas has drawn: swapping them for a fresh
-  // instance when the atlas arrived remounted every image (new decode, new fade-in) — a visible blink.
-  const [canvasReady, setCanvasReady] = useState(false)
+export function CharacterRenderer({ label, layers, atlas, loading = false, className }: { label: string; layers: Layer[]; atlas?: CharacterTextureAtlas; loading?: boolean; className?: string }) {
+  const [canvasStatus, setCanvasStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const useCanvas = Boolean(atlas) && layers.length > 0
   return (
     <div className={cn('relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40', className)} role="img" aria-label={label}>
       {!layers.length && <div className="character-empty-placeholder absolute inset-0 p-8"><img src="/assets/placeholders/companion-body-faint.webp" alt="" /></div>}
-      {!(useCanvas && canvasReady) && <Layers layers={layers} />}
-      {useCanvas && <AtlasLayers atlas={atlas!} layers={layers} onReadyChange={setCanvasReady} />}
+      {layers.length > 0 && (loading || useCanvas
+        ? (loading || canvasStatus !== 'ready') && <RenderStatus failed={!loading && canvasStatus === 'failed'} />
+        : <Layers layers={layers} />)}
+      {useCanvas && <AtlasLayers atlas={atlas!} layers={layers} onStatus={setCanvasStatus} />}
     </div>
   )
 }
@@ -150,40 +162,27 @@ export function CharacterSlotPlaceholder({ src, label }: { src: string; label?: 
   />
 }
 
-export function CharacterAssetImage({ blob, bounds, label = '' }: { blob: Blob; bounds?: Bounds; label?: string }) {
-  if (!bounds) return <BlobImage blob={blob} alt={label} className="size-full object-contain" />
-  return <span className="flex size-full items-center justify-center overflow-hidden">
-    <span className="relative block max-h-full max-w-full overflow-hidden" style={{ aspectRatio: `${bounds.width}/${bounds.height}`, ...(bounds.width >= bounds.height ? { width: '100%' } : { height: '100%' }) }}>
-      <BlobImage
-        blob={blob}
-        alt={label}
-        className="absolute max-w-none"
-        style={{
-          width: `${CHARACTER_RIG.canvas.width / bounds.width * 100}%`,
-          height: `${CHARACTER_RIG.canvas.height / bounds.height * 100}%`,
-          left: `${-bounds.x / bounds.width * 100}%`,
-          top: `${-bounds.y / bounds.height * 100}%`,
-        }}
-      />
-    </span>
-  </span>
-}
-
 export function CharacterAtlasFrameImage({ atlas, src, frameId, label = '' }: {
-  atlas: CharacterTextureAtlas
-  src: string
+  atlas?: CharacterTextureAtlas
+  src?: string
   frameId: string
   label?: string
 }) {
-  const frame = atlas.data.frames[frameId]?.frame
-  if (!frame) return null
-  return <span className="flex size-full items-center justify-center overflow-hidden">
-    <span className="relative block max-h-full max-w-full overflow-hidden" style={{ aspectRatio: `${frame.w}/${frame.h}`, ...(frame.w >= frame.h ? { width: '100%' } : { height: '100%' }) }}>
+  const [loaded, setLoaded] = useState<{ src: string; failed?: boolean }>()
+  const frame = atlas?.data.frames[frameId]?.frame
+  const ready = Boolean(frame && src && loaded?.src === src && !loaded.failed)
+  const failed = Boolean((atlas && !frame) || (src && loaded?.src === src && loaded.failed))
+  return <span className="relative flex size-full items-center justify-center overflow-hidden">
+    {!ready && <RenderStatus failed={failed} />}
+    {atlas && frame && src && <span className="relative block max-h-full max-w-full overflow-hidden" style={{ aspectRatio: `${frame.w}/${frame.h}`, ...(frame.w >= frame.h ? { width: '100%' } : { height: '100%' }) }}>
       <img
         src={src}
         alt={label}
         className="absolute max-w-none"
+        onLoad={() => setLoaded({ src })}
+        onError={() => setLoaded({ src, failed: true })}
         style={{
+          visibility: ready ? 'visible' : 'hidden',
           width: `${atlas.data.meta.size.w / frame.w * 100}%`,
           height: `${atlas.data.meta.size.h / frame.h * 100}%`,
           maxHeight: 'none',
@@ -191,6 +190,6 @@ export function CharacterAtlasFrameImage({ atlas, src, frameId, label = '' }: {
           top: `${-frame.y / frame.h * 100}%`,
         }}
       />
-    </span>
+    </span>}
   </span>
 }

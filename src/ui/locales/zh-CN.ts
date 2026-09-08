@@ -1,7 +1,7 @@
 import { en, type Messages } from './en'
 
 export const zhCN: Messages = {
-  common: { productName: 'AOZU', back: '返回', cancel: '取消', language: '语言' },
+  common: { close: '关闭', productName: 'AOZU', back: '返回', cancel: '取消', language: '语言' },
   navigation: { primary: '主导航' },
   startup: {
     loading: '正在加载本地数据…',

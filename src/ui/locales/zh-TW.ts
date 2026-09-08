@@ -1,7 +1,7 @@
 import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
-  common: { productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
+  common: { close: '關閉', productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
   navigation: { primary: '主要導覽' },
   startup: {
     loading: '正在載入本機資料…',
