@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mock } from 'node:test'
+import { Bounds, FilterSystem, RendererType } from 'pixi.js'
 
 // Exercise the real scheduling/cache/controller code without a browser or GPU.
 const applications: Application[] = []
@@ -16,10 +17,27 @@ class Application {
   stage = new Container()
   canvas = { className: '' }
   renders = 0
-  renderer = {}
+  renderer = { type: RendererType.WEBGL, backBuffer: { useBackBuffer: false } }
   destroyed = false
-  async init(options: { autoStart: boolean }) { assert.equal(options.autoStart, false); applications.push(this) }
-  render() { assert.equal(this.destroyed, false); this.renders++ }
+  async init(options: { autoStart: boolean; useBackBuffer?: boolean }) {
+    assert.equal(options.autoStart, false)
+    this.renderer.backBuffer.useBackBuffer = options.useBackBuffer ?? false
+    applications.push(this)
+  }
+  render() {
+    assert.equal(this.destroyed, false)
+    if (this.stage.children[1]?.blendMode === 'difference') {
+      // Run Pixi's real WebGL blend-filter gate using the production init options.
+      const data = { bounds: new Bounds(0, 0, 512, 768), skip: false, blendRequired: false, filters: [{
+        enabled: true, resolution: 1, padding: 0, antialias: 'off', clipToViewport: true,
+        compatibleRenderers: RendererType.WEBGL, blendRequired: true,
+      }] }
+      FilterSystem.prototype._calculateFilterBounds.call({ renderer: this.renderer }, data, { width: 512, height: 768 }, false, 1, 1)
+      assert.equal(data.skip, false, 'Pixi skipped the Difference filter')
+      assert.equal(data.blendRequired, true)
+    }
+    this.renders++
+  }
   destroy() { this.destroyed = true; this.stage.destroy() }
 }
 class Texture {
