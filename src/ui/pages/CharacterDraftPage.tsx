@@ -124,6 +124,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     current: CharacterVariantTransform
   } | undefined>(undefined)
   const refreshingRevision = useRef<number | undefined>(undefined)
+  const newSession = useRef(false)
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
@@ -134,9 +135,14 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
 
   useEffect(() => {
     let live = true
-    editor.open(characterId ?? '').catch((caught: unknown) => { if (live) setLoadError({ characterId: characterId ?? '', message: describe(caught) }) })
+    editor.open(characterId ?? '').then(() => { if (live) newSession.current = characterId === 'new' }).catch((caught: unknown) => { if (live) setLoadError({ characterId: characterId ?? '', message: describe(caught) }) })
     return () => { live = false }
   }, [editor, characterId])
+  useEffect(() => {
+    if (newSession.current && characterId === 'new' && activeCharacterId && activeCharacterId !== 'new') {
+      navigate(`/characters/${encodeURIComponent(activeCharacterId)}/${step ?? 'expressions'}${variantId ? `/${encodeURIComponent(variantId)}` : ''}`, { replace: true })
+    }
+  }, [activeCharacterId, characterId, navigate, step, variantId])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
@@ -480,7 +486,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
             <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
             <span role="status" title={saveError} className={`ml-1 text-xs ${saveStatus === 'failed' || saveStatus === 'conflict' ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {t(`characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
+              {t(persistedRevision === 0 && saveStatus === 'saved' ? 'books.unsaved' : `characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
               {externalRevision && <> · <button type="button" className="underline" onClick={() => { setLocal(undefined); setProfileForm(undefined); void runBusy('reload', () => editor.reload()) }}>{t('characterDraft.status.reload')}</button></>}
               {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
               {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}

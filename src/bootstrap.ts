@@ -9,7 +9,6 @@ import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/z
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
 import { createWebMcpController } from './adapters/webmcp/controller.ts'
-import { loadStarterCatalog } from './adapters/browser/starter-packages.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
@@ -31,8 +30,6 @@ import {
   REQUIRED_CHARACTER_TARGETS,
   activateCharacterVariant,
   deactivateCharacterVariant,
-  createCharacterDraftFromStarter,
-  createCharacterDraft,
   migrateLegacyCharacterLibrary,
   hasCurrentCharacterLayer,
   isCharacterDraftAssetCurrent,
@@ -53,12 +50,11 @@ import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
 import { compileCharacterTextureAtlas } from './adapters/browser/character-atlas.ts'
-import { inspectSceneImage } from './adapters/browser/scene-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
 import { createCharacterWorkspaceEvents } from './adapters/browser/character-workspace-events.ts'
 import { exportCharacterDraftZip, readCharacterDraftZip } from './adapters/zip/character-draft.ts'
-import { type StarterCharacterSelection } from './core/domain/starter.ts'
-import { compileAuthoringBackbone, FIXED_BACKBONE_VERSION } from './core/mantle/backbone.ts'
+import { DEFAULT_CHARACTER_COLLECTION, type CharacterCollectionProfile } from './core/domain/character-collection.ts'
+import { compileAuthoringBackbone } from './core/mantle/backbone.ts'
 
 const readDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader()
@@ -134,6 +130,7 @@ const characterNormalizationContract = (alignAvailable: boolean) => ({
 
 const CHARACTER_WEBMCP_TRIGGERS = [
   'inspect-workspace',
+  'update-collection-profile',
   'navigate-character',
   'inspect-character-contract',
   'update-character-profile',
@@ -168,13 +165,6 @@ export function createApplication(document: Document) {
     }
     return authoringAtlas.value
   }
-  let starterPackages: ReturnType<typeof loadStarterCatalog> | undefined
-  const loadStarters = () => starterPackages ??= loadStarterCatalog(
-    browser?.fetch.bind(browser) ?? fetch,
-    inspectCharacterImage,
-    inspectSceneImage,
-    FIXED_BACKBONE_VERSION,
-  )
   const authoringPlan = compileAuthoringBackbone()
   let authoringRuntime: Promise<MantleRuntime> | undefined
   const invokeContext = { user: null, staff: null, env: {} }
@@ -184,6 +174,7 @@ export function createApplication(document: Document) {
     storage: createIndexedDbMantleStorageAdapter(AUTHORING_NAMESPACE),
     handlers: {
       'companion.inspect-workspace': inspectWorkspace,
+      'companion.update-collection-profile': updateCollectionProfile,
       'companion.navigate-character': navigateCharacter,
       'companion.update-character-profile': updateProfile,
       'companion.set-character-variant-selection': setCharacterSelection,
@@ -263,9 +254,10 @@ export function createApplication(document: Document) {
     editor,
     subscribeCharacterChanges: characterChanges.subscribe,
     async loadCharacterLibrary() {
+      const records = await listCharacterDrafts()
       return {
         collections: await collections.list(),
-        characters: (await listCharacterDrafts()).map(({ character, version }) => ({
+        characters: records.map(({ character, version }) => ({
           id: character.id,
           name: character.name,
           description: character.description ?? '',
@@ -281,9 +273,11 @@ export function createApplication(document: Document) {
       await requestPersistentStorage(browser?.navigator.storage)
       return collection
     },
-    async renameCollection(id: string, name: string, version: number) {
-      await collections.rename(id, name, version)
-      characterChanges.publish({ characterId: id, revision: null })
+    async updateCollection(id: string, profile: CharacterCollectionProfile, version: number) {
+      const result = await (await getAuthoringRuntime()).invokeProcedure({
+        procedure: 'update-collection-profile', input: { collectionId: id, expectedRevision: version, ...profile }, ctx: invokeContext,
+      })
+      if (!result.ok) throw new Error(result.diagnostic.message ?? 'Collection could not be saved')
     },
     async deleteCollection(id: string, version: number) {
       await collections.delete(id, version)
@@ -310,19 +304,6 @@ export function createApplication(document: Document) {
       characterChanges.publish({ characterId: 'character-library', revision: null })
       await requestPersistentStorage(browser?.navigator.storage)
     }),
-    listStarters: loadStarters,
-    async createCharacter(characterChoice: StarterCharacterSelection) {
-      let character: CharacterDraft
-      if (characterChoice) {
-        const packages = await loadStarters()
-        const loaded = packages.find(({ starter }) => starter.id === characterChoice.starterId && starter.version === characterChoice.starterVersion)
-        if (!loaded) throw new Error(`Starter not found: ${characterChoice.starterId}@${characterChoice.starterVersion}`)
-        character = createCharacterDraftFromStarter(loaded, characterChoice.stateId)
-      } else {
-        character = createCharacterDraft()
-      }
-      return persisted(characterDrafts.create(character))
-    },
     /** Save As: duplicates the active in-memory Character and switches to the copy. */
     saveCharacterAs: () => persisted(editor.saveAs().then((character) => ({ character }))),
     /** Copy: duplicates the latest saved library Character. */
@@ -416,12 +397,28 @@ export function createApplication(document: Document) {
     }
   }
 
+  async function updateCollectionProfile(rawInput: unknown) {
+    const { collectionId, expectedRevision, ...patch } = rawInput as { collectionId: string; expectedRevision: number } & Partial<CharacterCollectionProfile>
+    const book = (await collections.list()).find(({ id }) => id === collectionId)
+    if (!book) throw new Error('Collection not found')
+    if (collectionId === DEFAULT_CHARACTER_COLLECTION && patch.name !== undefined && patch.name !== book.name) throw new Error('The default book name is fixed')
+    await collections.update(collectionId, { name: book.name, description: book.description, backstory: book.backstory, ...patch }, expectedRevision)
+    characterChanges.publish({ characterId: collectionId, revision: null })
+    return { status: 'ok', data: { collection: (await collections.list()).find(({ id }) => id === collectionId) }, nextActions: [] }
+  }
+
+  const collectionFor = async (characterId: string) => {
+    const books = await collections.list()
+    const book = books.find(({ characterIds }) => characterIds.includes(characterId)) ?? books.find(({ id }) => id === DEFAULT_CHARACTER_COLLECTION)!
+    return { id: book.id, name: book.name, description: book.description, backstory: book.backstory, revision: book.version }
+  }
+
   async function inspectWorkspace() {
     const route = browser?.location.pathname ?? '/'
     const selectedRoute = routeSelection(route)
     const records = await listCharacterDrafts()
     const saved = records.find(({ character }) => character.id === selectedRoute?.characterId)
-    const current = saved ? await editor.view(saved.character.id) : null
+    const current = saved ? await editor.view(saved.character.id) : selectedRoute?.characterId === 'new' ? (await editor.open('new'), await editor.view('new')) : null
     const character = current?.character ?? null
     const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
@@ -437,6 +434,7 @@ export function createApplication(document: Document) {
       status: 'ok',
       data: {
         route: { path: route, ...selectedRoute },
+        collections: await collections.list(),
         characters: records.map(({ character: draft, version }) => ({
           id: draft.id,
           name: draft.name,
@@ -450,6 +448,7 @@ export function createApplication(document: Document) {
           description: character.description ?? '',
           backstory: character.backstory ?? '',
           attributes: character.attributes ?? {},
+          collection: await collectionFor(character.id),
           revision: current.version,
           updatedAt: character.updatedAt,
           selected: character.selected,
@@ -763,6 +762,7 @@ export function createApplication(document: Document) {
       return {
         status: 'ok',
         data: {
+          collection: await collectionFor(draft.id),
           rig: CHARACTER_RIG,
           creationGroups: CHARACTER_CREATION_GROUPS,
           variants: draft.variants.map((variant) => ({
@@ -791,6 +791,7 @@ export function createApplication(document: Document) {
             ...(target ? {} : { dataUrl: await readDataUrl(canonical.blob) }),
           } : null,
           productionBrief: [
+            'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
             'The first body/base/body candidate establishes the canonical character and registration frame.',
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
             'An outfit replaces the character-skin slot: replace it with the complete dressed character, never a clothing-only overlay. Preserve pose, body center, head position, and foot line. Generate props against the returned current composite.',

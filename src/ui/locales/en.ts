@@ -12,6 +12,19 @@ export const en = {
     error: 'Local data could not be loaded. Refresh and try again.',
   },
   draft: { name: 'Character name', download: 'Export character' },
+  books: {
+    default: 'My characters', shelf: 'Your card books', all: 'All card books', switch: 'Switch card book',
+    create: 'New card book', name: 'Book name', description: 'Description', profile: 'Book details',
+    world: 'Shared world', editWorld: 'Edit shared world', save: 'Save book',
+    worldHint: 'The setting, history, and rules shared by this book’s characters. ChatGPT can use this context alongside each character’s own backstory.',
+    createHint: 'Move characters into this book, then add a shared world in Book details.',
+    actions: 'Book and library actions', characterActions: 'Actions for {{name}}', move: 'Move to card book',
+    characterCount: 'Characters · {{count}}', bookCount: 'Card books · {{count}}',
+    empty: 'A new page for your characters', emptyDefault: 'Create your first character, or import one from the menu above.',
+    emptyCustom: 'Find a character in My characters and use its menu to move it here.', browseDefault: 'Browse My characters',
+    delete: 'Delete card book', deleteHint: 'Delete “{{name}}”? Its characters will return to My characters.',
+    importHint: 'Imported characters are added to My characters.', unsaved: 'Not saved yet',
+  },
   library: {
     collections: 'Collections',
     browse: 'Browse Collection',
@@ -60,11 +73,6 @@ export const en = {
     deleteTitle: 'Delete this character?',
     deleteDescription: 'Delete {{name}} and its local artwork from this device?',
     empty: 'No characters yet. Create one, or import a character you exported earlier.',
-    story: {
-      title: 'Story mode',
-      description: 'Stories and adventures are coming soon.',
-      comingSoon: 'Coming soon',
-    },
   },
   characterDraft: {
     title: 'Character Workshop',

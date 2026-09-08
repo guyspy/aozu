@@ -8,6 +8,7 @@ export const ptBR: Messages = {
     error: 'Não foi possível carregar os dados locais. Atualize a página e tente novamente.',
   },
   draft: { name: 'Nome do personagem', download: 'Exportar personagem' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'ARQUIVO DE PERSONAGENS AOZU',
@@ -29,11 +30,6 @@ export const ptBR: Messages = {
     deleteTitle: 'Excluir este personagem?',
     deleteDescription: 'Excluir “{{name}}” e suas imagens locais deste dispositivo?',
     empty: 'Nenhum personagem ainda. Crie um ou importe um personagem exportado antes.',
-    story: {
-      title: 'Modo história',
-      description: 'Histórias e aventuras chegam em breve.',
-      comingSoon: 'Em breve',
-    },
   },
   characterDraft: {
     title: 'Oficina de personagens',

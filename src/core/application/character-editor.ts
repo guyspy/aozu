@@ -7,7 +7,7 @@ import {
   type CharacterDraft,
   type CharacterDraftAsset,
 } from '../domain/character.ts'
-import { copyCharacter, migrateCharacterDraft, validateCharacterAssetInspection } from './character-creation.ts'
+import { copyCharacter, createCharacterDraft, migrateCharacterDraft, validateCharacterAssetInspection } from './character-creation.ts'
 import {
   CharacterRevisionConflict,
   type AssetRepositoryFactory,
@@ -52,6 +52,7 @@ export function createCharacterEditor(
   // ponytail: one write chain; only one Character is active, so per-Character queues collapse to this.
   let queue: Promise<void> = Promise.resolve()
   let switchQueue: Promise<void> = Promise.resolve()
+  let saveSequence = 0
 
   const settle = async () => {
     let current: Promise<void>
@@ -81,16 +82,26 @@ export function createCharacterEditor(
   }
 
   const persist = (snapshot: CharacterDraft) => {
+    const sequence = ++saveSequence
     const run = queue.then(async () => {
-      const { activeCharacterId, persistedRevision, saveStatus } = store.getState()
-      if (snapshot.id !== activeCharacterId || persistedRevision === null || saveStatus === 'conflict') return
+      const { activeCharacterId, character, persistedRevision, saveStatus } = store.getState()
+      if (snapshot.packId !== character?.packId || persistedRevision === null || saveStatus === 'conflict') return
       store.setState({ saveStatus: 'saving', saveError: undefined })
       try {
-        const { version, updatedAt } = await characters.put(snapshot, persistedRevision)
-        // Only non-tracked fields change; the tracked Character is never replaced after a save.
-        store.setState(snapshot === store.getState().character
-          ? { persistedRevision: version, persistedUpdatedAt: updatedAt, saveStatus: 'saved', saveError: undefined }
-          : { persistedRevision: version, persistedUpdatedAt: updatedAt })
+        let version: number, updatedAt: number
+        if (persistedRevision === 0) {
+          const saved = await characters.create(snapshot)
+          version = saved.version; updatedAt = saved.character.updatedAt
+          // Mantle assigns the permanent ID on the first edit. History and queued edits keep the same pack identity.
+          history.getState().pause()
+          store.setState({ activeCharacterId: saved.character.id, character: { ...store.getState().character!, id: saved.character.id } })
+          history.getState().resume()
+        } else {
+          const saved = await characters.put({ ...snapshot, id: activeCharacterId! }, persistedRevision)
+          version = saved.version; updatedAt = saved.updatedAt
+        }
+        store.setState({ persistedRevision: version, persistedUpdatedAt: updatedAt,
+          ...(sequence === saveSequence ? { saveStatus: 'saved' as const, saveError: undefined } : {}) })
       } catch (error) {
         store.setState({ saveStatus: error instanceof CharacterRevisionConflict ? 'conflict' : 'failed', saveError: describe(error) })
       }
@@ -104,7 +115,9 @@ export function createCharacterEditor(
     const current = store.getState()
     if (current.activeCharacterId === characterId && current.character) return current.character
     if (blocked()) throw new Error(`"${current.character!.name}" has unsaved changes. Retry, reload, or save it as a new Character first.`)
-    const record = await read(characterId)
+    const record = characterId === 'new'
+      ? { character: createCharacterDraft(undefined, 'new'), version: 0 }
+      : await read(characterId)
     activate(record)
     return record.character
   }
@@ -119,7 +132,9 @@ export function createCharacterEditor(
     const { pastStates, futureStates, undo, redo } = history.getState()
     if (store.getState().saveStatus === 'conflict' || !(direction === 'undo' ? pastStates : futureStates).length) return Promise.resolve(false)
     ;(direction === 'undo' ? undo : redo)()
-    store.setState({ saveStatus: 'saving', saveError: undefined })
+    history.getState().pause()
+    store.setState({ character: { ...store.getState().character!, id: store.getState().activeCharacterId! }, saveStatus: 'saving', saveError: undefined })
+    history.getState().resume()
     return persist(store.getState().character!).then(() => true)
   }
 
@@ -176,6 +191,7 @@ export function createCharacterEditor(
       const { activeCharacterId } = store.getState()
       if (!activeCharacterId) throw new Error('No Character is open')
       await settle()
+      if (store.getState().persistedRevision === 0) { activate({ character: createCharacterDraft(undefined, 'new'), version: 0 }); return }
       const record = await read(activeCharacterId)
       activate(record)
       return record.character

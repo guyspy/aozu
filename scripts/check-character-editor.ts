@@ -246,4 +246,28 @@ assert.equal(secondCopy.name, 'Gamma 2 copy 2')
 await editor.open('gamma')
 assert.equal((await editor.saveAs()).name, 'Gamma 2 copy 3')
 
+// Opening/reopening the first workshop creates no record. Rapid first edits create once, then update the permanent Mantle ID.
+let creations = 0
+const newEditor = createCharacterEditor({ ...characters, async create(draft) {
+  creations++
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  return characters.create({ ...draft, id: 'first-created-character' })
+} }, () => { throw new Error('No assets in this check') }, async () => inspection)
+const beforeNew = rows.size
+await newEditor.open('new')
+await newEditor.open('new')
+assert.equal(rows.size, beforeNew)
+assert.equal(newEditor.store.getState().persistedRevision, 0)
+await Promise.all([newEditor.dispatch(rename('First name'), 0), newEditor.dispatch(rename('Latest name'), 0)])
+assert.equal(creations, 1)
+assert.equal(rows.size, beforeNew + 1)
+assert.equal(rows.get('first-created-character')!.character.name, 'Latest name')
+assert.equal(newEditor.store.getState().activeCharacterId, 'first-created-character')
+assert.equal(newEditor.store.getState().saveStatus, 'saved')
+await newEditor.undo()
+assert.equal(rows.get('first-created-character')!.character.name, 'First name')
+assert.equal(newEditor.store.getState().character!.id, 'first-created-character')
+await newEditor.redo()
+assert.equal(rows.get('first-created-character')!.character.name, 'Latest name')
+assert.equal(creations, 1)
 console.log('character editor: ok')

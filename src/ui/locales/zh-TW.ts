@@ -8,6 +8,12 @@ export const zhTW: Messages = {
     error: '無法載入本機資料，請重新整理後再試一次。',
   },
   draft: { name: '角色名稱', download: '匯出角色' },
+  books: { ...en.books, default: '我的角色', shelf: '我的卡片書', all: '所有卡片書', switch: '切換卡片書',
+    create: '新增卡片書', name: '書名', description: '簡介', profile: '卡片書資料', world: '共用世界觀', editWorld: '編輯世界觀', save: '儲存卡片書',
+    worldHint: '這本書中角色共用的背景、歷史與世界規則。ChatGPT 可以搭配每個角色自己的背景故事使用。',
+    createHint: '先把角色移進這本書，再從「卡片書資料」加入共用世界觀。', actions: '卡片書與備份選單', characterActions: '「{{name}}」的操作', move: '移至卡片書',
+    characterCount: '{{count}} 個角色', bookCount: '{{count}} 本卡片書', empty: '準備收進你的角色', emptyDefault: '建立第一個角色，或從上方選單匯入角色。', emptyCustom: '在「我的角色」找到角色，從角色選單把它移進來。', browseDefault: '瀏覽我的角色',
+    delete: '刪除卡片書', deleteHint: '要刪除「{{name}}」嗎？書裡的角色會回到「我的角色」。', importHint: '匯入的角色會放進「我的角色」。', unsaved: '尚未儲存' },
   library: en.library,
   characters: {
     kicker: 'AOZU 角色典藏',
@@ -29,11 +35,6 @@ export const zhTW: Messages = {
     deleteTitle: '要刪除這個角色嗎？',
     deleteDescription: '將從這部裝置刪除「{{name}}」與它的本機圖檔。',
     empty: '還沒有角色。建立一個，或匯入先前匯出的角色。',
-    story: {
-      title: '故事模式',
-      description: '故事與冒險即將登場。',
-      comingSoon: '即將推出',
-    },
   },
   characterDraft: {
     title: '角色工坊',

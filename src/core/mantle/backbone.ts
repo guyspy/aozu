@@ -73,7 +73,7 @@ const characterHistoryResultSchema = objectSchema({
 
 const characterHistoryInputSchema = objectSchema({
   characterId: { type: 'string', minLength: 1 },
-  expectedRevision: { type: 'integer', minimum: 1 },
+  expectedRevision: { type: 'integer', minimum: 0 },
 }, ['characterId', 'expectedRevision'])
 
 const stageProjectionSchema = objectSchema({
@@ -417,6 +417,8 @@ const ALL_BACKBONE_SOURCES = [
       lifecycle: 'operational',
       schema: objectSchema({
         name: { type: 'string', minLength: 1, maxLength: 100 },
+        description: { type: 'string', maxLength: 500 },
+        backstory: { type: 'string', maxLength: 8000 },
         characterIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 100 } },
       }, ['name', 'characterIds']),
     }),
@@ -570,6 +572,29 @@ const ALL_BACKBONE_SOURCES = [
       input: emptyReadOnlyInput,
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.inspect-workspace' },
+    }),
+  ),
+  source(
+    'authoring/update-collection-profile.yaml',
+    envelope('Procedure', 'update-collection-profile', {
+      title: 'Update Card Book Profile',
+      description: 'Update a card book’s name, description, or shared world backstory. Use the collection ID and exact revision from inspect_workspace. Omitted fields stay unchanged. Shared world context is available to every Character in this book without replacing their individual profiles.',
+      input: objectSchema({
+        collectionId: { type: 'string', minLength: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
+        name: { type: 'string', minLength: 1, maxLength: 100 },
+        description: { type: 'string', maxLength: 500 },
+        backstory: { type: 'string', maxLength: 8000 },
+      }, ['collectionId', 'expectedRevision']),
+      output: toolResultSchema,
+      handler: { kind: 'ref', ref: 'companion.update-collection-profile' },
+    }),
+  ),
+  source(
+    'authoring/update-collection-profile-mcp.yaml',
+    envelope('Trigger', 'update-collection-profile', {
+      source: { kind: 'mcp', surface: 'public' },
+      target: { procedure: 'update-collection-profile' },
     }),
   ),
   source(
@@ -738,10 +763,10 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-profile.yaml',
     envelope('Procedure', 'update-character-profile', {
       title: 'Update Character Profile',
-      description: 'Update one or more identity fields of a saved Character using its exact revision. Omitted fields stay unchanged; empty description, backstory, or attributes clear that field. A successful call saves one undoable change and opens that Character editor.',
+      description: 'Update one or more identity fields of a Character using its exact revision. The current unsaved workshop uses characterId new and revision 0; its first edit creates a saved Character and returns its permanent ID. Omitted fields stay unchanged; empty description, backstory, or attributes clear that field. A successful call saves one undoable change and opens that Character editor.',
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
-        expectedRevision: { type: 'integer', minimum: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
         name: { type: 'string', minLength: 1, maxLength: 80 },
         description: { type: 'string', maxLength: 500 },
         backstory: { type: 'string', maxLength: 8_000 },
@@ -769,7 +794,7 @@ const ALL_BACKBONE_SOURCES = [
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         label: { type: 'string', minLength: 1, maxLength: 80 },
         layer: { enum: ['body', 'head', 'back', 'front'] },
-        expectedRevision: { type: 'integer', minimum: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
         expectedAssetSha256: { type: ['string', 'null'], pattern: '^[0-9a-f]{64}$' },
         filename: { type: 'string', minLength: 1, maxLength: 200 },
         dataUrl: { type: 'string', pattern: '^data:image/png;base64,', maxLength: 7_100_000 },
@@ -797,7 +822,7 @@ const ALL_BACKBONE_SOURCES = [
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         label: { type: 'string', minLength: 1, maxLength: 80 },
         layer: { const: 'head' },
-        expectedRevision: { type: 'integer', minimum: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
         expectedAssetSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
         filename: { type: 'string', minLength: 1, maxLength: 200 },
         dataUrl: { type: 'string', pattern: '^data:image/png;base64,', maxLength: 7_100_000 },
@@ -823,7 +848,7 @@ const ALL_BACKBONE_SOURCES = [
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
-        expectedRevision: { type: 'integer', minimum: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
         active: { type: 'boolean' },
       }, ['characterId', 'group', 'variantId', 'expectedRevision', 'active']),
       output: toolResultSchema,
@@ -846,7 +871,7 @@ const ALL_BACKBONE_SOURCES = [
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
-        expectedRevision: { type: 'integer', minimum: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
         x: { type: 'number', minimum: -512, maximum: 512 },
         y: { type: 'number', minimum: -768, maximum: 768 },
         scale: { type: 'number', minimum: 0.25, maximum: 4 },

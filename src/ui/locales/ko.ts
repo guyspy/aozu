@@ -8,6 +8,7 @@ export const ko: Messages = {
     error: '로컬 데이터를 불러올 수 없습니다. 새로 고침 후 다시 시도해 주세요.',
   },
   draft: { name: '캐릭터 이름', download: '캐릭터 내보내기' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'AOZU 캐릭터 아카이브',
@@ -29,11 +30,6 @@ export const ko: Messages = {
     deleteTitle: '이 캐릭터를 삭제할까요?',
     deleteDescription: '‘{{name}}’과 로컬 이미지를 이 기기에서 삭제합니다.',
     empty: '아직 캐릭터가 없습니다. 새로 만들거나 이전에 내보낸 캐릭터를 가져오세요.',
-    story: {
-      title: '스토리 모드',
-      description: '스토리와 모험이 곧 찾아옵니다.',
-      comingSoon: '곧 공개',
-    },
   },
   characterDraft: {
     title: '캐릭터 공방',
