@@ -15,7 +15,8 @@ export type CharacterRenderView = {
 export async function mountCharacterRenderer(host: HTMLElement) {
   const app = new Application()
   try {
-    await app.init({ ...CHARACTER_RIG.canvas, backgroundAlpha: 0, antialias: false, autoStart: false })
+    // Difference blending needs a readable WebGL back buffer.
+    await app.init({ ...CHARACTER_RIG.canvas, backgroundAlpha: 0, antialias: false, autoStart: false, useBackBuffer: true })
   } catch (error) {
     if (app.renderer) app.destroy(true, { children: true })
     throw error
