@@ -52,10 +52,10 @@ AOZU exposes these public tools on every page:
 | `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides, and set or clear character height against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
-| `set_character_variant_selection` | Select or remove an expression, outfit, or prop against its exact revision; newly added props stack above earlier ones |
+| `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or save-as/select/rename a look against its exact revision |
 | `set_character_variant_transform` | Apply an explicit translation and uniform scale when a generated layer needs a small alignment correction |
-| `undo_character_change` | Undo the latest settled change in the active editing session |
-| `redo_character_change` | Redo the most recently undone change in the active editing session |
+| `undo_character_change` | Undo the latest settled Appearance edit, preserving Character profile and shared height |
+| `redo_character_change` | Redo within the current Appearance session; switching looks resets history |
 
 Successful tool calls can also return navigation effects, so the SPA takes the human directly to the affected character or variant for visual review.
 
@@ -104,9 +104,18 @@ keep their original canvas, may be opaque, and can be up to 4096 × 4096 and 5 M
 Height in cm is optional. Open a reference to add notes and position its head and
 feet guides; these measure the character independently of image margins, hats,
 and props. Replacing a reference clears its calibration and retains its notes.
-References, notes, height, and guides use the existing save, undo, duplicate,
-single-character ZIP, and library backup flows. They do not become appearance
+References, notes, height, and guides use the existing autosave, duplicate,
+single-character ZIP, and library backup flows. Appearance Undo includes reference
+edits while preserving shared character height and profile. They do not become appearance
 layers or atlas frames. Cross-character scale lineups are a subsequent step.
+
+Named Appearances autosave their current expression, outfit and ordered props.
+Use **Save as new Appearance** before editing to preserve the original look.
+Linked front references follow composition edits; other art stays intact with a
+review flag. Switching looks starts a fresh Undo session. **Character profile**
+is the middle tab and previews the current Appearance alongside the existing
+biography and attributes. Character ZIP, copy and delete live in the header menu;
+Appearance switching, Save as, Undo/Redo and PNG stay beside the preview.
 
 The page reserves the remaining sections without creating empty character data.
 See the [model sheet plan](docs/character-model-sheets.md) for the agreed scope,

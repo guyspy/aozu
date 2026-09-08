@@ -33,11 +33,8 @@ export const de: Messages = {
     empty: 'Noch keine Figuren. Erstelle eine oder importiere eine zuvor exportierte Figur.',
   },
   characterDraft: {
-    title: 'Figurenwerkstatt',
-    description: 'Beschreibe die gewünschte Figur. ChatGPT kann eine Basisfigur, ausgerichtete Gesichtsausdrücke, Outfits und Requisiten direkt hinzufügen.',
-    stageTitle: 'Ganzkörpervorschau',
+    downloadZip: 'Charakter-ZIP herunterladen', characterActions: 'Charakteraktionen',
     customizeTitle: 'Aussehen anpassen',
-    workbenchDescription: 'Wähle einen Platz und lade ein Bild hoch – oder lass es von ChatGPT hinzufügen.',
     categorySwitcher: 'Kategorien des Aussehens',
     required: 'Erforderlich',
     missingRequired: 'Füge eine Basisfigur hinzu, um Pose und Ausrichtung festzulegen.',
@@ -63,7 +60,7 @@ export const de: Messages = {
       title: 'Figurenprofil', name: 'Name', description: 'Beschreibung', backstory: 'Hintergrundgeschichte', attributes: 'Attribute',
       add: 'Hinzufügen', text: 'Text', number: 'Zahl', boolean: 'Ja / nein', yes: 'Ja', no: 'Nein', value: 'Wert', update: 'Profil aktualisieren',
       attributeName: 'Name von Attribut {{index}}', attributeType: 'Typ von Attribut {{index}}', attributeValue: 'Wert von Attribut {{index}}', removeAttribute: 'Attribut {{index}} entfernen',
-      edit: 'Figurenprofil bearbeiten', expand: 'Figurenprofil öffnen', collapse: 'Figurenprofil schließen',
+      edit: 'Figurenprofil bearbeiten',
       noDescription: 'Noch keine Beschreibung.', noBackstory: 'Noch keine Hintergrundgeschichte.', noAttributes: 'Noch keine Attribute.',
     },
     alignment: {

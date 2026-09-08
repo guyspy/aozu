@@ -9,6 +9,7 @@ import {
 } from '../domain/character.ts'
 import { copyCharacter, createCharacterDraft, migrateCharacterDraft, validateCharacterAssetInspection } from './character-creation.ts'
 import { validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
+import { restoreCharacterAppearance, sameAppearanceEdit, saveCurrentCharacterAppearance } from './character-appearances.ts'
 import {
   CharacterRevisionConflict,
   type AssetRepositoryFactory,
@@ -36,24 +37,26 @@ const describe = (error: unknown) => error instanceof Error ? error.message : St
 const idle: CharacterEditorState = { activeCharacterId: null, character: null, persistedRevision: null, persistedUpdatedAt: null, saveStatus: 'saved', saveError: undefined }
 
 /**
- * One autosaving command lifecycle shared by React and WebMCP. Every logical edit is one `dispatch`,
- * producing exactly one history frame and one serialized whole-snapshot write.
+ * One autosaving command lifecycle shared by React and WebMCP. Each dispatch writes one prepared snapshot;
+ * Appearance edits add one history frame, while profile edits and navigation stay outside that history.
  */
 export function createCharacterEditor(
   characters: CharacterDraftRepository,
   assets: AssetRepositoryFactory,
   inspect: (blob: Blob) => Promise<CharacterAssetInspection>,
+  prepare: (draft: CharacterDraft, previous: CharacterDraft | null) => Promise<CharacterDraft> = async (draft) => draft,
 ) {
   const store = createStore<CharacterEditorState>()(temporal(() => idle, {
     limit: CHARACTER_HISTORY_LIMIT,
     partialize: (state) => ({ character: state.character }),
-    equality: (past, current) => past.character === current.character,
+    equality: (past, current) => Boolean(sameAppearanceEdit(past.character, current.character)),
   }))
   const history = store.temporal
   // ponytail: one write chain; only one Character is active, so per-Character queues collapse to this.
   let queue: Promise<void> = Promise.resolve()
   let switchQueue: Promise<void> = Promise.resolve()
   let saveSequence = 0
+  let persistedCharacter: CharacterDraft | null = null
 
   const settle = async () => {
     let current: Promise<void>
@@ -78,6 +81,7 @@ export function createCharacterEditor(
   }
 
   const activate = ({ character, version }: CharacterRecord) => {
+    persistedCharacter = character
     store.setState({ activeCharacterId: character.id, character, persistedRevision: version, persistedUpdatedAt: character.updatedAt, saveStatus: 'saved', saveError: undefined })
     history.getState().clear()
   }
@@ -89,17 +93,24 @@ export function createCharacterEditor(
       if (snapshot.packId !== character?.packId || persistedRevision === null || saveStatus === 'conflict') return
       store.setState({ saveStatus: 'saving', saveError: undefined })
       try {
+        const prepared = await prepare(snapshot, persistedCharacter)
         let version: number, updatedAt: number
         if (persistedRevision === 0) {
-          const saved = await characters.create(snapshot)
+          const saved = await characters.create(prepared)
           version = saved.version; updatedAt = saved.character.updatedAt
           // Mantle assigns the permanent ID on the first edit. History and queued edits keep the same pack identity.
           history.getState().pause()
           store.setState({ activeCharacterId: saved.character.id, character: { ...store.getState().character!, id: saved.character.id } })
           history.getState().resume()
         } else {
-          const saved = await characters.put({ ...snapshot, id: activeCharacterId! }, persistedRevision)
+          const saved = await characters.put({ ...prepared, id: activeCharacterId! }, persistedRevision)
           version = saved.version; updatedAt = saved.updatedAt
+        }
+        persistedCharacter = prepared
+        if (sequence === saveSequence && prepared !== snapshot) {
+          history.getState().pause()
+          store.setState({ character: { ...prepared, id: store.getState().activeCharacterId! } })
+          history.getState().resume()
         }
         store.setState({ persistedRevision: version, persistedUpdatedAt: updatedAt,
           ...(sequence === saveSequence ? { saveStatus: 'saved' as const, saveError: undefined } : {}) })
@@ -130,11 +141,12 @@ export function createCharacterEditor(
   }
 
   const step = (direction: 'undo' | 'redo') => {
+    const current = store.getState().character
     const { pastStates, futureStates, undo, redo } = history.getState()
-    if (store.getState().saveStatus === 'conflict' || !(direction === 'undo' ? pastStates : futureStates).length) return Promise.resolve(false)
+    if (!current || store.getState().saveStatus !== 'saved' || !(direction === 'undo' ? pastStates : futureStates).length) return Promise.resolve(false)
     ;(direction === 'undo' ? undo : redo)()
     history.getState().pause()
-    store.setState({ character: { ...store.getState().character!, id: store.getState().activeCharacterId! }, saveStatus: 'saving', saveError: undefined })
+    store.setState({ character: restoreCharacterAppearance(current, store.getState().character!), saveStatus: 'saving', saveError: undefined })
     history.getState().resume()
     return persist(store.getState().character!).then(() => true)
   }
@@ -163,7 +175,7 @@ export function createCharacterEditor(
       return promise
     },
     /**
-     * One logical command: validate, produce one immutable next Character, one history frame, one queued whole-snapshot write.
+     * One logical command: validate, produce one immutable next Character, and queue one whole-snapshot write.
      * Returning the same reference is a no-op. Resolves after this snapshot's write settles (never rejects for write errors).
      */
     dispatch(produce: (character: CharacterDraft) => CharacterDraft, expectedRevision?: number): Promise<boolean> {
@@ -173,9 +185,17 @@ export function createCharacterEditor(
       if (expectedRevision !== undefined && expectedRevision !== persistedRevision) {
         throw new CharacterRevisionConflict(`Character changed; expected revision ${expectedRevision}, current ${persistedRevision}`)
       }
-      const next = produce(character)
+      const next = saveCurrentCharacterAppearance(produce(character))
       if (next === character) return Promise.resolve(false)
+      const switched = next.activeAppearanceId !== character.activeAppearanceId
+      if (switched && saveStatus !== 'saved') throw new Error('Save or retry the current Appearance before switching')
+      if (switched) history.getState().pause()
       store.setState({ character: next, saveStatus: 'saving', saveError: undefined })
+      if (switched) {
+        // ponytail: history belongs to the open Appearance session; switching resets it so shared art cannot be replayed across looks.
+        history.getState().clear()
+        history.getState().resume()
+      }
       return persist(next).then(() => true)
     },
     undo: () => step('undo'),
@@ -213,10 +233,10 @@ export function createCharacterEditor(
     duplicate: (source: CharacterDraft) => createCopy(source),
     /** Save As: duplicates the in-memory value and makes the copy the active session. */
     async saveAs() {
+      await settle()
       const { character } = store.getState()
       if (!character) throw new Error('No Character is open')
       const record = await createCopy(character)
-      await settle()
       activate(record)
       return record.character
     },

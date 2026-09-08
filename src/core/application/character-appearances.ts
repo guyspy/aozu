@@ -8,6 +8,35 @@ export const sameCharacterSelection = (left: CharacterSelection, right: Characte
   left.expression === right.expression && left.outfit === right.outfit &&
   left.props.length === right.props.length && left.props.every((id, index) => id === right.props[index])
 
+/** The top-level selection is the current editor's projection of its named Appearance. */
+export function saveCurrentCharacterAppearance(draft: CharacterDraft): CharacterDraft {
+  const active = activeCharacterAppearance(draft)
+  if (!active || sameCharacterSelection(active.selected, draft.selected)) return draft
+  return { ...draft, appearances: draft.appearances!.map((appearance) => appearance === active
+    ? { ...appearance, selected: structuredClone(draft.selected) } : appearance) }
+}
+
+export function sameAppearanceEdit(left: CharacterDraft | null, right: CharacterDraft | null) {
+  if (!left || !right) return left === right
+  const a = activeCharacterAppearance(left), b = activeCharacterAppearance(right)
+  const aSheet = a?.modelSheet ?? left.modelSheet, bSheet = b?.modelSheet ?? right.modelSheet
+  return left.variants === right.variants && left.headRegistration === right.headRegistration &&
+    sameCharacterSelection(left.selected, right.selected) && a?.label === b?.label &&
+    sameReferenceMap(aSheet?.views, bSheet?.views) && sameReferenceMap(aSheet?.references, bSheet?.references)
+}
+
+const sameReferenceMap = (left?: object, right?: object) => left === right ||
+  !Object.keys(left ?? {}).length && !Object.keys(right ?? {}).length
+
+/** Undo affects Appearance art and references; current profile, shared height and other looks survive. */
+export function restoreCharacterAppearance(current: CharacterDraft, saved: CharacterDraft): CharacterDraft {
+  const appearance = activeCharacterAppearance(saved)
+  return { ...current, variants: saved.variants, headRegistration: saved.headRegistration, selected: saved.selected,
+    ...(appearance ? { appearances: current.appearances!.map((item) => item.id === appearance.id ? appearance : item) }
+      : { modelSheet: { ...saved.modelSheet, views: saved.modelSheet?.views ?? {}, heightCm: current.modelSheet?.heightCm } }),
+  }
+}
+
 /** Appearance saves a combination of existing variants, not another copy of their pixels. */
 export function validateCharacterAppearances(draft: CharacterAssetContent<unknown> & { activeAppearanceId?: string }) {
   if (draft.appearances !== undefined && (!Array.isArray(draft.appearances) || draft.appearances.length > 100)) throw new Error('Invalid Appearances')
@@ -34,12 +63,12 @@ export function validateCharacterAppearances(draft: CharacterAssetContent<unknow
   if (draft.activeAppearanceId !== undefined && !ids.has(draft.activeAppearanceId)) throw new Error('Active Appearance is missing')
 }
 
-export type CharacterAppearanceCommand = { action: 'save' | 'select' | 'rename'; id: string; label?: string }
+export type CharacterAppearanceCommand = { action: 'save-as' | 'select' | 'rename'; id: string; label?: string }
 export function changeCharacterAppearance(draft: CharacterDraft, command: CharacterAppearanceCommand): CharacterDraft {
   const { action, id, label } = command
   const existing = draft.appearances?.find((appearance) => appearance.id === id)
   let next: CharacterDraft
-  if (action === 'save') {
+  if (action === 'save-as') {
     if (existing) throw new Error('Appearance already exists; save with a new ID to preserve its references')
     const first = !draft.appearances?.length
     const { heightCm, ...references } = draft.modelSheet ?? { views: {} }

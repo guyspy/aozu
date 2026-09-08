@@ -55,7 +55,9 @@ export function validateModelSheet(sheet: CharacterModelSheet<unknown>) {
   for (const [id, reference] of Object.entries(modelSheetReferences(sheet))) {
     validateReferenceId(id)
     if (!reference || typeof reference !== 'object' || Array.isArray(reference) || !reference.asset ||
-      Object.keys(reference).some((key) => !['asset', 'notes', 'guides', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].includes(key)) ||
+      Object.keys(reference).some((key) => !['asset', 'notes', 'guides', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256', 'fromAppearance', 'needsReview'].includes(key)) ||
+      (reference.fromAppearance !== undefined && typeof reference.fromAppearance !== 'boolean') ||
+      (reference.needsReview !== undefined && typeof reference.needsReview !== 'boolean') ||
       ['label', 'viewpoint', 'pose'].some((key) => { const value = reference[key as 'label']; return value !== undefined && (typeof value !== 'string' || !value.trim() || value.length > 80) }) ||
       (reference.kind !== undefined && !CHARACTER_REFERENCE_KINDS.includes(reference.kind)) ||
       (reference.sourceSha256 !== undefined && !/^[0-9a-f]{64}$/.test(reference.sourceSha256)) ||

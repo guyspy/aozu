@@ -72,8 +72,8 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(state().character.modelSheet.heightCm === 185, 'Height did not persist')
     await fill(height, ''); blur(height); await settled()
     check(state().character.modelSheet.heightCm === undefined, 'Empty height became zero')
-    document.querySelector('[aria-label="Undo"]').click(); await settled()
-    check(state().character.modelSheet.heightCm === 185, 'Height did not undo')
+    await fill(height, '185'); blur(height); await settled()
+    check(state().character.modelSheet.heightCm === 185, 'Shared height did not persist')
     document.querySelector('[aria-label="Open Front reference"]').click()
     await ready(() => document.querySelector('.model-sheet-detail'))
     const dialog = document.querySelector('.model-sheet-detail')
@@ -128,7 +128,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(document.querySelector('.model-sheet').scrollWidth <= document.querySelector('.model-sheet').clientWidth + 1, 'Reference layout overflows')
     document.querySelector('.model-sheet-detail [data-slot=sheet-close]')?.click()
     await ready(() => !document.querySelector('.model-sheet-detail'))
-    const buttons = (text) => [...document.querySelectorAll('button')].find((button) => button.textContent === text)
+    const buttons = (text) => [...document.querySelectorAll('button')].find((button) => button.textContent === text || button.getAttribute('aria-label') === text)
     check(!buttons('Save as new Appearance') && !buttons('Rename') && !buttons('Use current appearance'), 'Model sheet still exposes Appearance authoring controls')
     check(document.querySelector('.model-sheet-toolbar select[aria-label="Saved Appearance"]'), 'Model sheet lacks its saved Appearance selector')
     buttons('Appearance').click()
@@ -141,23 +141,22 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await fill(nameInput, 'Gym')
     check((await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Appearance name form is invisible to agents')
     const formRevision = state().persistedRevision
-    const blockedName = await call('set_character_variant_selection', { characterId: id, expectedRevision: formRevision, appearance: { action: 'save', id: 'interrupt', label: 'Interrupt' } }).then(() => false, () => true)
+    const blockedName = await call('set_character_variant_selection', { characterId: id, expectedRevision: formRevision, appearance: { action: 'save-as', id: 'interrupt', label: 'Interrupt' } }).then(() => false, () => true)
     check(blockedName && state().persistedRevision === formRevision, 'Agent interrupted Appearance naming')
     nameInput.form.querySelector('button[type=submit]').click()
     await ready(() => state().character.appearances?.length === 1); await settled()
     const gym = state().character.activeAppearanceId
     check(state().character.appearances[0].modelSheet.references['t-pose'] && !state().character.modelSheet.views.front, 'First Appearance failed to adopt references')
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 768
-    canvas.getContext('2d').fillRect(128, 32, 256, 700)
-    const layerPng = canvas.toDataURL('image/png')
     for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front']]) {
+      const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 512, 768); ctx.fillStyle = group === 'body' ? '#222222' : '#ff0000'; ctx.fillRect(128, 32, 256, group === 'body' ? 700 : 150)
+      const layerPng = canvas.toDataURL('image/png')
       await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, dataUrl: layerPng })
     }
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
-    check(!modified.character.matchesSaved && modified.modelSheet.appearanceId === gym, 'Modified combination lost its saved reference scope')
-    const captureBlocked = await call('update_character_model_sheet', { characterId: id, expectedRevision: state().persistedRevision, referenceId: 'front', fromAppearance: true, expectedAssetSha256: modified.modelSheet.views.front.sha256 }).then(() => false, (error) => error.message.includes('differs from the saved Appearance'))
-    check(captureBlocked, 'Changed combination overwrote the saved Appearance front')
+    check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.props[0] === 'prop-1', 'Current Appearance was not autosaved')
+    check(modified.modelSheet.views.front.needsReview, 'A manual front did not flag changed composition')
     await ready(() => buttons('Save as new Appearance') && !buttons('Save as new Appearance').disabled)
     buttons('Save as new Appearance').click()
     await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))
@@ -167,10 +166,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const withProp = state().character.activeAppearanceId
     const autoFront = state().character.appearances[1].modelSheet.views.front
     check(autoFront?.sourceSha256 === autoFront?.asset.inspection.sha256 && autoFront?.asset.blob.size > 0, 'Save did not capture its front and source hash')
-    await call('undo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
-    check(state().character.appearances.length === 1 && state().character.activeAppearanceId === gym, 'Saving Appearance and front took multiple undo steps')
-    await call('redo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
-    check(state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Redo lost automatic front')
+    check(app.editor.history.getState().pastStates.length === 0, 'Save as should open a fresh Appearance undo session')
     await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
     await ready(() => document.querySelectorAll('.model-sheet-empty').length === 3)
     check(document.querySelectorAll('.model-sheet-art img').length === 1 && !buttons('Use current appearance'), 'New Appearance needs only its own front')
@@ -180,20 +176,57 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(scoped.currentCharacter.modelSheet.appearanceId === withProp && scoped.snapshot.referenceId === 'front', 'Reference snapshot lost Appearance ownership')
     document.querySelector('.model-sheet-detail [data-slot=sheet-close]')?.click()
     await ready(() => !document.querySelector('.model-sheet-detail'))
+    // One edit updates its named combination, linked front and consistency flags in one write/undo step.
+    await call('update_character_model_sheet', { characterId: id, expectedRevision: state().persistedRevision, referenceId: 'side', dataUrl, filename: 'side.png', expectedAssetSha256: null, guides: { head: 0.12, feet: 0.9 } })
+    await ready(() => route.pathname.endsWith('/model-sheet/side') && document.querySelector('.model-sheet-detail'))
+    document.querySelector('.model-sheet-detail [data-slot=sheet-close]').click()
+    await ready(() => !document.querySelector('.model-sheet-detail'))
+    const historyBefore = app.editor.history.getState().pastStates.length
+    await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: false })
+    const edited = state().character.appearances[1]
+    check(edited.selected.props.length === 0 && edited.modelSheet.views.front.asset.inspection.sha256 !== autoFront.asset.inspection.sha256, 'Autosave did not synchronize the named selection and front')
+    check(edited.modelSheet.views.side.needsReview && edited.modelSheet.views.side.guides.head === 0.12, 'Existing side art/guides were not retained with a review flag')
+    check(state().character.appearances[0].selected.props[0] === 'prop-1', 'Editing the copy overwrote the original look')
+    check(app.editor.history.getState().pastStates.length === historyBefore + 1, 'Automatic front synchronization added a second undo frame')
+    const currentImage = await app.exportCharacterPng(state().character)
+    await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, name: 'Profile test', description: 'Description survives', backstory: 'Story survives', attributes: { age: 42, parent: true } })
+    await ready(() => route.pathname.endsWith('/profile') && document.querySelector('#character-profile') && Number(document.querySelector('main').dataset.characterRevision) === state().persistedRevision)
+    const profileSnapshot = (await call('inspect_workspace', { includeSnapshot: true })).data
+    check(profileSnapshot.view.panel === 'profile' && profileSnapshot.view.category === 'profile' && profileSnapshot.snapshot.dataUrl === await dataUrlFor(currentImage), 'Profile did not use the current Appearance')
+    check(!document.querySelector('.doll-workbench') && !document.querySelector('.character-first-dialogue') && !document.querySelector('.character-spell-guide'), 'Removed workshop panels remain in profile')
+    check([...document.querySelectorAll('nav[aria-label="Character workspace"] button')].map(b => b.textContent).join('|') === 'Appearance|Character profile|Model sheet', 'Profile is not the middle tab')
+    check(document.querySelector('#character-actions').contains(buttons('Download character ZIP')) && !document.querySelector('main').contains(buttons('Copy character')), 'Character operations are not at header level')
+    buttons('Edit character profile').click()
+    await ready(() => document.querySelector('#character-profile input'))
+    check(document.querySelectorAll('.character-attribute-row').length === 2 && (await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Profile form lost typed attributes or local-input guard')
+    buttons('Cancel').click()
+    await call('undo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
+    check(state().character.name === 'Profile test' && state().character.appearances[1].selected.props[0] === 'prop-1', 'Appearance Undo changed the profile or lost its selection')
+    check(state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256 && !state().character.appearances[1].modelSheet.views.side.needsReview, 'Undo did not restore front and review state together')
+    await call('redo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
+    check(state().character.appearances[1].selected.props.length === 0 && state().character.appearances[1].modelSheet.views.side.needsReview, 'Redo lost the Appearance edit')
+    // Rapid UI edits may queue before the prior front has rendered; Undo must still recover the right composite.
+    await Promise.all([
+      app.editor.dispatch((draft) => ({ ...draft, selected: { ...draft.selected, props: ['prop-1'] } })),
+      app.editor.dispatch((draft) => ({ ...draft, selected: { ...draft.selected, props: [] } })),
+    ])
+    await app.editor.undo()
+    check(state().character.appearances[1].selected.props[0] === 'prop-1' && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Queued edit Undo restored a stale front')
+    await app.editor.undo()
+    check(state().character.appearances[1].selected.props.length === 0 && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === edited.modelSheet.views.front.asset.inspection.sha256, 'Queued edits did not undo back to the starting Appearance')
+    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await ready(() => document.querySelector('select[aria-label="Saved Appearance"]'))
     const select = document.querySelector('select[aria-label="Saved Appearance"]')
     const preservedFront = state().character.appearances[0].modelSheet.views.front
-    select.value = gym; select.dispatchEvent(new Event('change', { bubbles: true })); await settled()
-    await ready(() => state().character.activeAppearanceId === gym && document.querySelectorAll('.model-sheet-art img').length === 3)
-    check(state().character.selected.props.length === 0, 'UI selector did not restore saved prop selection')
-    check(state().character.appearances[0].modelSheet.views.front === preservedFront, 'Selecting a saved Appearance overwrote its existing front')
-    await call('undo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
-    check(state().character.activeAppearanceId === withProp && state().character.selected.props[0] === 'prop-1', 'Undo separated Appearance from its combination')
-    await call('update_character_model_sheet', { characterId: id, expectedRevision: state().persistedRevision, referenceId: 'front', remove: true, expectedAssetSha256: autoFront.asset.inspection.sha256 })
-    const emptyRevision = state().persistedRevision
-    await call('set_character_variant_selection', { characterId: id, expectedRevision: emptyRevision, appearance: { action: 'select', id: withProp } })
-    check(state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Agent select did not fill a missing front from the saved combination')
+    select.value = gym; select.dispatchEvent(new Event('change', { bubbles: true }))
+    await ready(() => state().character.activeAppearanceId === gym); await settled()
+    check(state().character.selected.props[0] === 'prop-1' && state().character.appearances[0].modelSheet.views.front === preservedFront, 'Switching lost the original look or its manual front')
+    check(app.editor.history.getState().pastStates.length === 0 && !await app.editor.undo(), 'Undo crosses Appearance navigation')
+    const oldRevision = state().persistedRevision
+    await call('set_character_variant_selection', { characterId: id, expectedRevision: oldRevision, appearance: { action: 'select', id: withProp } })
+    check(state().character.selected.props.length === 0, 'Switching back lost autosaved edits')
     const restoredRevision = state().persistedRevision
-    const staleSelection = await call('set_character_variant_selection', { characterId: id, expectedRevision: emptyRevision, appearance: { action: 'select', id: gym } }).then(() => false, () => true)
+    const staleSelection = await call('set_character_variant_selection', { characterId: id, expectedRevision: oldRevision, appearance: { action: 'select', id: gym } }).then(() => false, () => true)
     check(staleSelection && state().persistedRevision === restoredRevision && state().character.activeAppearanceId === withProp, 'Stale Appearance selection changed the reference set')
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'rename', id: withProp, label: 'Prop look' } })
     const archive = await app.exportCharacter(id)
@@ -203,12 +236,12 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(roundtrip.appearances.length === 2 && roundtrip.activeAppearanceId === withProp && roundtrip.appearances[0].modelSheet.references['t-pose'].pose === 't-pose', 'Character ZIP lost saved Appearances')
     await app.editor.reload()
     const afterReload = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
-    check(afterReload.character.appearances.length === 2 && afterReload.character.matchesSaved && afterReload.modelSheet.appearanceId === withProp, 'Mantle reload lost Appearance state')
+    check(afterReload.character.appearances.length === 2 && afterReload.character.autoSave === 'current-appearance' && afterReload.modelSheet.appearanceId === withProp, 'Mantle reload lost Appearance state')
     const namedBackup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(namedBackup.entries.find((entry) => entry.id === id).data.appearances.length === 2, 'Library backup lost saved Appearances')
     await call('navigate_character', { destination: 'characters' })
     await ready(() => route.pathname === '/collections')
-    result.textContent = 'PASS: 12 tools, preview save/switch, saved-only model-sheet selector, automatic front, preserved references, naming/stale guards, atomic undo, Mantle reload, both archives and responsive layout'
+    result.textContent = 'PASS: 12 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, naming/stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }
 }

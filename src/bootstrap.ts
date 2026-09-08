@@ -43,6 +43,7 @@ import {
   characterRegistrationFrame,
   resolveCharacterDraftAtlasSources,
   resolveCharacterDraftLayers,
+  resolveCharacterDraftPlacements,
   resolveCharacterDraftReferenceLayers,
   resolveCharacterAssetSources,
   setCharacterVariantTransform,
@@ -50,8 +51,8 @@ import {
   updateCharacterProfile,
   saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
-import { updateCharacterModelSheet, characterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
-import { activeCharacterAppearance, changeCharacterAppearance, sameCharacterSelection, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
+import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
+import { changeCharacterAppearance, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
@@ -79,7 +80,7 @@ const describeReference = ({ asset, ...reference }: CharacterReference) => ({
 const modelSheetPath = (id: string, referenceId?: string) => `/characters/${encodeURIComponent(id)}/model-sheet${referenceId ? `/${encodeURIComponent(referenceId)}` : ''}`
 const describeAppearances = (character: CharacterDraft) => ({
   activeAppearanceId: character.activeAppearanceId ?? null,
-  matchesSaved: !activeCharacterAppearance(character) || sameCharacterSelection(character.selected, activeCharacterAppearance(character)!.selected),
+  autoSave: 'current-appearance',
   appearances: (character.appearances ?? []).map(({ id, label, selected, modelSheet }) => ({ id, label, selected,
     referenceCount: Object.keys(modelSheetReferences(modelSheet)).length })),
 })
@@ -92,7 +93,7 @@ const describeModelSheet = (character: CharacterDraft) => ({
 const MODEL_SHEET_POLICY = {
   tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
   input: { mediaType: 'image/png', maxBytes: 5 * 1024 * 1024, maxWidth: 4096, maxHeight: 4096, background: 'opaque or transparent', preserveOriginalCanvas: true },
-  instruction: 'Four full-body turnaround slots share one Appearance and pose. Appearance starts in A-pose. Saving or selecting a saved Appearance fills a missing front automatically; visually review it. Existing reference images are preserved. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
+  instruction: 'Four full-body turnaround slots share one Appearance and pose. Appearance starts in A-pose. Creating or switching to an Appearance fills a missing front automatically; visually review it. Existing reference images are preserved. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
 }
 interface ModelSheetInput extends CharacterReferenceMetadata {
   referenceId?: string
@@ -249,7 +250,7 @@ export function createApplication(document: Document) {
       characterChanges.publish({ characterId, revision: null })
     },
   }
-  const editor = createCharacterEditor(characterDrafts, createIndexedDbAssetRepository, inspectCharacterImage)
+  const editor = createCharacterEditor(characterDrafts, createIndexedDbAssetRepository, inspectCharacterImage, prepareAppearanceReferences)
   const collections = createIndexedDbCharacterCollectionRepository()
   const libraryRepository = createIndexedDbCharacterLibraryRepository()
   const webmcp = createWebMcpController(document, authoringPlan, CHARACTER_WEBMCP_TRIGGERS, async (trigger, input) =>
@@ -396,6 +397,8 @@ export function createApplication(document: Document) {
       await characterDrafts.delete(characterId)
     },
     async exportCharacter(characterId: string) {
+      await editor.settle()
+      if (editor.store.getState().activeCharacterId === characterId) settledRevision('Character export')
       const { compileCharacterTextureAtlas } = await import('./adapters/browser/character-atlas.ts')
       const { character } = await editor.view(characterId)
       return exportCharacterDraftZip(character, await compileCharacterTextureAtlas(resolveCharacterDraftAtlasSources(character)))
@@ -428,7 +431,7 @@ export function createApplication(document: Document) {
   const characterPath = (characterId: string, group: CharacterVariantGroup = 'expression', variantId?: string) =>
     `/characters/${encodeURIComponent(characterId)}/${categoryFor(group)}${variantId && group !== 'body' ? `/${encodeURIComponent(variantId)}` : ''}`
   const routeSelection = (path: string) => {
-    const match = /^\/characters\/([^/]+)(?:\/(expressions|outfits|props|model-sheet)(?:\/([^/]+))?)?$/.exec(path)
+    const match = /^\/characters\/([^/]+)(?:\/(expressions|outfits|props|profile|model-sheet)(?:\/([^/]+))?)?$/.exec(path)
     if (!match) return null
     try {
       return { characterId: decodeURIComponent(match[1]!), category: match[2] ?? null, variantId: match[3] ? decodeURIComponent(match[3]) : null }
@@ -449,8 +452,9 @@ export function createApplication(document: Document) {
     return {
       characterId: activeCharacterId,
       revision: persistedRevision,
-      canUndo: pastStates.length > 0 && saveStatus !== 'conflict',
-      canRedo: futureStates.length > 0 && saveStatus !== 'conflict',
+      appearanceId: editor.store.getState().character?.activeAppearanceId ?? null,
+      canUndo: pastStates.length > 0 && saveStatus === 'saved',
+      canRedo: futureStates.length > 0 && saveStatus === 'saved',
       saveStatus,
     }
   }
@@ -529,6 +533,7 @@ export function createApplication(document: Document) {
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
       { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
+      { destination: 'character-profile', path: `/characters/${encodeURIComponent(character.id)}/profile` },
       { destination: 'character-model-sheet', path: `/characters/${encodeURIComponent(character.id)}/model-sheet` },
     ] : [])]
     const nextActions = character ? characterNextActions(character) : [{
@@ -575,7 +580,7 @@ export function createApplication(document: Document) {
   async function navigateCharacter(rawInput: unknown) {
     const { destination, characterId, variantId, referenceId } = rawInput as {
       referenceId?: string
-      destination: 'characters' | 'character-expressions' | 'character-outfits' | 'character-props' | 'character-model-sheet'
+      destination: 'characters' | 'character-expressions' | 'character-outfits' | 'character-props' | 'character-model-sheet' | 'character-profile'
       characterId?: string
       variantId?: string
     }
@@ -584,6 +589,11 @@ export function createApplication(document: Document) {
     }
     const character = characterId ? await editor.open(characterId) : null
     if (!character) throw new Error('A valid Character ID is required for this destination')
+    if (destination === 'character-profile') {
+      if (variantId || referenceId) throw new Error('Character profile has no variant or reference target')
+      const path = `/characters/${encodeURIComponent(character.id)}/profile`
+      return { status: 'ok', data: { path }, effects: { navigation: { path, mode: 'push', reason: 'Open Character profile with the current Appearance.' } } }
+    }
     if (destination === 'character-model-sheet') {
       if (referenceId && !modelSheetReferences(characterModelSheet(character))[referenceId]) throw new Error('Reference not found; inspect the model sheet first')
       const path = modelSheetPath(character.id, referenceId)
@@ -598,12 +608,12 @@ export function createApplication(document: Document) {
   async function updateProfile(rawInput: unknown) {
     const { characterId, expectedRevision, ...patch } = rawInput as CharacterProfilePatch & { characterId: string; expectedRevision: number }
     if (!Object.keys(patch).length) throw new Error('At least one Character profile field is required')
+    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the Character profile')
     await editor.open(characterId)
     const changed = await editor.dispatch((character) => updateCharacterProfile(character, patch), expectedRevision)
     const character = activeCharacter().character
     const revision = settledRevision('Character profile')
-    const route = browser?.location.pathname ?? ''
-    const path = routeSelection(route)?.characterId === character.id ? route : characterPath(character.id)
+    const path = `/characters/${encodeURIComponent(character.id)}/profile`
     return {
       status: 'ok',
       data: {
@@ -622,16 +632,42 @@ export function createApplication(document: Document) {
     }
   }
 
-  async function applyCharacterAppearance(characterId: string, command: CharacterAppearanceCommand, expectedRevision: number, source: 'user' | 'agent' = 'user') {
+  async function prepareAppearanceReferences(draft: CharacterDraft, previous: CharacterDraft | null): Promise<CharacterDraft> {
+    const composition = (character: CharacterDraft) => JSON.stringify(resolveCharacterDraftPlacements(character).map(({ variant, layer, transform }) =>
+      [variant.layers[layer]!.inspection.sha256, transform]))
+    let result = draft
+    for (const id of draft.appearances?.map((look) => look.id) ?? [undefined]) {
+      const look = draft.appearances?.find((item) => item.id === id)
+      const before = previous?.appearances?.find((item) => item.id === id)
+      const current = { ...draft, activeAppearanceId: id, selected: look?.selected ?? draft.selected }
+      const old = previous && { ...previous, activeAppearanceId: id, selected: before?.selected ?? previous.selected }
+      const changed = Boolean(old && composition(current) !== composition(old))
+      const opened = draft.activeAppearanceId === id && (previous?.activeAppearanceId !== id || !before && look)
+      if (!changed && !opened) continue
+      let sheet = characterModelSheet(current)
+      const front = sheet.views.front
+      // Older captured fronts already identify their own PNG as their source.
+      const followsAppearance = front?.fromAppearance ?? (front?.asset.filename === 'front-appearance.png' && front.sourceSha256 === front.asset.inspection.sha256)
+      const hasArt = resolveCharacterDraftLayers(current).length > 0
+      if ((!front || followsAppearance) && hasArt) {
+        const asset = await editor.stageAsset(await application.exportCharacterPng(current), 'front-appearance.png', front?.asset.source ?? 'user', undefined, 'reference')
+        if (front?.asset.inspection.sha256 === asset.inspection.sha256) continue
+        sheet = setModelSheetReference(sheet, 'front', { ...front, asset, fromAppearance: true, sourceSha256: asset.inspection.sha256, guides: undefined, needsReview: undefined })
+      }
+      if (changed) for (const [referenceId, reference] of Object.entries(modelSheetReferences(sheet))) {
+        if (referenceId !== 'front' || !sheet.views.front?.fromAppearance || !hasArt) sheet = setModelSheetReference(sheet, referenceId, { ...reference, needsReview: true })
+      }
+      const updated = withCharacterModelSheet({ ...result, activeAppearanceId: id }, sheet)
+      result = { ...updated, activeAppearanceId: draft.activeAppearanceId }
+    }
+    return result
+  }
+
+  async function applyCharacterAppearance(characterId: string, command: CharacterAppearanceCommand, expectedRevision: number) {
     await editor.open(characterId)
     const { character, revision } = activeCharacter()
     if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
-    let next = changeCharacterAppearance(character, command)
-    const sheet = characterModelSheet(next)
-    if (command.action !== 'rename' && !sheet.views.front && resolveCharacterDraftLayers(next).length) {
-      const asset = await editor.stageAsset(await application.exportCharacterPng(next), 'front-appearance.png', source, undefined, 'reference')
-      next = updateCharacterModelSheet(next, setModelSheetReference(sheet, 'front', { asset, sourceSha256: asset.inspection.sha256 }))
-    }
+    const next = changeCharacterAppearance(character, command)
     const changed = await editor.dispatch((current) => {
       if (current !== character) throw new Error('Character changed; inspect it again')
       return next
@@ -654,7 +690,7 @@ export function createApplication(document: Document) {
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
     await editor.open(characterId)
     const target = { group, id: variantId }
-    const changed = appearance ? await applyCharacterAppearance(characterId, appearance, expectedRevision, 'agent')
+    const changed = appearance ? await applyCharacterAppearance(characterId, appearance, expectedRevision)
       : await editor.dispatch((character) => active
       ? activateCharacterVariant(character, target)
       : deactivateCharacterVariant(character, target), expectedRevision)
@@ -1004,9 +1040,9 @@ export function createApplication(document: Document) {
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
-        'References belong to modelSheet.appearanceId. Inspect character.appearances and use set_character_variant_selection with appearance:{action:"select",id} to change sets, then inspect again. If character.matchesSaved is false, the current composition has changed: save it with appearance:{action:"save",id,label} or reselect the saved Appearance before capturing front. The first saved Appearance adopts existing references. Saving or selecting a set fills a missing front from that saved combination when artwork exists; existing references and guides remain intact. Other views start empty for later sets. Variant art is shared, while selection and reference images are saved per Appearance.',
+        'References belong to modelSheet.appearanceId. Edits automatically save into the current Appearance, including its expression/outfit/ordered props. Use set_character_variant_selection with appearance:{action:"save-as",id,label} BEFORE editing to keep the original look, or appearance:{action:"select",id} to switch. Switching waits for saving and starts a new Appearance undo session. Shared variant art affects all looks that use it. Captured fronts follow composition edits; existing other views are retained with needsReview:true after the composition changes. Inspect and visually compare them before replacing art or clearing needsReview. First save-as adopts existing references; later looks start with their own front and other views empty.',
         'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
-        'Keep one consistent outfit and identity across the four turnaround views. Save or select the Appearance to fill a missing front; use fromAppearance only for an explicit replacement or an unnamed combination. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
+        'Keep one consistent outfit and identity across the four turnaround views. Create or switch to an Appearance to fill a missing front; use fromAppearance only for an explicit replacement or an unnamed combination. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
         'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
         'Generate PNG with white/opaque or transparent background and an appropriate original canvas, at most 4096 × 4096 and 5 MiB. No background removal or 512 × 768 normalization is needed for references. Do not fit a wide T-pose to the Appearance silhouette.',
         'Supply sourceSha256 from the image used as the primary source. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',
@@ -1017,12 +1053,12 @@ export function createApplication(document: Document) {
 
   async function updateModelSheet(rawInput: unknown, providedBlob?: Blob, source: 'user' | 'agent' = 'agent') {
     const input = rawInput as ModelSheetInput
-    const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256 } = input
+    const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256, needsReview } = input
     if (view !== undefined && (!isTurnaroundView(view) || (input.referenceId && input.referenceId !== view))) throw new Error('Use one referenceId; view is only an alias for a default turnaround slot')
     if (referenceId) validateReferenceId(referenceId)
     if (fromAppearance && (referenceId !== 'front' || input.dataUrl || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
-    if (remove && (input.dataUrl || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256)) throw new Error('Remove cannot be combined with reference edits')
-    const editsReference = input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256
+    if (remove && (input.dataUrl || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
+    const editsReference = input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
     if (!editsReference && input.heightCm === undefined) throw new Error('No model sheet changes supplied')
     if (!referenceId && editsReference) throw new Error('Choose a referenceId')
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the model sheet')
@@ -1034,8 +1070,6 @@ export function createApplication(document: Document) {
     if ((input.dataUrl || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
     if (referenceId && !isTurnaroundView(referenceId) && !previous && (!label?.trim() || !kind)) throw new Error('New supplemental references require label and kind')
     if (fromAppearance && !resolveCharacterDraftLayers(character).length) throw new Error('Create Appearance before capturing front')
-    const appearance = activeCharacterAppearance(character)
-    if (fromAppearance && appearance && !sameCharacterSelection(character.selected, appearance.selected)) throw new Error('Current combination differs from the saved Appearance; save a new Appearance or reselect it before capturing front')
     const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
     const filename = fromAppearance ? 'front-appearance.png' : input.filename
     if (blob && (!filename?.trim() || filename.length > 200)) throw new Error('A valid filename is required')
@@ -1049,7 +1083,8 @@ export function createApplication(document: Document) {
       const reference = referenceId ? modelSheetReferences(sheet)[referenceId] : undefined
       if (referenceId && !asset && !reference) throw new Error('Add reference art before editing or removing it')
       if (referenceId) sheet = setModelSheetReference(sheet, referenceId, remove ? undefined : {
-        ...reference, ...(asset ? { asset, guides: undefined, sourceSha256: undefined } : {}),
+        ...reference, ...(asset ? { asset, guides: undefined, sourceSha256: undefined, fromAppearance: fromAppearance || undefined, needsReview: undefined } : {}),
+        ...(needsReview !== undefined ? { needsReview } : {}),
         ...(label !== undefined ? { label } : {}), ...(kind !== undefined ? { kind } : {}),
         ...(viewpoint !== undefined ? { viewpoint } : {}), ...(pose !== undefined ? { pose } : {}),
         ...(sourceSha256 || fromAppearance ? { sourceSha256: fromAppearance ? asset!.inspection.sha256 : sourceSha256 } : {}),

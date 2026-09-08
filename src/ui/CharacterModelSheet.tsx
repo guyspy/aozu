@@ -46,6 +46,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
       </button> : <label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</label>}
       <p className="model-sheet-state">{item && !isTurnaroundView(id) ? [item.kind && t(`modelSheet.kinds.${item.kind}`), item.viewpoint, item.pose].filter(Boolean).join(' · ') : t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>
+      {item?.needsReview && <p className="text-sm font-medium text-amber-900">{t('modelSheet.needsReview')}</p>}
       {item?.notes && <p className="line-clamp-2 text-sm text-muted-foreground">{item.notes}</p>}
     </article>
   }
@@ -126,6 +127,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
             </label>)}
             {(['label', 'viewpoint', 'pose'] as const).map((field) => <label key={field} className="grid gap-1">{t(`modelSheet.${field}`)}<input className="min-w-0 rounded border p-2" maxLength={80} value={reference[field] ?? ''} onChange={(event) => change({ [field]: event.currentTarget.value || undefined })} /></label>)}
             <label className="grid gap-2"><span>{t('modelSheet.notes')}</span><textarea rows={3} maxLength={1000} value={reference.notes ?? ''} onChange={(event) => change({ notes: event.currentTarget.value })} className="rounded-lg border bg-background p-3" /></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={reference.needsReview ?? false} onChange={(event) => change({ needsReview: event.currentTarget.checked })} />{t('modelSheet.needsReview')}</label>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <label className="model-sheet-replace">{t('modelSheet.replace')}{fileInput(view)}</label>
               <Button type="submit" disabled={busy}>{t('modelSheet.saveReference')}</Button>

@@ -66,7 +66,7 @@ try {
     reads.get(character.id).resolve()
     await ready(() => document.querySelector('.character-stage-canvas'))
     if (!document.querySelector('.doll-workbench')) {
-      document.querySelector('.character-stage-heading button').click()
+      document.querySelector('.character-stage-preview button[aria-label="Customize appearance"]').click()
       await ready(() => document.querySelector('.doll-workbench'))
     }
     check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')), 'Preview must show loading until its pixels are ready')

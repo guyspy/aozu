@@ -20,7 +20,7 @@ try {
     assert(find('#root').scrollWidth <= width + 1, `Horizontal overflow at ${width}px`)
     assert(find('.character-stage-canvas').clientHeight > 200, `Collapsed preview at ${width}px`)
     assert(!find('.doll-workbench'), `Closed drawer still occupies the page at ${width}px`)
-    const trigger = find('.character-stage-heading button')
+    const trigger = find('.character-stage-preview button[aria-label="Customize appearance"]')
     trigger.click()
     await ready(() => find('[role="dialog"]'))
     await wait(250)
@@ -34,7 +34,7 @@ try {
     await ready(() => !find('[role="dialog"]'))
     await ready(() => doc.activeElement === trigger)
   }
-  find('.character-stage-heading button').click()
+  find('.character-stage-preview button[aria-label="Customize appearance"]').click()
   await ready(() => find('[role="dialog"]'))
   frame.style.width = '1280px'
   await ready(() => !find('[role="dialog"]') && find('#root .doll-workbench'))

@@ -103,9 +103,12 @@ export interface CharacterReferenceMetadata {
   pose?: string
   /** Hash of the source image used to draw or capture this reference. */
   sourceSha256?: string
+  needsReview?: boolean
 }
 export interface CharacterReference<Asset = CharacterDraftAsset> extends CharacterReferenceMetadata {
   asset: Asset
+  /** This front image follows the Appearance composite. */
+  fromAppearance?: boolean
   notes?: string
   /** Fractions of the original image height, explicitly calibrated by the author. */
   guides?: { head: number; feet: number }

@@ -33,11 +33,8 @@ export const ptBR: Messages = {
     empty: 'Nenhum personagem ainda. Crie um ou importe um personagem exportado antes.',
   },
   characterDraft: {
-    title: 'Oficina de personagens',
-    description: 'Descreva o personagem que você quer. O ChatGPT pode adicionar diretamente um personagem base, expressões alinhadas, roupas e acessórios.',
-    stageTitle: 'Visualização de corpo inteiro',
+    downloadZip: 'Baixar ZIP do personagem', characterActions: 'Ações do personagem',
     customizeTitle: 'Personalizar aparência',
-    workbenchDescription: 'Escolha um espaço e envie uma imagem, ou deixe o ChatGPT adicionar.',
     categorySwitcher: 'Categorias de aparência',
     required: 'Obrigatório',
     missingRequired: 'Adicione um personagem base para definir a pose e o alinhamento.',
@@ -63,7 +60,7 @@ export const ptBR: Messages = {
       title: 'Perfil do personagem', name: 'Nome', description: 'Descrição', backstory: 'História', attributes: 'Atributos',
       add: 'Adicionar', text: 'Texto', number: 'Número', boolean: 'Sim / não', yes: 'Sim', no: 'Não', value: 'Valor', update: 'Atualizar perfil',
       attributeName: 'Nome do atributo {{index}}', attributeType: 'Tipo do atributo {{index}}', attributeValue: 'Valor do atributo {{index}}', removeAttribute: 'Remover atributo {{index}}',
-      edit: 'Editar perfil do personagem', expand: 'Abrir perfil do personagem', collapse: 'Fechar perfil do personagem',
+      edit: 'Editar perfil do personagem',
       noDescription: 'Ainda não há descrição.', noBackstory: 'Ainda não há história.', noAttributes: 'Ainda não há atributos.',
     },
     alignment: {

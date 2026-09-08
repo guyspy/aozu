@@ -33,11 +33,8 @@ export const zhCN: Messages = {
     empty: '还没有角色。创建一个，或导入之前导出的角色。',
   },
   characterDraft: {
-    title: '角色工坊',
-    description: '描述你想要的角色。ChatGPT 可以直接为这个角色添加基础角色、对齐好的表情、服装和道具。',
-    stageTitle: '全身预览',
+    downloadZip: '下载角色 ZIP', characterActions: '角色操作',
     customizeTitle: '自定义外观',
-    workbenchDescription: '选择一个槽位，上传图片，或交给 ChatGPT 添加。',
     categorySwitcher: '外观分类',
     required: '必填',
     missingRequired: '请先添加基础角色，以建立姿势与对齐基准。',
@@ -63,7 +60,7 @@ export const zhCN: Messages = {
       title: '角色资料', name: '名称', description: '简介', backstory: '背景故事', attributes: '属性',
       add: '添加', text: '文本', number: '数字', boolean: '是／否', yes: '是', no: '否', value: '值', update: '更新角色资料',
       attributeName: '属性 {{index}} 名称', attributeType: '属性 {{index}} 类型', attributeValue: '属性 {{index}} 的值', removeAttribute: '移除属性 {{index}}',
-      edit: '编辑角色资料', expand: '展开角色资料', collapse: '收起角色资料',
+      edit: '编辑角色资料',
       noDescription: '尚未填写简介。', noBackstory: '尚未填写背景故事。', noAttributes: '尚未设置属性。',
     },
     alignment: {

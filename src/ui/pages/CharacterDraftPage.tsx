@@ -1,5 +1,6 @@
-import { ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
+import { ArrowLeftIcon, EllipsisIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -95,14 +96,16 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const isModelSheet = step === 'model-sheet'
-  const category = isModelSheet ? characterCategories[0] : characterCategories.find(({ id }) => id === step)
+  const isProfile = step === 'profile'
+  const activeMode = isModelSheet ? 'model-sheet' : isProfile ? 'profile' : 'expressions'
+  const category = isModelSheet || isProfile ? characterCategories[0] : characterCategories.find(({ id }) => id === step)
   const activeCharacterId = useStore(editor.store, (state) => state.activeCharacterId)
   const character = useStore(editor.store, (state) => state.character)
   const saveStatus = useStore(editor.store, (state) => state.saveStatus)
   const persistedRevision = useStore(editor.store, (state) => state.persistedRevision)
   const saveError = useStore(editor.store, (state) => state.saveError)
-  const canUndo = useStore(editor.history, (state) => state.pastStates.length > 0) && saveStatus !== 'conflict'
-  const canRedo = useStore(editor.history, (state) => state.futureStates.length > 0) && saveStatus !== 'conflict'
+  const canUndo = useStore(editor.history, (state) => state.pastStates.length > 0) && saveStatus === 'saved'
+  const canRedo = useStore(editor.history, (state) => state.futureStates.length > 0) && saveStatus === 'saved'
   const [loadError, setLoadError] = useState<{ characterId: string; message: string }>()
   // In-progress text, numeric, or drag edits render locally until one commit; keyed to the committed value they started from.
   const [local, setLocal] = useState<{ base: CharacterDraft; value: CharacterDraft }>()
@@ -110,7 +113,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const [error, setError] = useState<string>()
   const [fit, setFit] = useState<{ key: string; value: CharacterFitSuggestion }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 899px)').matches)
   const [workbenchOpen, setWorkbenchOpen] = useState(false)
   const [profileForm, setProfileForm] = useState<ProfileForm>()
@@ -148,7 +150,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   }, [activeCharacterId, characterId, navigate, step, variantId])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
+      if (isProfile || !(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
       const key = event.key.toLowerCase()
       if (key === 'z') { event.preventDefault(); void (event.shiftKey ? editor.redo() : editor.undo()) }
       else if (key === 'y' && event.ctrlKey) { event.preventDefault(); void editor.redo() }
@@ -157,7 +159,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('beforeunload', onBeforeUnload) }
-  }, [editor])
+  }, [editor, isProfile])
 
   const committed = activeCharacterId === characterId ? character ?? undefined : undefined
   const draft = local && local.base === committed ? local.value : committed
@@ -328,23 +330,23 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
             </span>
 
-  const actions = <div className="workbench-footer">
+  const characterActions = <details className="character-actions relative">
+    <summary aria-label={t('characterDraft.characterActions')} title={t('characterDraft.characterActions')} className="flex size-9 cursor-pointer list-none items-center justify-center rounded-md hover:bg-accent"><EllipsisIcon className="size-5" /></summary>
+    <div className="absolute right-0 top-full mt-2 flex gap-2 rounded-lg border bg-background p-3 shadow-lg">
           <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
-            {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo, () => void editor.undo())}
-            {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo, () => void editor.redo())}
-            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('draft.download')} />
+            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
             <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
             <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
-            {saveFeedback}
           </div></TooltipProvider>
         </div>
+  </details>
 
-  const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')} inert={profileOpen ? true : undefined} aria-hidden={profileOpen}>
+  const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')}>
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
-        <div className="workbench-heading"><span>02</span><div><SheetTitle asChild><h2>{t('characterDraft.customizeTitle')}</h2></SheetTitle><p>{t('characterDraft.workbenchDescription')}</p></div></div>
+        <SheetTitle className="sr-only">{t('characterDraft.customizeTitle')}</SheetTitle>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
-        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs mt-3 grid w-full grid-cols-3">
+        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-3">
           {characterCategories.map(({ id, icon }) => <TabsTrigger key={id} value={id} className="min-w-0">
             <AozuIcon name={icon} />
             <span>{t(`characterDraft.categories.${id}`)}</span>
@@ -472,58 +474,55 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
           </>
         })()}
 
-        {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
+        {error && narrow && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
         </TabsContent>
         </Tabs>
         </div>
         {!hasBase && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
         </div>
-        {actions}
       </section>
 
   const appearanceControls = <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft}
-    manage={!isModelSheet && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
+    manage={!isModelSheet && !isProfile && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
     change={(command) => void runBusy('appearance', async () => {
       await changeAppearance(command, persistedRevision!)
       revert()
-      if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : category.id}`)
-    })} />
+      if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}`)
+    })}>
+    {!isProfile && <TooltipProvider>
+      {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
+      {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
+    </TooltipProvider>}
+    {previewLayers.length > 0 && !isModelSheet && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}
+    {saveFeedback}
+  </CharacterAppearances>
+  const headerActions = document.getElementById('character-actions')
 
-  return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
+  return <Sheet open={narrow && workbenchOpen} onOpenChange={setWorkbenchOpen}><div className="draft-workshop-shell">
+    {headerActions && createPortal(characterActions, headerActions)}
     <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
-      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : category.id}
+      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
-      data-panel={profileOpen ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
+      data-panel={isProfile ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
-      <aside className="character-spell-guide" aria-labelledby="character-spell-title">
-        <div className="spell-icon"><AozuIcon name="book" /></div>
-        <div className="min-w-0 flex-1">
-          <h1 id="character-spell-title" className="font-heading text-2xl font-semibold">{t(isModelSheet ? 'modelSheet.title' : 'characterDraft.title')}</h1>
-          <p>{t(isModelSheet ? 'modelSheet.description' : 'characterDraft.description')}</p>
-        </div>
-      </aside>
-
       <nav className="my-3 flex shrink-0 gap-1" aria-label={t('modelSheet.mode')}>
-        {(['expressions', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={(mode === 'model-sheet') === isModelSheet ? 'secondary' : 'ghost'} aria-current={(mode === 'model-sheet') === isModelSheet ? 'page' : undefined}
-          onClick={() => { revert(); setProfileForm(undefined); setProfileOpen(false); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : 'modelSheet.appearance')}</Button>)}
+        {(['expressions', 'profile', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={mode === activeMode ? 'secondary' : 'ghost'} aria-current={mode === activeMode ? 'page' : undefined}
+          onClick={() => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : mode === 'profile' ? 'characterDraft.profile.title' : 'modelSheet.appearance')}</Button>)}
       </nav>
+      {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
           appearanceSelector={appearanceControls}
           referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
           upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })} />
-        {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
-        {actions}
       </> :
-      <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${profileOpen ? 'is-profile-open' : ''}`}>
+      <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${isProfile ? 'is-profile-open' : ''}`}>
       <section className="character-stage-panel rounded-2xl border bg-background">
-        <div className="character-stage-heading">
-          <div><span>01</span><strong>{t('characterDraft.stageTitle')}</strong></div>
-          {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="size-10" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
-        </div>
         <div className="character-stage-content">
         <div className="character-stage-preview">
-        <div className="mt-3">{appearanceControls}</div>
+        <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
+          {narrow && !isProfile && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="size-10" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
+        </div>
         <div className="character-stage-canvas relative">
           {baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
@@ -548,13 +547,12 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 referenceBounds={referenceBounds}
                 footLine={registration.footLine}
               /></div>}
-          {previewLayers.length > 0 && <div className="absolute right-2 top-2"><DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} /></div>}
         </div>
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
-        <section id="character-profile" className="character-profile-panel" inert={!profileOpen ? true : undefined} aria-hidden={!profileOpen}>
+        {isProfile && <section id="character-profile" className="character-profile-panel">
           {profileForm ? <>
             <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
             <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
@@ -572,7 +570,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 <Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.removeAttribute', { index: index + 1 })} onClick={() => setProfileForm({ ...profileForm, attributes: profileForm.attributes.filter((_, rowIndex) => rowIndex !== index) })}><Trash2Icon /></Button>
               </div>)}
             </div>
-            {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
             <div className="mt-auto flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setProfileForm(undefined)}>{t('common.cancel')}</Button><Button type="button" onClick={saveProfile}>{t('characterDraft.profile.update')}</Button></div>
           </> : <>
             <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
@@ -580,32 +577,13 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
             <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3>{Object.keys(draft.attributes ?? {}).length ? <dl>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl> : <p className="text-muted-foreground">{t('characterDraft.profile.noAttributes')}</p>}</div>
           </>}
-        </section>
-        </div>
-        <div className="character-first-dialogue">
-          <span className="dialogue-portrait"><AozuIcon name="profile" /></span>
-          <label className="min-w-0 flex-1">
-            <span>{t('draft.name')}</span>
-            <input
-              aria-label={t('draft.name')}
-              value={draft.name}
-              onChange={(event) => edit({ ...draft, name: event.target.value })}
-              onBlur={(event) => {
-                const name = event.currentTarget.value.trim()
-                commit((current) => current.name === name || !name ? current : { ...current, name })
-              }}
-              onKeyDown={textKeys}
-            />
-          </label>
-          <Button type="button" size="icon" variant="ghost" aria-controls="character-profile" aria-expanded={profileOpen} aria-label={t(profileOpen ? 'characterDraft.profile.collapse' : 'characterDraft.profile.expand')} onClick={() => { setProfileOpen(!profileOpen); setProfileForm(undefined) }}>
-            {profileOpen ? <ChevronDownIcon /> : <ChevronUpIcon />}
-          </Button>
+        </section>}
         </div>
       </section>
 
-      {narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
+      {!isProfile && (narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
         {workbench}
-      </SheetContent> : workbench}
+      </SheetContent> : workbench)}
       </div>}
     </main>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
