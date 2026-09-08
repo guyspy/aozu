@@ -1,7 +1,7 @@
 import type { Messages } from './en'
 
 export const ptBR: Messages = {
-  common: { productName: 'AOZU', back: 'Voltar', cancel: 'Cancelar', language: 'Idioma' },
+  common: { productName: 'AOZU', back: 'Voltar', cancel: 'Cancelar', language: 'Idioma', renderMode: { label: 'Modo de renderização', '2d': '2D', '3d': '3D' } },
   navigation: { primary: 'Navegação principal' },
   startup: {
     loading: 'Carregando dados locais…',

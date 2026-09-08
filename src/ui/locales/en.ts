@@ -4,6 +4,7 @@ export const en = {
     back: 'Back',
     cancel: 'Cancel',
     language: 'Language',
+    renderMode: { label: 'Render mode', '2d': '2D', '3d': '3D' },
   },
   navigation: { primary: 'Primary navigation' },
   startup: {

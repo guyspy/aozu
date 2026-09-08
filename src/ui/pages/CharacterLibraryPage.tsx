@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { CharacterDraft, ResolvedCharacterLayer } from '@/core/domain/character.ts'
 import { AozuIcon } from '@/ui/AozuIcon'
-import { CharacterRenderer } from '@/ui/CharacterRenderer'
+import { CharacterViewport } from '@/ui/CharacterViewport'
 import { DataControls } from '@/ui/DataControls'
 import { Button } from '@/ui/components/ui/button'
 
@@ -47,7 +47,7 @@ export function CharacterLibraryPage({ characters, createCharacter, openCharacte
   const fanState = (index: number) => active === undefined ? undefined : index === active ? 'active' : index < active ? 'before' : 'after'
   const card = (character: CharacterLibraryItem, style?: CSSProperties, fan?: 'active' | 'before' | 'after') => <article key={character.id} role="listitem" className="companion-card" data-fan={fan} style={style}>
     <button type="button" className="companion-card-open" aria-label={`${t('characters.edit')} ${character.name}`} onClick={() => openCharacter(character.id)}>
-      <span className="companion-card-portrait"><CharacterRenderer label={character.name} layers={character.layers} /></span>
+      <span className="companion-card-portrait"><CharacterViewport label={character.name} layers={character.layers} interactive={false} /></span>
       <span className="companion-card-name">{character.name}</span>
     </button>
   </article>

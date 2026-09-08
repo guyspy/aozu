@@ -1,5 +1,5 @@
-import { ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, PencilIcon, PlusIcon, Redo2Icon, Trash2Icon, Undo2Icon } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { AngryIcon, ArrowLeftIcon, AxeIcon, ChevronDownIcon, ChevronUpIcon, CircleSlash2Icon, CopyIcon, HardHatIcon, Layers2Icon, LoaderCircleIcon, PencilIcon, PlusIcon, Redo2Icon, ShieldIcon, SmileIcon, SwordIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -7,9 +7,13 @@ import { useStore } from 'zustand'
 import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, characterDraftAtlasKey, characterRegistrationFrame, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
+import { CHARACTER_3D_SLOTS, character3DPreview, isCharacter3DSlotSelected } from '@/core/application/character-3d.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterTextureAtlas, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAlignmentRenderer, CharacterAssetImage, CharacterAtlasFrameImage, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
+import { GlbViewer } from '@/ui/GlbViewer'
+import { CharacterVariantSlot } from '@/ui/CharacterVariantSlot'
+import { useRenderMode } from '@/ui/render-mode'
 import { Button } from '@/ui/components/ui/button'
 import {
   AlertDialog,
@@ -28,7 +32,7 @@ import { StatusPage } from '@/ui/pages/StatusPage'
 import { useBlobUrl } from '@/ui/useBlobUrl'
 
 type CharacterCategoryId = 'expressions' | 'outfits' | 'props'
-type CharacterCategory = { id: CharacterCategoryId; group: CharacterVariantGroup; icon: AozuIconName }
+type CharacterCategory = { id: CharacterCategoryId; group: Exclude<CharacterVariantGroup, 'body'>; icon: AozuIconName }
 
 const characterCategories: CharacterCategory[] = [
   { id: 'expressions', group: 'expression', icon: 'expressions' },
@@ -36,6 +40,7 @@ const characterCategories: CharacterCategory[] = [
   { id: 'props', group: 'prop', icon: 'props' },
 ]
 const categoryForGroup = (group: CharacterVariantGroup) => characterCategories.find((category) => category.group === group)!.id
+const vikingSlotIcons = { armor: ShieldIcon, helmet: HardHatIcon, axe: AxeIcon, sword: SwordIcon, happy: SmileIcon, angry: AngryIcon }
 const expressionIcons = ['happy', 'sad', 'angry', 'surprised', 'sleepy']
 const expressionPlaceholder = (variantId: string) => `/assets/expression-placeholders/${expressionIcons.includes(variantId) ? variantId : 'happy'}.webp`
 // Expressions have portrait art; outfits and props reuse their category icon; the base body keeps its silhouette mask.
@@ -94,6 +99,8 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   deleteCharacter(): Promise<void>
 }) {
   const { t } = useTranslation()
+  const [renderMode] = useRenderMode()
+  const isViking = renderMode === '3d'
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const category = characterCategories.find(({ id }) => id === step)
@@ -136,6 +143,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   }, [editor, characterId])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isViking) return
       if (!(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
       const key = event.key.toLowerCase()
       if (key === 'z') { event.preventDefault(); void (event.shiftKey ? editor.redo() : editor.undo()) }
@@ -145,7 +153,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('beforeunload', onBeforeUnload) }
-  }, [editor])
+  }, [editor, isViking])
 
   const committed = activeCharacterId === characterId ? character ?? undefined : undefined
   const draft = local && local.base === committed ? local.value : committed
@@ -161,7 +169,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   useLayoutEffect(() => { atlasDraft.current = committed }, [committed])
   useEffect(() => {
     const source = atlasDraft.current
-    if (!source || !atlasKey || compiled?.key === atlasKey) return
+    if (isViking || !source || !atlasKey || compiled?.key === atlasKey) return
     let active = true
     void compileAtlas(source)
       .then((atlas) => { if (active) setCompiled({ key: atlasKey, atlas }) })
@@ -170,9 +178,9 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         if (active) setCompiled({ key: atlasKey })
       })
     return () => { active = false }
-  }, [atlasKey, compileAtlas, compiled?.key])
+  }, [atlasKey, compileAtlas, compiled?.key, isViking])
 
-  const fitGroup = category?.group === 'expression' || category?.group === 'outfit' ? category.group : undefined
+  const fitGroup = !isViking && (category?.group === 'expression' || category?.group === 'outfit') ? category.group : undefined
   const fitKey = committed && atlasKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${atlasKey}` : undefined
   useEffect(() => {
     if (!fitKey || !fitGroup || !variantId) return
@@ -209,10 +217,12 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
 
   const baseVariant = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')
   const hasBase = Boolean(baseVariant && isCharacterDraftAssetCurrent(draft, baseVariant, 'body'))
+  const workbenchLocked = !isViking && !hasBase
   const visibleVariants = category ? draft.variants.filter(({ group }) => category.group === group) : []
-  const selectedVariant = visibleVariants.find((variant) => variant.id === variantId)
-  if (variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
-  const previewLayers = resolveCharacterDraftLayers(draft, selectedVariant)
+  // Keep a PNG detail URL while showing the demo's catalog, so switching back restores the editor.
+  const selectedVariant = !isViking ? visibleVariants.find((variant) => variant.id === variantId) : undefined
+  if (!isViking && variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
+  const previewLayers = isViking ? [] : resolveCharacterDraftLayers(draft, selectedVariant)
   const referenceLayers = selectedVariant ? resolveCharacterDraftReferenceLayers(draft, selectedVariant) : []
   const registration = characterRegistrationFrame(draft)
   const selectedPrimaryLayer = selectedVariant && (selectedVariant.group === 'prop' ? selectedVariant.layers.front ? 'front' : 'back' : CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!.layers[0])
@@ -279,6 +289,8 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     commit((current) => ({ ...current, selected: { ...current.selected, props: current.selected.props.filter((id) => id !== variant.id) } }))
   }
   const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length) : Boolean(selectedId(group))
+  const emptySelection = !hasSelection(category.group)
+  const emptyLabel = t('characterDraft.none')
   const addVariant = (group: CharacterVariantGroup) => {
     const count = draft.variants.filter((variant) => variant.group === group).length + 1
     const variant: CharacterDraftVariant = {
@@ -348,7 +360,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         <div className="character-stage-content">
         <div className="character-stage-preview">
         <div className="character-stage-canvas">
-          {baseVariant && !hasBase ? <label
+          {renderMode === '3d' ? <div className="aspect-2/3 h-full max-h-full max-w-full"><GlbViewer label={draft.name} className="h-full" /></div> : baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
             aria-label={t('characterDraft.missingRequired')}
             title={t('characterDraft.missingRequired')}
@@ -374,7 +386,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               />
             : <CharacterRenderer label={draft.name} layers={previewLayers} atlas={atlas} />}</div>}
         </div>
-        {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
+        {renderMode === '2d' && selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
@@ -429,8 +441,8 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
 
       <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')} inert={profileOpen ? true : undefined} aria-hidden={profileOpen}>
         <div className="workbench-lockable">
-        <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
-        <div className="workbench-heading"><span>02</span><div><h2>{t('characterDraft.customizeTitle')}</h2><p>{t('characterDraft.workbenchDescription')}</p></div></div>
+        <div className="workbench-body" inert={workbenchLocked ? true : undefined} aria-hidden={workbenchLocked}>
+        <div className="workbench-heading"><span>02</span><div><h2>{t('characterDraft.customizeTitle')}</h2><p>{isViking ? 'Viking warrior · Choose expressions and equipment' : t('characterDraft.workbenchDescription')}</p></div></div>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
         {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs mt-3 grid w-full grid-cols-3">
           {characterCategories.map(({ id, icon }) => <TabsTrigger key={id} value={id} className="min-w-0">
@@ -440,10 +452,10 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </TabsList>}
 
         <TabsContent value={category.id} className="workbench-content min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {!selectedVariant && <>
+        {!selectedVariant && (isViking ? <VikingSlots group={category.group} /> : <>
           <div className="variant-grid">
-            <button type="button" aria-label={t('characterDraft.none')} title={t('characterDraft.none')} aria-pressed={!hasSelection(category.group)} className={`variant-card ${!hasSelection(category.group) ? 'is-selected' : ''}`} onClick={() => clearVariant(category.group)}>
-              <span className="variant-preview"><CircleSlash2Icon className="size-1/3 text-muted-foreground" /></span><span className="variant-label">{t('characterDraft.none')}</span>
+            <button type="button" aria-label={emptyLabel} title={emptyLabel} aria-pressed={emptySelection} className={`variant-card ${emptySelection ? 'is-selected' : ''}`} onClick={() => clearVariant(category.group)}>
+              <span className="variant-preview"><CircleSlash2Icon className="size-1/3 text-muted-foreground" /></span><span className="variant-label">{emptyLabel}</span>
             </button>
             {visibleVariants.map((variant) => {
               const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === variant.group)!
@@ -453,22 +465,19 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               const thumbnail = thumbnailLayer ? variant.layers[thumbnailLayer] : undefined
               const frameId = thumbnailLayer && `${variant.group}-${variant.id}-${thumbnailLayer}`
               const selected = isSelected(variant)
-              return <div key={variantKey(variant)} className={`variant-card ${selected ? 'is-selected' : ''}`}>
-                <button type="button" aria-label={variant.label} title={variant.label} aria-pressed={selected} className="block w-full" onClick={() => toggleVariant(variant)}>
-                  <span className={`variant-preview ${variant.group === 'expression' ? 'is-expression' : ''}`}>{thumbnail
+              return <CharacterVariantSlot key={variantKey(variant)} label={variant.label} selected={selected} expression={variant.group === 'expression'} onToggle={() => toggleVariant(variant)} edit={{ label: t('characterDraft.editVariant', { name: variant.label }), onClick: () => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`) }}>
+                  {thumbnail
                     ? atlas && atlasSrc && frameId && atlas.data.frames[frameId]
                       ? <CharacterAtlasFrameImage atlas={atlas} src={atlasSrc} frameId={frameId} label={variant.label} />
                       : <CharacterAssetImage blob={thumbnail.blob} bounds={thumbnail.inspection.visibleBounds} label={variant.label} />
-                    : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}</span><span className="variant-label">{variant.label}</span>
-                </button>
-                <button type="button" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon className="size-4" /></button>
-              </div>
+                    : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}
+              </CharacterVariantSlot>
             })}
             <button type="button" title={t(`characterDraft.groups.${category.group}.add`)} className="variant-card add-variant" aria-label={t(`characterDraft.groups.${category.group}.add`)} onClick={() => addVariant(category.group)}>
               <span className="variant-preview"><PlusIcon className="size-6" /></span><span className="variant-label">{t(`characterDraft.groups.${category.group}.add`)}</span>
             </button>
           </div>
-        </>}
+        </>)}
 
         {selectedVariant && (() => {
           const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!
@@ -569,10 +578,10 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </TabsContent>
         </Tabs>
         </div>
-        {!hasBase && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
+        {workbenchLocked && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
         </div>
         <div className="workbench-footer">
-          <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
+          {isViking ? <p className="text-xs text-muted-foreground">Viking demo · Shared in this tab · Resets on reload</p> : <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
             {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo, () => void editor.undo())}
             {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo, () => void editor.redo())}
             <DataControls exportData={exportCharacter} exportFilename="companion-character.zip" exportIconOnly exportLabel={t('draft.download')} />
@@ -584,7 +593,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
               {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
             </span>
-          </div></TooltipProvider>
+          </div></TooltipProvider>}
         </div>
       </section>
       </div>
@@ -599,4 +608,31 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       </AlertDialogContent>
     </AlertDialog>
   </div>
+}
+
+// Subscribe only the slots that display composition state. Playback and morph edits
+// must not rerender the PNG editor, rebuild its layer lists or compile its atlas.
+function VikingSlots({ group }: { group: CharacterCategory['group'] }) {
+  const { t } = useTranslation()
+  const state = useSyncExternalStore(character3DPreview.subscribe, character3DPreview.getSnapshot, character3DPreview.getSnapshot)
+  const slots = CHARACTER_3D_SLOTS.filter(slot => slot.group === group)
+  const emptyLabel = group === 'expression' ? 'Neutral' : t('characterDraft.none')
+  const emptySelection = !slots.some(slot => isCharacter3DSlotSelected(state, slot))
+  return <>
+    <div className="variant-grid">
+      <button type="button" aria-label={emptyLabel} title={emptyLabel} aria-pressed={emptySelection} className={`variant-card ${emptySelection ? 'is-selected' : ''}`} onClick={() => character3DPreview.clearSlots(group)}>
+        <span className="variant-preview"><CircleSlash2Icon className="size-1/3 text-muted-foreground" /></span><span className="variant-label">{emptyLabel}</span>
+      </button>
+      {slots.map(slot => {
+        const Icon = vikingSlotIcons[slot.id]
+        return <CharacterVariantSlot key={variantKey(slot)} label={slot.label} selected={isCharacter3DSlotSelected(state, slot)} expression={slot.group === 'expression'} onToggle={() => character3DPreview.toggleSlot(slot)}>
+          <Icon className="size-1/3" />
+        </CharacterVariantSlot>
+      })}
+    </div>
+    <p className="mt-3 text-xs text-muted-foreground">{group === 'outfit' ? 'Toggle armor and helmet independently. None removes both.' : group === 'prop' ? 'Choose one weapon. Click it again or choose None to empty the hand.' : 'Choose a face, or Neutral to reset.'}</p>
+    {group === 'expression' && <label className="mt-3 flex items-center gap-2 text-xs">Strength
+      <input aria-label="Expression strength" className="min-w-0 flex-1" type="range" min="0" max="1" step="0.01" disabled={state.expression === 'neutral'} value={state.expressionWeight} onChange={event => character3DPreview.configure({ expectedRevision: character3DPreview.getSnapshot().revision, expressionWeight: Number(event.target.value) })} /><output>{Math.round(state.expressionWeight * 100)}%</output>
+    </label>}
+  </>
 }

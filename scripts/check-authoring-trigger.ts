@@ -35,6 +35,8 @@ const runtime = await bootMantleRuntime({
     },
   },
   handlers: {
+    'companion.inspect-3d-character': () => ({}),
+    'companion.configure-3d-preview': () => ({}),
     'companion.inspect-workspace': async () => ({ status: 'ok', data: {} }),
     'companion.navigate-character': async (input) => ({ status: 'ok', data: input }),
     'companion.update-character-profile': async (input) => {
