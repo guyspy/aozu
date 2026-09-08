@@ -487,10 +487,10 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       revert()
       if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}`)
     })}>
-    {!isProfile && <TooltipProvider>
+    <div className={`flex gap-1 ${isProfile ? 'invisible' : ''}`} inert={isProfile} aria-hidden={isProfile || undefined}><TooltipProvider>
       {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
       {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
-    </TooltipProvider>}
+    </TooltipProvider></div>
     {saveFeedback}
   </CharacterAppearances>
 
@@ -513,10 +513,9 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       </> :
       <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${isProfile ? 'is-profile-open' : ''}`}>
       <section className="character-stage-panel rounded-2xl border bg-background">
-        <div className="character-stage-content">
         <div className="character-stage-preview">
         <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
-          {narrow && !isProfile && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
+          {narrow && (isProfile ? <span className="size-8 shrink-0" aria-hidden="true" /> : <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>)}
         </div>
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
@@ -548,7 +547,8 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
-        {isProfile && <section id="character-profile" className="character-profile-panel">
+      </section>
+        {isProfile && <section id="character-profile" className="character-profile-panel rounded-2xl border bg-background">
           {profileForm ? <>
             <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
             <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
@@ -574,9 +574,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3>{Object.keys(draft.attributes ?? {}).length ? <dl>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl> : <p className="text-muted-foreground">{t('characterDraft.profile.noAttributes')}</p>}</div>
           </>}
         </section>}
-        </div>
-      </section>
-
       {!isProfile && (narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
         {workbench}
       </SheetContent> : workbench)}

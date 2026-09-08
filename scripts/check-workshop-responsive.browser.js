@@ -47,10 +47,35 @@ try {
   await wait(350)
   assert(!find('[data-slot="sheet-overlay"]') && doc.body.style.pointerEvents !== 'none', 'Desktop resize must release the modal')
   assert(find('.doll-workbench').getBoundingClientRect().left > find('.character-stage-panel').getBoundingClientRect().left, 'Desktop must retain two columns')
+  // Switching tabs keeps the same preview geometry; profile editing must not resize it either.
+  const button = (label) => [...doc.querySelectorAll('button')].find((node) => node.textContent.trim() === label || node.getAttribute('aria-label') === label)
+  for (const width of [320, 390, 757, 900, 1182, 1280]) {
+    frame.style.width = `${width}px`
+    button('Appearance').click()
+    await ready(() => find('main').dataset.category === 'expressions')
+    await wait(350)
+    const selectors = ['.character-stage-panel', '.character-stage-canvas', '[aria-label="Saved Appearance"]']
+    const before = selectors.map((selector) => find(selector).getBoundingClientRect())
+    const matches = () => selectors.forEach((selector, index) => {
+      const after = find(selector).getBoundingClientRect()
+      for (const key of ['x', 'y', 'width', 'height']) assert(Math.abs(after[key] - before[index][key]) < 1, `${selector} ${key} jumps on profile at ${width}px`)
+    })
+    button('Character profile').click()
+    await ready(() => find('#character-profile'))
+    await wait(350)
+    matches()
+    button('Edit character profile').click()
+    await ready(() => find('#character-profile input'))
+    matches()
+    button('Cancel').click()
+    await ready(() => !find('#character-profile input'))
+  }
+  button('Appearance').click()
+  await ready(() => !find('#character-profile'))
   frame.style.width = '844px'; frame.style.height = '390px'
   await wait(350)
   assert(find('.character-stage-canvas').clientHeight > 200 && find('#root').scrollHeight > 390, 'Short windows must scroll instead of collapsing the preview')
-  result.textContent = 'PASS: 320/390/757px drawer, labels, focus return, 1280px desktop transition, and 844×390px scrolling'
+  result.textContent = 'PASS: responsive drawer/buttons, stable Appearance/profile preview at 320–1280px including profile editing, and short-window scrolling'
 } catch (error) {
   result.textContent = `FAIL: ${error.message}`
   throw error
