@@ -86,3 +86,10 @@ A-pose 是新角色的製作契約；既有圖片仍需視覺確認。landmarks 
 `update_character_model_sheet` 沿用 revision/hash 檢查、編輯佇列、復原與 ZIP。`fromAppearance: true` 可將目前合成圖再次帶入 `front`；補圖以自己的 ID 和 label/kind 儲存，viewpoint/pose 分別交代角度與姿勢。`sourceSha256` 記錄繪圖所依據的圖片版本；替換圖後重新校準 guides。導航直接打開該參考圖，`inspect_workspace` 的 snapshot 可讀取正在審閱的原圖。
 
 技術接受不等於已定稿。每張圖上傳後應看原圖、對照來源，將新設計與待確認之處記在 notes；若工具描述有誤，先修共享契約再繼續正常工具流程。實測範圍見 issue #11。
+
+## 下載與還原
+
+- 單張原圖：打開設定圖，選 `Download original`；保留原始 PNG bytes 與尺寸。agent 也可用上述 `images` 取得同一張原圖。
+- 完整角色：在角色頁選 `Export character`，ZIP 包含 Appearance 素材、全部設定原圖、註記、用途／角度／姿勢、來源 hash、身高與 guides。
+- 還原角色：到角色集選單選 `Import character`，上傳這份角色 ZIP。它建立新角色，不覆蓋現有角色；原有 pack ID 衝突時會分配新 ID。
+- `Back up your whole library` 是另一種整庫備份格式，使用該面板的還原入口，勿與單角色 ZIP 混用。
