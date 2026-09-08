@@ -1,6 +1,7 @@
 import { ArrowLeftIcon, LanguagesIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 
 import { AozuIcon } from '@/ui/AozuIcon'
 import { Button } from '@/ui/components/ui/button'
@@ -29,10 +30,11 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
       >
         <div className="flex min-w-0 items-center gap-1">
           {onBack && <Button type="button" size="icon" variant="ghost" onClick={onBack} aria-label={t('common.back')}><ArrowLeftIcon /></Button>}
-          <AozuIcon name="book" />
-          <span className="truncate font-heading text-lg font-semibold">
-            {title ?? t('common.productName')}
-          </span>
+          <Link to="/" aria-label={t('navigation.home')} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2">
+            <AozuIcon name="book" />
+            {!title && <span className="font-heading text-lg font-semibold">{t('common.productName')}</span>}
+          </Link>
+          {title && <span className="truncate font-heading text-lg font-semibold">{title}</span>}
         </div>
         <div className="flex items-center gap-2">
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>

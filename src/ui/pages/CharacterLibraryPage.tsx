@@ -1,6 +1,6 @@
 import { ArrowLeftIcon, BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, FolderInputIcon, PlusIcon } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 
@@ -77,8 +77,33 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
     catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refresh() }
     finally { setBusy(false) }
   }
-  if (collectionId && !book) return <Navigate to={`/collections/${DEFAULT_CHARACTER_COLLECTION}`} replace />
   const visible = book ? characters.filter(({ id }) => book.characterIds.includes(id)) : []
+  const cardsRef = useRef<HTMLDivElement>(null)
+  const hasCards = visible.length > 0
+  useLayoutEffect(() => {
+    const grid = cardsRef.current
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (!grid || reducedMotion.matches) return
+    // The original nine-card fan is an entrance; larger collections stay immediately usable in the grid.
+    const cards = Array.from(grid.children).slice(0, 9) as HTMLElement[]
+    const rects = cards.map((card) => card.getBoundingClientRect())
+    const middle = (cards.length - 1) / 2
+    const center = (Math.min(...rects.map(({ left }) => left)) + Math.max(...rects.map(({ right }) => right))) / 2
+    const spread = Math.min(48, Math.max(0, (grid.clientWidth - rects[0].width) / Math.max(1, cards.length - 1)))
+    const animations = cards.map((card, index) => {
+      const rect = rects[index], offset = index - middle
+      const x = center - rect.left - rect.width / 2, y = rects[0].top - rect.top
+      return card.animate([
+        { transform: `translate(${x}px, ${y + 20}px) scale(0.85)`, opacity: 0 },
+        { transform: `translate(${x + offset * spread}px, ${y + Math.abs(offset) * 7}px) rotate(${offset * 4.25}deg) scale(0.9)`, opacity: 1, offset: 0.4 },
+        { transform: 'none', opacity: 1 },
+      ], { duration: 740, delay: index * 35, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'backwards' })
+    })
+    const cancel = () => animations.forEach((animation) => animation.cancel())
+    reducedMotion.addEventListener('change', cancel)
+    return () => { cancel(); reducedMotion.removeEventListener('change', cancel) }
+  }, [book?.id, hasCards])
+  if (collectionId && !book) return <Navigate to={`/collections/${DEFAULT_CHARACTER_COLLECTION}`} replace />
   const menuItem = 'book-menu-item'
 
   return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
@@ -112,7 +137,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
       {book.backstory ? <details className="book-world mb-5"><summary><BookTextIcon className="size-4" />{t('books.world')}</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{book.backstory}</p><Button className="mt-3" variant="outline" onClick={() => editBook(book)}>{t('books.editWorld')}</Button></details>
         : <Button className="mb-4" size="sm" variant="ghost" onClick={() => editBook(book)}><BookTextIcon />{t('books.world')}</Button>}
       <section className="book-page" aria-label={nameOf(book)}>
-        {visible.length ? <div className="book-card-grid" role="list">
+        {visible.length ? <div key={book.id} ref={cardsRef} className="book-card-grid" role="list">
           {visible.map((character) => <article key={character.id} role="listitem" className="book-character-card">
             <button type="button" className="companion-card-open" aria-label={`${t('characters.edit')} ${character.name}`} onClick={() => openCharacter(character.id)}>
               <span className="companion-card-portrait"><CharacterCardPortrait character={character} loadThumbnail={loadThumbnail} /></span>

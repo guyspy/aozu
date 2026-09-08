@@ -1,4 +1,4 @@
-# ADR-0010: Creation-first card books and shared world context
+# ADR-0010: Creation-first collections and shared world context
 
 - Status: Accepted
 - Date: 2026-09-08
@@ -13,10 +13,10 @@ queued edits and history keep the pack identity while adopting Mantle’s perman
 entry ID. Existing commands, autosave failures, retries, conflicts and undo remain
 in the same editor lifecycle.
 
-Returning users open their last available card book, falling back to My characters.
+Returning users open their last available collection, falling back to My characters.
 `/collections` is the bookshelf and `/collections/:id` is a book’s card grid.
-The old `/characters` entrance and `/start` resolve to the appropriate current
-entrance. The five unmounted legacy start, starter, review, creation and Story UI
+The Logo always links to `/`. The retired `/characters` entrance and `/start`
+are no longer routes; unmatched URLs display 404 without changing the address. The five unmounted legacy start, starter, review, creation and Story UI
 pages and the Story teaser are removed. Shared domain/runtime and archive formats
 remain available to the existing Character and import/export paths.
 
@@ -52,7 +52,11 @@ The default book shows its cards and a create-character action immediately. Book
 switching and creation live in the book-name menu; moving a Character lives in its
 card menu. Book details and library transfer use the existing accessible Sheet.
 The bookshelf, management forms and backup controls do not occupy the main card
-browsing surface. At narrow widths cards remain in two columns.
+browsing surface. At narrow widths cards remain in two columns. Opening a
+collection deals the first nine cards through the original fan geometry, then
+settles into the grid. Reduced-motion users see the grid immediately. Metadata
+refreshes do not replay the entrance. User-facing naming is Collection / 角色集;
+the book remains a visual treatment.
 
 ## Checks
 

@@ -336,7 +336,7 @@ body::before {
   height: 2.15rem;
 }
 
-/* Card books use the existing parchment, card portraits, and book seal. */
+/* Collections use the existing parchment, card portraits, and book seal. */
 .card-library { min-height: calc(100svh - 3.5rem); }
 .book-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
 .book-switcher { display: flex; align-items: center; gap: 0.6rem; max-width: 100%; text-align: left; }
@@ -349,9 +349,9 @@ body::before {
 .book-menu-item > span:last-child { margin-left: auto; }
 .book-world { border-block: 1px solid var(--border); padding: 0.75rem 0; }
 .book-world summary { display: flex; align-items: center; gap: 0.5rem; width: fit-content; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
-.book-page { min-height: 20rem; padding: clamp(0.65rem, 2vw, 1.5rem); border: 1px solid #b58b58; border-radius: 1rem; background: #fff0c933; box-shadow: inset 0 1px #fff4d9aa; }
+.book-page { overflow: clip; min-height: 20rem; padding: clamp(0.65rem, 2vw, 1.5rem); border: 1px solid #b58b58; border-radius: 1rem; background: #fff0c933; box-shadow: inset 0 1px #fff4d9aa; }
 .book-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: clamp(0.75rem, 2vw, 1.5rem); }
-.book-character-card { position: relative; min-width: 0; padding: 0.55rem; border: 1px solid #a8773c; border-radius: 0.85rem; background: linear-gradient(145deg, #f5e2b2, #e2bc77); box-shadow: inset 0 0 0 4px #83532622, 0 0.2rem 0.5rem #45250f15; }
+.book-character-card { transform-origin: 50% 125%; position: relative; min-width: 0; padding: 0.55rem; border: 1px solid #a8773c; border-radius: 0.85rem; background: linear-gradient(145deg, #f5e2b2, #e2bc77); box-shadow: inset 0 0 0 4px #83532622, 0 0.2rem 0.5rem #45250f15; }
 .companion-card-open { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center; padding-bottom: 2.5rem; border-radius: 0.5rem; }
 .companion-card-portrait { width: 100%; overflow: hidden; border-radius: 0.5rem; background: radial-gradient(circle, #fff1c575, transparent); }
 .companion-card-portrait [role="img"] { border: 0; border-radius: 0; background-color: transparent; }

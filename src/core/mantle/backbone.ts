@@ -581,8 +581,8 @@ const ALL_BACKBONE_SOURCES = [
   source(
     'authoring/update-collection-profile.yaml',
     envelope('Procedure', 'update-collection-profile', {
-      title: 'Update Card Book Profile',
-      description: 'Update a card book’s name, description, or shared world backstory. Use the collection ID and exact revision from inspect_workspace. Omitted fields stay unchanged. Shared world context is available to every Character in this book without replacing their individual profiles.',
+      title: 'Update Collection Profile',
+      description: 'Update a collection’s name, description, or shared world backstory. Use the collection ID and exact revision from inspect_workspace. Omitted fields stay unchanged. Shared world context is available to every Character in this collection without replacing their individual profiles.',
       input: objectSchema({
         collectionId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
