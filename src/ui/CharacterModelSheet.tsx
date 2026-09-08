@@ -9,7 +9,7 @@ import { BlobImage } from '@/ui/BlobImage'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
 
-export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCurrent, busy, error, saveFeedback, referenceId: view, openReference }: {
+export function CharacterModelSheet({ draft, edit, commit, revert, upload, appearanceSelector, busy, error, saveFeedback, referenceId: view, openReference }: {
   draft: CharacterDraft
   edit(draft: CharacterDraft): void
   commit(produce: (current: CharacterDraft) => CharacterDraft): void
@@ -17,7 +17,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
   upload(id: string, file: File, metadata?: CharacterReferenceMetadata): void
   referenceId?: string
   openReference(id?: string): void
-  useCurrent?: () => void
+  appearanceSelector: ReactNode
   busy: boolean
   error?: string
   saveFeedback: ReactNode
@@ -47,7 +47,6 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
       </button> : <label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</label>}
       <p className="model-sheet-state">{item && !isTurnaroundView(id) ? [item.kind && t(`modelSheet.kinds.${item.kind}`), item.viewpoint, item.pose].filter(Boolean).join(' · ') : t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>
       {item?.notes && <p className="line-clamp-2 text-sm text-muted-foreground">{item.notes}</p>}
-      {id === 'front' && useCurrent && <Button type="button" variant="ghost" size="sm" className="mt-auto whitespace-normal" disabled={busy} onClick={useCurrent}>{t('modelSheet.useCurrent')}</Button>}
     </article>
   }
 
@@ -55,6 +54,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
     <div className="model-sheet-toolbar">
       <div><h2 className="font-heading text-xl font-semibold">{draft.name} · {t('modelSheet.fullBody')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p></div>
+      <div className="min-w-0 flex-1 basis-48">{appearanceSelector}</div>
       <label className="model-sheet-height"><span><RulerIcon className="size-4" />{t('modelSheet.height')}</span>
         <input type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')}
           value={sheet.heightCm ?? ''} onChange={(event) => {

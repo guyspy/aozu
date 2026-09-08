@@ -92,7 +92,7 @@ const describeModelSheet = (character: CharacterDraft) => ({
 const MODEL_SHEET_POLICY = {
   tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
   input: { mediaType: 'image/png', maxBytes: 5 * 1024 * 1024, maxWidth: 4096, maxHeight: 4096, background: 'opaque or transparent', preserveOriginalCanvas: true },
-  instruction: 'Four full-body turnaround slots share one Appearance and pose. New Appearance starts in A-pose; capture front from the actual current Appearance and visually review it. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
+  instruction: 'Four full-body turnaround slots share one Appearance and pose. Appearance starts in A-pose. Saving or selecting a saved Appearance fills a missing front automatically; visually review it. Existing reference images are preserved. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
 }
 interface ModelSheetInput extends CharacterReferenceMetadata {
   referenceId?: string
@@ -294,6 +294,7 @@ export function createApplication(document: Document) {
   const application = {
     webmcp,
     editor,
+    changeCharacterAppearance: applyCharacterAppearance,
     subscribeCharacterChanges: characterChanges.subscribe,
     async loadCharacterLibrary() {
       await migrateLegacyCharacters()
@@ -621,6 +622,24 @@ export function createApplication(document: Document) {
     }
   }
 
+  async function applyCharacterAppearance(characterId: string, command: CharacterAppearanceCommand, expectedRevision: number, source: 'user' | 'agent' = 'user') {
+    await editor.open(characterId)
+    const { character, revision } = activeCharacter()
+    if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
+    let next = changeCharacterAppearance(character, command)
+    const sheet = characterModelSheet(next)
+    if (command.action !== 'rename' && !sheet.views.front && resolveCharacterDraftLayers(next).length) {
+      const asset = await editor.stageAsset(await application.exportCharacterPng(next), 'front-appearance.png', source, undefined, 'reference')
+      next = updateCharacterModelSheet(next, setModelSheetReference(sheet, 'front', { asset, sourceSha256: asset.inspection.sha256 }))
+    }
+    const changed = await editor.dispatch((current) => {
+      if (current !== character) throw new Error('Character changed; inspect it again')
+      return next
+    }, expectedRevision)
+    settledRevision('Appearance')
+    return changed
+  }
+
   async function setCharacterSelection(rawInput: unknown) {
     const { characterId, expectedRevision, group, variantId, active, appearance } = rawInput as {
       characterId: string
@@ -635,7 +654,8 @@ export function createApplication(document: Document) {
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
     await editor.open(characterId)
     const target = { group, id: variantId }
-    const changed = await editor.dispatch((character) => appearance ? changeCharacterAppearance(character, appearance) : active
+    const changed = appearance ? await applyCharacterAppearance(characterId, appearance, expectedRevision, 'agent')
+      : await editor.dispatch((character) => active
       ? activateCharacterVariant(character, target)
       : deactivateCharacterVariant(character, target), expectedRevision)
     const character = activeCharacter().character
@@ -984,9 +1004,9 @@ export function createApplication(document: Document) {
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
-        'References belong to modelSheet.appearanceId. Inspect character.appearances and use set_character_variant_selection with appearance:{action:"select",id} to change sets, then inspect again. If character.matchesSaved is false, the current composition has changed: save it with appearance:{action:"save",id,label} or reselect the saved Appearance before capturing front. Saving the first Appearance adopts existing references; later sets start empty. Variant art is shared, while selection and reference images are saved per Appearance.',
+        'References belong to modelSheet.appearanceId. Inspect character.appearances and use set_character_variant_selection with appearance:{action:"select",id} to change sets, then inspect again. If character.matchesSaved is false, the current composition has changed: save it with appearance:{action:"save",id,label} or reselect the saved Appearance before capturing front. The first saved Appearance adopts existing references. Saving or selecting a set fills a missing front from that saved combination when artwork exists; existing references and guides remain intact. Other views start empty for later sets. Variant art is shared, while selection and reference images are saved per Appearance.',
         'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
-        'Keep one consistent outfit and identity across the four turnaround views. Capture front from Appearance; do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
+        'Keep one consistent outfit and identity across the four turnaround views. Save or select the Appearance to fill a missing front; use fromAppearance only for an explicit replacement or an unnamed combination. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
         'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
         'Generate PNG with white/opaque or transparent background and an appropriate original canvas, at most 4096 × 4096 and 5 MiB. No background removal or 512 × 768 normalization is needed for references. Do not fit a wide T-pose to the Appearance silhouette.',
         'Supply sourceSha256 from the image used as the primary source. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',

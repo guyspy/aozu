@@ -25,6 +25,7 @@ function CharacterEditor({ application, refresh, savedRevision }: { application:
     exportCharacterPng={application.exportCharacterPng}
     replaceAsset={(target, blob) => application.replaceCharacterAsset(characterId, target, blob)}
     replaceReference={(id, blob, metadata) => application.replaceCharacterReference(characterId, id, blob, metadata)}
+    changeAppearance={(command, revision) => application.changeCharacterAppearance(characterId, command, revision)}
     deleteCharacter={async () => {
       await application.deleteCharacter(characterId)
       await refresh()

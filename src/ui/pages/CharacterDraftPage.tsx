@@ -10,7 +10,7 @@ import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
 import { CharacterAppearances } from '@/ui/CharacterAppearances'
-import { activeCharacterAppearance, sameCharacterSelection } from '@/core/application/character-appearances'
+import type { CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
@@ -78,7 +78,7 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
@@ -87,6 +87,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
   replaceReference(referenceId: string, blob?: Blob, metadata?: CharacterReferenceMetadata): Promise<unknown>
+  changeAppearance(command: CharacterAppearanceCommand, revision: number): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
   deleteCharacter(): Promise<void>
 }) {
@@ -480,6 +481,14 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         {actions}
       </section>
 
+  const appearanceControls = <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft}
+    manage={!isModelSheet && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
+    change={(command) => void runBusy('appearance', async () => {
+      await changeAppearance(command, persistedRevision!)
+      revert()
+      if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : category.id}`)
+    })} />
+
   return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
     <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : category.id}
@@ -498,13 +507,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         {(['expressions', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={(mode === 'model-sheet') === isModelSheet ? 'secondary' : 'ghost'} aria-current={(mode === 'model-sheet') === isModelSheet ? 'page' : undefined}
           onClick={() => { revert(); setProfileForm(undefined); setProfileOpen(false); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : 'modelSheet.appearance')}</Button>)}
       </nav>
-      <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
-        commit={(produce) => { commit(produce); if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : category.id}`) }} />
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
+          appearanceSelector={appearanceControls}
           referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
-          upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })}
-          useCurrent={previewLayers.length && (!activeCharacterAppearance(draft) || sameCharacterSelection(draft.selected, activeCharacterAppearance(draft)!.selected)) ? () => void runBusy('reference', async () => { await replaceReference('front'); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/front`) }) : undefined} />
+          upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })} />
         {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         {actions}
       </> :
@@ -516,6 +523,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </div>
         <div className="character-stage-content">
         <div className="character-stage-preview">
+        <div className="mt-3">{appearanceControls}</div>
         <div className="character-stage-canvas relative">
           {baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
