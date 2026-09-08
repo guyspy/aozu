@@ -40,7 +40,7 @@ The agent generates the creative pixels with its available image tools. AOZU mak
 
 ## WebMCP workflow
 
-AOZU exposes nine public tools on every page:
+AOZU exposes ten public tools on every page:
 
 | Tool | Purpose |
 | --- | --- |
@@ -50,6 +50,7 @@ AOZU exposes nine public tools on every page:
 | `update_character_profile` | Update a character's name, description, multiline backstory, or scalar attributes against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
+| `set_character_variant_selection` | Select or remove an expression, outfit, or prop against its exact revision; newly added props stack above earlier ones |
 | `set_character_variant_transform` | Apply an explicit translation and uniform scale when a generated layer needs a small alignment correction |
 | `undo_character_change` | Undo the latest settled change in the active editing session |
 | `redo_character_change` | Redo the most recently undone change in the active editing session |
@@ -82,6 +83,43 @@ Characters are stored locally in IndexedDB and can be duplicated, edited, delete
 - enough data to import the character back into AOZU.
 
 The editor and thumbnails render from the same compiled atlas used by the export path.
+
+## Collections, library backups, and PNGs
+
+On **Your characters**, create a **Collection**, expand **Organize characters**,
+and assign Characters using their dropdowns. Use **Browse Collection** to filter
+the library. A Character belongs to at most one Collection; deleting a Collection
+keeps its Characters. An empty library offers Create and Upload without creating
+a Character automatically.
+
+**Download all characters** saves one ZIP with all saved Characters, editable
+drafts, installed packs, Collections, and artwork. This includes incomplete work;
+compiled atlases are rebuilt. **Upload library ZIP** first validates the entire
+archive and shows its counts. Then choose:
+
+- **Merge library**: add new records, retain identical local content, and reject
+  the whole import on any conflicting ID. There is no automatic overwrite or
+  ID renaming.
+- **Replace my library**: replace the Character library with exactly the archive's
+  contents, removing local records absent from it. Download a backup first to
+  preserve those records. Experience bundles and preferences remain separate.
+
+Import checks ZIP structure, CRCs, SHA-256 digests, IDs, references, schemas, and
+decoded PNG assets before an atomic IndexedDB transaction. A failed import leaves
+local data intact. Unsaved/conflicted editor changes must first be saved or
+reloaded. Library ZIPs have a 256 MiB compressed/expanded and 10,000-file limit;
+see [ADR-0009](docs/adr/0009-character-library-collections-and-portable-backups.md)
+for the full format and restore contract. The existing **Import character**
+action still accepts single-Character ZIPs.
+
+In the workshop, **Download PNG** saves the current visible composition as one
+transparent `512 × 768` PNG, including the selected skin, expression, props, and
+live placement. Diagnostic guides are omitted. Later-added props paint above
+earlier props within their front/back rig planes. Remove and readd a prop to move
+it to the top; selecting an already active prop keeps its position. That order
+survives undo/redo, reload, ZIP export, and WebMCP selection.
+
+These features deepen the 2D workshop; they add no 3D assets or delivery path.
 
 ## Architecture
 

@@ -22,11 +22,18 @@ import type {
   ViewQueryResult,
 } from "@aotter/mantle-runtime"
 import { assertEntryMutationAllowed } from "../../core/domain/history.ts"
+import { CHARACTER_COLLECTIONS } from '../../core/domain/character-collection.ts'
+import { characterAssetScope, type CharacterWorkspaceData } from '../../core/domain/character.ts'
+import { AUTHORING_NAMESPACE } from '../../core/application/authoring.ts'
+import { CHARACTER_LIBRARY_REVISION_FLOOR } from '../../core/application/character-library.ts'
 import {
   type CompanionDatabase,
   ENTRY_STORE,
+  ASSET_STORE,
+  META_STORE,
   openCompanionDatabase,
   type StoredEntry,
+  type StoredAsset,
   toPublicEntry,
 } from "./database.ts"
 
@@ -48,6 +55,17 @@ const conflict = (kind: string, id: string, expected: unknown, actual: unknown) 
 const allEntries = (database: CompanionDatabase, bundleId: string): Promise<StoredEntry[]> =>
   database.getAllFromIndex(ENTRY_STORE, "bundleId", bundleId)
 
+const requireCharacterAssets = async (data: Entry['data'], get: (key: [string, string]) => Promise<StoredAsset | undefined>) => {
+  const character = data as unknown as CharacterWorkspaceData
+  for (const { layers } of character.variants) for (const asset of Object.values(layers)) {
+    if (!asset) continue
+    const stored = await get([characterAssetScope(character.packId), asset.blobId])
+    if (!stored || stored.blob.type !== 'image/png' || stored.blob.size !== asset.inspection.size) {
+      throw new Error('Character assets changed during save; retry the Character operation')
+    }
+  }
+}
+
 export function createIndexedDbEntryRepository(bundleId: string): EntryRepository & EntryReader {
   const key = (id: string): [string, string] => [bundleId, id]
 
@@ -67,9 +85,17 @@ export function createIndexedDbEntryRepository(bundleId: string): EntryRepositor
   return {
     async create(args: CreateEntryArgs) {
       const database = await openCompanionDatabase()
-      const transaction = database.transaction(ENTRY_STORE, "readwrite")
-      const existing = await transaction.store.get(key(args.id))
+      const transaction = database.transaction([ENTRY_STORE, ASSET_STORE], "readwrite")
+      const entries = transaction.objectStore(ENTRY_STORE)
+      const existing = await entries.get(key(args.id))
       if (existing) throw conflict("EntryVersionConflict", args.id, "absent", existing.version)
+      if (bundleId === AUTHORING_NAMESPACE && args.collection === 'character-workspaces') {
+        const siblings = await entries.index('bundleId').getAll(bundleId)
+        if (siblings.some((entry) => entry.collection === 'character-workspaces' && entry.data.packId === args.data.packId)) {
+          throw new Error('Character pack ID is already used by another Character')
+        }
+        await requireCharacterAssets(args.data, (assetKey) => transaction.objectStore(ASSET_STORE).get(assetKey))
+      }
       const entry: StoredEntry = {
         bundleId,
         id: args.id,
@@ -81,7 +107,7 @@ export function createIndexedDbEntryRepository(bundleId: string): EntryRepositor
         createdAt: args.now,
         updatedAt: args.now,
       }
-      await transaction.store.add(entry)
+      await entries.add(entry)
       await transaction.done
       return entry
     },
@@ -91,24 +117,30 @@ export function createIndexedDbEntryRepository(bundleId: string): EntryRepositor
     async update(args: UpdateEntryArgs) {
       assertEntryMutationAllowed(args.collection)
       const database = await openCompanionDatabase()
-      const transaction = database.transaction(ENTRY_STORE, "readwrite")
-      const current = await transaction.store.get(key(args.id))
+      const transaction = database.transaction([ENTRY_STORE, ASSET_STORE], "readwrite")
+      const entries = transaction.objectStore(ENTRY_STORE)
+      const current = await entries.get(key(args.id))
       if (!current || current.collection !== args.collection) {
         throw conflict("EntryVersionConflict", args.id, args.expectedVersion, current?.version ?? 0)
       }
       if (current.version !== args.expectedVersion) {
         throw conflict("EntryVersionConflict", args.id, args.expectedVersion, current.version)
       }
+      if (bundleId === AUTHORING_NAMESPACE && args.collection === 'character-workspaces') {
+        if (args.data.packId !== current.data.packId) throw new Error('Character pack identity cannot change during save')
+        await requireCharacterAssets(args.data, (assetKey) => transaction.objectStore(ASSET_STORE).get(assetKey))
+      }
       const entry = { ...current, data: structuredClone(args.data), version: current.version + 1, updatedAt: args.now }
-      await transaction.store.put(entry)
+      await entries.put(entry)
       await transaction.done
       return entry
     },
     async delete(args: DeleteEntryArgs) {
       assertEntryMutationAllowed(args.collection)
       const database = await openCompanionDatabase()
-      const transaction = database.transaction(ENTRY_STORE, "readwrite")
-      const current = await transaction.store.get(key(args.id))
+      const transaction = database.transaction([ENTRY_STORE, ASSET_STORE, META_STORE], "readwrite")
+      const entries = transaction.objectStore(ENTRY_STORE)
+      const current = await entries.get(key(args.id))
       if (!current || current.collection !== args.collection) return { removed: false }
       if (current.version !== args.expectedVersion) {
         throw conflict("EntryVersionConflict", args.id, args.expectedVersion, current.version)
@@ -116,7 +148,31 @@ export function createIndexedDbEntryRepository(bundleId: string): EntryRepositor
       if (current.status !== args.expectedStatus) {
         throw conflict("EntryStatusConflict", args.id, args.expectedStatus, current.status)
       }
-      await transaction.store.delete(key(args.id))
+      await entries.delete(key(args.id))
+      if (args.collection === 'character-workspaces') {
+        const meta = transaction.objectStore(META_STORE)
+        await meta.put(String(Math.max(Number(await meta.get(CHARACTER_LIBRARY_REVISION_FLOOR)) || 0, current.version)), CHARACTER_LIBRARY_REVISION_FLOOR)
+        const collections = await entries.index('bundleId').getAll(bundleId)
+        if (bundleId === AUTHORING_NAMESPACE && typeof current.data.packId === 'string' &&
+          /^[a-z0-9][a-z0-9_-]{0,63}$/.test(current.data.packId) &&
+          !collections.some((entry) => entry.collection === 'character-workspaces' && entry.data.packId === current.data.packId)) {
+          const assets = transaction.objectStore(ASSET_STORE)
+          let cursor = await assets.index('bundleId').openKeyCursor(characterAssetScope(current.data.packId))
+          while (cursor) {
+            await assets.delete(cursor.primaryKey)
+            cursor = await cursor.continue()
+          }
+        }
+        for (const entry of collections) {
+          if (entry.collection !== CHARACTER_COLLECTIONS || !(entry.data.characterIds as string[]).includes(args.id)) continue
+          await entries.put({
+            ...entry,
+            data: { ...entry.data, characterIds: (entry.data.characterIds as string[]).filter((id) => id !== args.id) },
+            version: entry.version + 1,
+            updatedAt: Date.now(),
+          })
+        }
+      }
       await transaction.done
       return { removed: true }
     },

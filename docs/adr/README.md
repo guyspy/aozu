@@ -26,3 +26,4 @@ old one as superseded.
 | [0006](0006-functional-items-and-appearance-separation.md) | Accepted | Give items validated gameplay affordances without coupling function to artwork |
 | [0007](0007-data-driven-starter-packages.md) | Accepted | Author experiences from static Starter packages through Mantle Triggers |
 | [0008](0008-scene-packs-and-layered-compositions.md) | Accepted | Validate and render versioned Scene Packs as layered compositions |
+| [0009](0009-character-library-collections-and-portable-backups.md) | Accepted | Organize Characters with Collections and restore portable libraries atomically |

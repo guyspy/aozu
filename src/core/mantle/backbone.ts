@@ -411,6 +411,17 @@ const ALL_BACKBONE_SOURCES = [
     }),
   ),
   source(
+    'authoring/character-collection.yaml',
+    envelope('Schema', 'character-collections', {
+      title: 'Character Collections',
+      lifecycle: 'operational',
+      schema: objectSchema({
+        name: { type: 'string', minLength: 1, maxLength: 100 },
+        characterIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 100 } },
+      }, ['name', 'characterIds']),
+    }),
+  ),
+  source(
     "fixed/run.yaml",
     envelope(
       "Schema",
@@ -801,6 +812,29 @@ const ALL_BACKBONE_SOURCES = [
     envelope('Trigger', 'repair-character-asset', {
       source: { kind: 'mcp', surface: 'public' },
       target: { procedure: 'repair-character-asset' },
+    }),
+  ),
+  source(
+    'authoring/set-character-variant-selection.yaml',
+    envelope('Procedure', 'set-character-variant-selection', {
+      title: 'Set Character Variant Selection',
+      description: 'Activate or deactivate an existing expression, outfit, or prop using the exact saved revision from inspect_character_contract. selected.props persists bottom-to-top activation order within each front/back rig slot: later-added props stack above earlier props. Activating an already-active prop is a no-op; deactivate then activate it to move it to the top. Selection uses the same command and undo history as the UI. Success opens the selected composition.',
+      input: objectSchema({
+        characterId: { type: 'string', minLength: 1 },
+        group: { enum: ['expression', 'outfit', 'prop'] },
+        variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
+        expectedRevision: { type: 'integer', minimum: 1 },
+        active: { type: 'boolean' },
+      }, ['characterId', 'group', 'variantId', 'expectedRevision', 'active']),
+      output: toolResultSchema,
+      handler: { kind: 'ref', ref: 'companion.set-character-variant-selection' },
+    }),
+  ),
+  source(
+    'authoring/set-character-variant-selection-mcp.yaml',
+    envelope('Trigger', 'set-character-variant-selection', {
+      source: { kind: 'mcp', surface: 'public' },
+      target: { procedure: 'set-character-variant-selection' },
     }),
   ),
   source(

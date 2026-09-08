@@ -1,6 +1,9 @@
 import { ContentState, EntryDataValidator, type Entry } from '@aotter/mantle-spec'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 
+import { inspectZipDirectory, parseZipJson, safeZipPath as safePath } from './archive.ts'
+export { parseZipJson } from './archive.ts'
+
 import { validateBundle, type BundleRecord } from '../../core/bundle.ts'
 import { validateCharacterPack, type CharacterPack } from '../../core/domain/character.ts'
 import { resolveSceneComposition, validateSceneAsset, type SceneAsset, type SceneAssetInspection, type SceneComposition } from '../../core/domain/scene.ts'
@@ -12,13 +15,6 @@ import { createIndexedDbAssetRepository } from '../indexeddb/asset-repository.ts
 import { createIndexedDbBundleRepository } from '../indexeddb/bundle-repository.ts'
 import { persistImportedCandidate } from '../indexeddb/candidate-review.ts'
 import { createIndexedDbEntryRepository } from '../indexeddb/mantle-storage.ts'
-
-const MAX_ARCHIVE = 50 * 1024 * 1024
-const MAX_EXPANDED = 100 * 1024 * 1024
-const MAX_FILE = 20 * 1024 * 1024
-const MAX_FILES = 500
-const MAX_JSON_DEPTH = 50
-const decoder = new TextDecoder()
 
 type IntegrityEntry = { path: string; byteLength: number; mediaType: string; sha256: string }
 type Descriptor = {
@@ -32,29 +28,11 @@ type Descriptor = {
 }
 
 const json = (value: unknown) => strToU8(JSON.stringify(value))
-export const parseZipJson = <T>(bytes: Uint8Array, label: string): T => {
-  try {
-    const value: unknown = JSON.parse(strFromU8(bytes))
-    const pending = [{ value, depth: 0 }]
-    while (pending.length) {
-      const current = pending.pop()!
-      if (current.depth > MAX_JSON_DEPTH) throw new Error('too deep')
-      if (current.value && typeof current.value === 'object') {
-        for (const child of Object.values(current.value)) pending.push({ value: child, depth: current.depth + 1 })
-      }
-    }
-    return value as T
-  } catch { throw new Error(`Invalid ${label}`) }
-}
 const hex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 const digest = async (bytes: Uint8Array) => {
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
   return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', copy)))
-}
-
-function safePath(path: string) {
-  return path.length <= 200 && !path.startsWith('/') && !path.includes('\\') && path.split('/').every((part) => part && part !== '.' && part !== '..')
 }
 
 function portablePath(path: string) {
@@ -71,42 +49,7 @@ function draftPath(path: string) {
 }
 
 export function companionArchiveKind(bytes: Uint8Array): 'portable' | 'character-draft' {
-  if (bytes.byteLength > MAX_ARCHIVE) throw new Error('Archive is too large')
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  let eocd = -1
-  for (let offset = bytes.length - 22; offset >= Math.max(0, bytes.length - 65557); offset--) {
-    if (view.getUint32(offset, true) === 0x06054b50) { eocd = offset; break }
-  }
-  if (eocd < 0) throw new Error('ZIP directory is missing')
-  const count = view.getUint16(eocd + 10, true)
-  const diskCount = view.getUint16(eocd + 8, true)
-  const directorySize = view.getUint32(eocd + 12, true)
-  let offset = view.getUint32(eocd + 16, true)
-  if (
-    view.getUint16(eocd + 4, true) !== 0 || view.getUint16(eocd + 6, true) !== 0 ||
-    diskCount !== count || count > MAX_FILES || count === 0xffff ||
-    offset + directorySize !== eocd
-  ) throw new Error('Unsupported ZIP directory')
-  const names = new Set<string>()
-  let expanded = 0
-  for (let index = 0; index < count; index++) {
-    if (offset + 46 > bytes.length || view.getUint32(offset, true) !== 0x02014b50) throw new Error('Invalid ZIP entry')
-    const flags = view.getUint16(offset + 8, true)
-    const method = view.getUint16(offset + 10, true)
-    const size = view.getUint32(offset + 24, true)
-    const nameLength = view.getUint16(offset + 28, true)
-    const extraLength = view.getUint16(offset + 30, true)
-    const commentLength = view.getUint16(offset + 32, true)
-    const end = offset + 46 + nameLength + extraLength + commentLength
-    if (end > bytes.length) throw new Error('Invalid ZIP entry')
-    const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLength))
-    const path = name.endsWith('/') ? name.slice(0, -1) : name
-    if ((flags & 1) || (method !== 0 && method !== 8) || !safePath(path) || names.has(name) || size > MAX_FILE) throw new Error(`Unsafe ZIP entry: ${name}`)
-    if (!name.endsWith('/')) names.add(name)
-    expanded += size
-    if (expanded > MAX_EXPANDED) throw new Error('Expanded archive is too large')
-    offset = end
-  }
+  const names = new Set([...inspectZipDirectory(bytes).keys()].filter((name) => !name.endsWith('/')))
   const portable = names.has('bundle.json') || names.has('integrity.json')
   const draft = names.has('draft.json')
   if (portable && draft) throw new Error('The ZIP mixes a Companion bundle with an authoring draft')

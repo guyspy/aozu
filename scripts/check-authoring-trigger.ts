@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { bootMantleRuntime } from '@aotter/mantle-runtime'
 
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
+import { activateCharacterVariant, createCharacterDraft, deactivateCharacterVariant } from '../src/core/application/character-creation.ts'
 import { createExperienceDraftData } from '../src/core/domain/starter.ts'
 import { loadFocusStudioFixture } from './starter-fixture.ts'
 
@@ -26,6 +27,9 @@ let replacementInput: unknown
 let repairInput: unknown
 let profileInput: unknown
 let transformInput: unknown
+let selectionDraft = createCharacterDraft('selection-pack', 'selection-character')
+selectionDraft.variants.push({ group: 'prop', id: 'prop-2', label: 'Second prop', layers: {} })
+let selectionRevision = 1
 const runtime = await bootMantleRuntime({
   plan: compileAuthoringBackbone(),
   storage: {
@@ -56,6 +60,16 @@ const runtime = await bootMantleRuntime({
       transformInput = input
       return { status: 'ok', data: {} }
     },
+    'companion.set-character-variant-selection': async (rawInput) => {
+      const input = rawInput as { characterId: string; group: 'prop'; variantId: string; active: boolean; expectedRevision: number }
+      if (input.characterId !== selectionDraft.id || input.expectedRevision !== selectionRevision) throw new Error('Stale character selection')
+      const next = input.active
+        ? activateCharacterVariant(selectionDraft, { group: input.group, id: input.variantId })
+        : deactivateCharacterVariant(selectionDraft, { group: input.group, id: input.variantId })
+      if (next !== selectionDraft) selectionRevision++
+      selectionDraft = next
+      return { status: 'ok', data: { selected: selectionDraft.selected, revision: selectionRevision } }
+    },
     'companion.undo-character-change': async () => ({ status: 'nothing_to_undo', data: {} }),
     'companion.redo-character-change': async () => ({ status: 'nothing_to_redo', data: {} }),
     'companion.submit-experience-candidate': async (input) => {
@@ -69,6 +83,32 @@ const runtime = await bootMantleRuntime({
   },
 })
 const context = { user: null, staff: null, env: {} }
+const selectProp = (variantId: string, active: boolean, expectedRevision = selectionRevision) => runtime.invokeTrigger({
+  trigger: 'set-character-variant-selection',
+  input: { characterId: selectionDraft.id, group: 'prop', variantId, active, expectedRevision },
+  ctx: context,
+})
+assert.equal((await selectProp('prop-2', true)).ok, true)
+assert.equal((await selectProp('prop-1', true)).ok, true)
+assert.deepEqual(selectionDraft.selected.props, ['prop-2', 'prop-1'])
+assert.equal((await selectProp('prop-2', true)).ok, true)
+assert.equal(selectionRevision, 3)
+assert.equal((await selectProp('prop-2', false)).ok, true)
+assert.equal((await selectProp('prop-2', true)).ok, true)
+assert.deepEqual(selectionDraft.selected.props, ['prop-1', 'prop-2'])
+assert.equal((await selectProp('prop-1', false, 1)).ok, false)
+assert.equal((await selectProp('missing', true)).ok, false)
+assert.deepEqual(selectionDraft.selected.props, ['prop-1', 'prop-2'])
+assert.equal((await runtime.invokeTrigger({
+  trigger: 'set-character-variant-selection',
+  input: { characterId: selectionDraft.id, group: 'body', variantId: 'base', active: true, expectedRevision: selectionRevision },
+  ctx: context,
+})).ok, false)
+assert.equal((await runtime.invokeTrigger({
+  trigger: 'set-character-variant-selection',
+  input: { characterId: selectionDraft.id, group: 'prop', variantId: 'prop-1', active: 'true', expectedRevision: selectionRevision },
+  ctx: context,
+})).ok, false)
 const selected = await runtime.invokeTrigger({
   trigger: 'select-experience-draft',
   input: createExperienceDraftData(await loadFocusStudioFixture(), 'daily-study'),

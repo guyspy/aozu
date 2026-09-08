@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const fr: Messages = {
   common: { productName: 'AOZU', back: 'Retour', cancel: 'Annuler', language: 'Langue' },
@@ -8,6 +8,7 @@ export const fr: Messages = {
     error: 'Impossible de charger les données locales. Actualisez la page et réessayez.',
   },
   draft: { name: 'Nom du personnage', download: 'Exporter le personnage' },
+  library: en.library,
   characters: {
     kicker: 'ARCHIVES DES PERSONNAGES AOZU',
     title: 'Vos personnages',
@@ -45,6 +46,7 @@ export const fr: Messages = {
     missingRequired: 'Ajoutez un personnage de base pour fixer la pose et l’alignement.',
     saveAs: 'Dupliquer',
     savingAs: 'Duplication…',
+    downloadPng: 'Télécharger le PNG',
     undo: 'Annuler',
     redo: 'Rétablir',
     backToActive: 'Revenir à {{name}}',

@@ -21,3 +21,9 @@ import "./check-journal.ts"
 import "./check-portable.ts"
 import "./check-storage-persistence.ts"
 import "./check-workspace.ts"
+import "./check-character-composite.ts"
+import "./check-character-library.ts"
+
+// Run IndexedDB fixtures after the other modules have settled; each owns its records.
+await import('./check-character-collections.ts')
+await import('./check-character-library-concurrency.ts')

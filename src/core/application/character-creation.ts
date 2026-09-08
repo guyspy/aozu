@@ -27,6 +27,7 @@ import type { ValidatedStarterPackage } from '../domain/starter.ts'
 import type { StagedCandidatePreview } from './candidate.ts'
 import type {
   AssetRepositoryFactory,
+  CharacterDraftRepository,
   CharacterPackLibraryRecord,
   CharacterPackLibraryRepository,
 } from './ports.ts'
@@ -347,6 +348,7 @@ export function migrateCharacterDraft(draft: CharacterDraftV4 | CharacterDraftV3
     return withHeadRegistration(withoutDefaultExpression(upgraded))
   }
   if ('schemaVersion' in draft && draft.schemaVersion === 2) {
+    const { approvedAt: _approvedAt, ...legacy } = draft
     const usedPropIds = new Set(draft.variants.filter(({ group }) => group === 'prop').map(({ id }) => id))
     const migratedHeadwearIds = new Map<string, string>()
     let nextHatId = 1
@@ -359,7 +361,7 @@ export function migrateCharacterDraft(draft: CharacterDraftV4 | CharacterDraftV3
       return { ...variant, group: 'prop', id }
     })
     return withHeadRegistration(withoutDefaultExpression({
-      ...draft,
+      ...legacy,
       schemaVersion: 4,
       rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
       variants,
@@ -373,7 +375,7 @@ export function migrateCharacterDraft(draft: CharacterDraftV4 | CharacterDraftV3
   }
   const legacy = draft as LegacyCharacterDraft
   const next: CharacterDraft = {
-    ...createCharacterDraft(legacy.packId),
+    ...createCharacterDraft(legacy.packId, legacy.id),
     name: legacy.name,
     updatedAt: legacy.updatedAt,
     selected: {
@@ -391,6 +393,51 @@ export function migrateCharacterDraft(draft: CharacterDraftV4 | CharacterDraftV3
   copy('prop', 'prop-1', 'back', legacy.assets['prop-back'])
   copy('prop', 'prop-1', 'front', legacy.assets['prop-front'])
   return withHeadRegistration(next)
+}
+
+const characterContentJson = (draft: CharacterDraft) => {
+  const { id: _id, updatedAt: _updatedAt, description, backstory, attributes, ...content } = draft
+  return JSON.stringify({
+    ...content,
+    description: description || undefined,
+    backstory: backstory || undefined,
+    attributes: attributes && Object.keys(attributes).length ? attributes : undefined,
+  }, (_key, value: unknown) => value instanceof Blob ? undefined
+    : value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value)
+}
+
+const samePersistedCharacterContent = async (left: CharacterDraft, right: CharacterDraft) => {
+  if (characterContentJson(left) !== characterContentJson(right)) return false
+  for (let index = 0; index < left.variants.length; index++) {
+    for (const [layer, asset] of Object.entries(left.variants[index].layers)) {
+      const other = right.variants[index].layers[layer as CharacterVariantLayer]
+      if (!asset || !other || asset.blob.type !== other.blob.type || asset.blob.size !== other.blob.size) return false
+      const [leftBytes, rightBytes] = await Promise.all([asset.blob.arrayBuffer(), other.blob.arrayBuffer()])
+      const expected = new Uint8Array(rightBytes)
+      if (!new Uint8Array(leftBytes).every((byte, offset) => byte === expected[offset])) return false
+    }
+  }
+  return true
+}
+
+/** Interrupted migrations are replayable; a colliding pack never silently discards different legacy work. */
+export async function migrateLegacyCharacterLibrary(
+  legacy: { list(): Promise<Array<Parameters<typeof migrateCharacterDraft>[0]>>; delete(id: string): Promise<void> },
+  characters: Pick<CharacterDraftRepository, 'list' | 'create'>,
+) {
+  const pending = await legacy.list()
+  if (!pending.length) return
+  const current = await characters.list()
+  for (const stored of pending) {
+    const draft = migrateCharacterDraft(stored)
+    const matches = current.filter(({ character }) => character.packId === draft.packId)
+    if (matches.length > 1 || (matches[0] && !await samePersistedCharacterContent(draft, migrateCharacterDraft(matches[0].character)))) {
+      throw new Error(`Legacy Character migration conflicts with existing pack ${draft.packId}; the legacy Character was kept`)
+    }
+    if (!matches.length) current.push(await characters.create(draft))
+    await legacy.delete(stored.id)
+  }
 }
 
 export function characterAssetInspectionRejection(inspection: CharacterAssetInspection) {
@@ -570,6 +617,7 @@ export function activateCharacterVariant(
   draft: CharacterDraft,
   target: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ) {
+  if (!findVariant(draft, target.group, target.id)) throw new Error('Character variant not found')
   if (target.group === 'body') return draft
   if (target.group === 'expression') return draft.selected.expression === target.id
     ? draft : { ...draft, selected: { ...draft.selected, expression: target.id } }
@@ -577,6 +625,40 @@ export function activateCharacterVariant(
     ? draft : { ...draft, selected: { ...draft.selected, outfit: target.id } }
   return draft.selected.props.includes(target.id)
     ? draft : { ...draft, selected: { ...draft.selected, props: [...draft.selected.props, target.id] } }
+}
+
+export function deactivateCharacterVariant(
+  draft: CharacterDraft,
+  target: Pick<CharacterDraftVariant, 'group' | 'id'>,
+) {
+  if (!findVariant(draft, target.group, target.id)) throw new Error('Character variant not found')
+  if (target.group === 'body') return draft
+  if (target.group === 'prop') return draft.selected.props.includes(target.id)
+    ? { ...draft, selected: { ...draft.selected, props: draft.selected.props.filter((id) => id !== target.id) } } : draft
+  return draft.selected[target.group] === target.id
+    ? { ...draft, selected: { ...draft.selected, [target.group]: undefined } } : draft
+}
+
+export function clearCharacterVariantSelection(draft: CharacterDraft, group: CharacterVariantGroup) {
+  if (group === 'body') return draft
+  if (group === 'prop') return draft.selected.props.length
+    ? { ...draft, selected: { ...draft.selected, props: [] } } : draft
+  return draft.selected[group] === undefined
+    ? draft : { ...draft, selected: { ...draft.selected, [group]: undefined } }
+}
+
+const selectedPropIds = (draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+  const ids = draft.selected.props
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate selected character prop ID')
+  if (ids.some((id) => !findVariant(draft, 'prop', id))) throw new Error('Selected character prop is missing')
+  return preview?.group === 'prop' && !ids.includes(preview.id) ? [...ids, preview.id] : ids
+}
+
+/** Preserve activation order, then assign unused variants unique orders for portable pack appearances. */
+const characterPropOrders = (draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+  const selected = selectedPropIds(draft, preview)
+  const inactive = draft.variants.filter(({ group, id }) => group === 'prop' && !selected.includes(id)).map(({ id }) => id)
+  return new Map([...selected, ...inactive].map((id, index) => [id, index + 1]))
 }
 
 const currentLayerEntries = (draft: CharacterDraft, variant: CharacterDraftVariant) =>
@@ -594,8 +676,7 @@ const selectedVariants = (
   const expressionId = preview?.group === 'expression' ? preview.id : draft.selected.expression
   const expression = expressionId && !(exclude?.group === 'expression' && exclude.id === expressionId) && hasCurrentCharacterLayer(draft, 'expression', expressionId, 'head')
     ? findVariant(draft, 'expression', expressionId) : undefined
-  const propIds = preview?.group === 'prop' ? [...draft.selected.props, preview.id] : draft.selected.props
-  const props = [...new Set(propIds)]
+  const props = selectedPropIds(draft, preview)
     .filter((id) => exclude?.group !== 'prop' || exclude.id !== id)
     .map((id) => findVariant(draft, 'prop', id))
   return [outfit ?? findVariant(draft, 'body', 'base'), expression, ...props]
@@ -614,7 +695,7 @@ const resolveDraftLayers = (
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ): Array<ResolvedCharacterLayer & { blob: Blob }> => {
   const slotOrders = new Map<string, number>(CHARACTER_RIG.slots.map(({ id, order }) => [id, order]))
-  const propOrders = new Map(draft.variants.filter(({ group }) => group === 'prop').map(({ id }, index) => [id, index + 1]))
+  const propOrders = characterPropOrders(draft, preview)
   return selectedVariants(draft, preview, exclude).flatMap((variant) => currentLayerEntries(draft, variant).map(([layer, asset]) => {
     const placement = characterAssetPlacement(variant.group, layer, propOrders.get(variant.id))
     return {
@@ -664,7 +745,7 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
   if (!draft.name.trim()) throw new Error('Companion name is required')
   if (!hasCurrentCharacterLayer(draft, 'body', 'base', 'body')) throw new Error('Base body is required')
   const keys = new Set<string>()
-  const propOrders = new Map(draft.variants.filter(({ group }) => group === 'prop').map(({ id }, index) => [id, index + 1]))
+  const propOrders = characterPropOrders(draft)
   for (const variant of draft.variants) {
     if (variant.transform) validateCharacterVariantTransform(variant.transform)
     if (

@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
   common: { productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
@@ -8,6 +8,7 @@ export const zhTW: Messages = {
     error: '無法載入本機資料，請重新整理後再試一次。',
   },
   draft: { name: '角色名稱', download: '匯出角色' },
+  library: en.library,
   characters: {
     kicker: 'AOZU 角色典藏',
     title: '你的角色',
@@ -45,6 +46,7 @@ export const zhTW: Messages = {
     missingRequired: '請先加入基礎角色，以建立姿勢與對齊基準。',
     saveAs: '複製',
     savingAs: '正在複製…',
+    downloadPng: '下載 PNG',
     undo: '復原',
     redo: '重做',
     backToActive: '回到 {{name}}',

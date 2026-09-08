@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const de: Messages = {
   common: { productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
@@ -8,6 +8,7 @@ export const de: Messages = {
     error: 'Lokale Daten konnten nicht geladen werden. Seite neu laden und erneut versuchen.',
   },
   draft: { name: 'Name der Figur', download: 'Figur exportieren' },
+  library: en.library,
   characters: {
     kicker: 'AOZU-FIGURENARCHIV',
     title: 'Deine Figuren',
@@ -45,6 +46,7 @@ export const de: Messages = {
     missingRequired: 'Füge eine Basisfigur hinzu, um Pose und Ausrichtung festzulegen.',
     saveAs: 'Duplizieren',
     savingAs: 'Wird dupliziert…',
+    downloadPng: 'PNG herunterladen',
     undo: 'Rückgängig',
     redo: 'Wiederholen',
     backToActive: 'Zurück zu {{name}}',

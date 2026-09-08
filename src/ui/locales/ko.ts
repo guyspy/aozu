@@ -1,4 +1,4 @@
-import type { Messages } from './en'
+import { en, type Messages } from './en'
 
 export const ko: Messages = {
   common: { productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
@@ -8,6 +8,7 @@ export const ko: Messages = {
     error: '로컬 데이터를 불러올 수 없습니다. 새로 고침 후 다시 시도해 주세요.',
   },
   draft: { name: '캐릭터 이름', download: '캐릭터 내보내기' },
+  library: en.library,
   characters: {
     kicker: 'AOZU 캐릭터 아카이브',
     title: '내 캐릭터',
@@ -45,6 +46,7 @@ export const ko: Messages = {
     missingRequired: '포즈와 정렬 기준이 되는 기본 캐릭터를 먼저 추가해 주세요.',
     saveAs: '복제',
     savingAs: '복제 중…',
+    downloadPng: 'PNG 다운로드',
     undo: '실행 취소',
     redo: '다시 실행',
     backToActive: '{{name}}으로 돌아가기',
