@@ -1,7 +1,7 @@
 import { en, type Messages } from './en'
 
 export const de: Messages = {
-  common: { productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
+  common: { close: 'Schließen', productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
   navigation: { primary: 'Hauptnavigation' },
   startup: {
     loading: 'Lokale Daten werden geladen…',

@@ -3,6 +3,7 @@ export const en = {
     productName: 'AOZU',
     back: 'Back',
     cancel: 'Cancel',
+    close: 'Close',
     language: 'Language',
   },
   navigation: { primary: 'Primary navigation' },

@@ -14,6 +14,7 @@ function CharacterEditor({ application, refresh, savedRevision }: { application:
   const { characterId, step } = useParams()
   if (!characterId) return <Navigate to="/characters" replace />
   return <CharacterDraftPage
+    key={characterId}
     editor={application.editor}
     savedRevision={savedRevision}
     autoFitVariant={application.autoFitCharacterVariant}

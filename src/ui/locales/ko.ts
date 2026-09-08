@@ -1,7 +1,7 @@
 import { en, type Messages } from './en'
 
 export const ko: Messages = {
-  common: { productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
+  common: { close: '닫기', productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
   navigation: { primary: '주 탐색' },
   startup: {
     loading: '로컬 데이터를 불러오는 중…',
