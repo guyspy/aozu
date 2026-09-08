@@ -5,6 +5,29 @@ import { bindMantleWebMcpTools, type MantleToolInvoker } from './tools.ts'
 export type WebMcpStatus = 'unsupported' | 'registering' | 'ready' | 'failed'
 export type WebMcpState = { status: WebMcpStatus; toolCount: number; error?: string }
 
+/** Read the view React actually rendered, including state that is not encoded in the URL. */
+export function readWorkspaceView(document: Document) {
+  const page = document.querySelector<HTMLElement>('main[data-workspace-view]')
+  if (!page) return null
+  const view = page.dataset
+  return {
+    surface: view.workspaceView,
+    characterId: view.characterId ?? null,
+    revision: view.characterRevision ? Number(view.characterRevision) : null,
+    collectionId: view.collectionId ?? null,
+    category: view.category ?? null,
+    viewedVariantId: view.variantId ?? null,
+    previewMode: view.previewMode ?? null,
+    panel: view.panel ?? null,
+    hasUncommittedInput: view.hasUncommittedInput === 'true',
+    alignmentControls: [...page.querySelectorAll<HTMLButtonElement>('button[data-alignment-mode]')].map((button) => ({
+      mode: button.dataset.alignmentMode,
+      label: button.textContent?.trim(),
+      selected: button.getAttribute('aria-pressed') === 'true',
+    })),
+  }
+}
+
 const navigationEffect = (value: unknown) => {
   if (!value || typeof value !== 'object') return null
   const navigation = (value as { effects?: { navigation?: unknown } }).effects?.navigation

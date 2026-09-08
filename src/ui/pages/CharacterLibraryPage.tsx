@@ -52,7 +52,9 @@ export function CharacterLibraryPage({ characters, collections, createCollection
   const visible = book ? characters.filter(({ id }) => book.characterIds.includes(id)) : []
   const menuItem = 'book-menu-item'
 
-  return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6">
+  return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
+    data-workspace-view={book ? 'collection' : 'collections'} data-collection-id={book?.id}
+    data-panel={panel} data-has-uncommitted-input={panel === 'profile' || panel === 'create'}>
     <div className="book-toolbar">
       <div className="min-w-0">
         {book ? <DropdownMenu.Root><DropdownMenu.Trigger asChild>

@@ -1,4 +1,5 @@
 import type { EntryReader } from '@aotter/mantle-runtime'
+import { CHARACTER_BACKGROUND_GUIDANCE } from './character-agent-guidance.ts'
 
 import {
   CHARACTER_RIG,
@@ -448,7 +449,7 @@ export function characterAssetInspectionRejection(inspection: CharacterAssetInsp
   if (!inspection.hasTransparentPixels) {
     return {
       code: 'OPAQUE_BACKGROUND',
-      message: 'Asset has no transparent pixels. AOZU does not remove backgrounds. Generate on a flat high-contrast color if needed, remove it with an image tool, then submit genuine RGBA PNG.',
+      message: `Asset has no transparent pixels. ${CHARACTER_BACKGROUND_GUIDANCE}`,
     }
   }
   if (!inspection.genuineRgba) return { code: 'INVALID_RGBA', message: 'Asset must be a genuine RGBA PNG.' }

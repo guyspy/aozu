@@ -12,6 +12,7 @@ import {
 } from '../domain/playbook.ts'
 import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
 import { compileBundle } from '../bundle.ts'
+import { CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
 
 const source = (sourceId: string, manifest: object): ManifestSource => ({
   sourceId,
@@ -568,8 +569,11 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-workspace.yaml',
     envelope('Procedure', 'inspect-workspace', {
       title: 'Inspect Workspace',
-      description: 'Start here on every page. Returns saved Character workspaces, the current Character and route, missing required art, exact next actions, and all stable asset acceptance rules. AOZU rejects opaque artwork and does not remove backgrounds; if direct transparency is unavailable, generate on one flat high-contrast color, remove it with an image tool, and verify genuine alpha before submission. Outfits are complete dressed character skins in the canonical pose, never clothing-only overlays.',
-      input: emptyReadOnlyInput,
+      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. For opinions on the user's current character or outfit, call with includeSnapshot:true and actually view snapshot.dataUrl before commenting. The clean composite includes the viewed variant, applied outfit/expression/props, transforms, and layer order, without diagnostic overlays. Taking a snapshot never navigates, saves, or changes selections. If snapshot is unavailable, follow its reason instead of describing unseen artwork. Returns the current route, Collection, Character, viewed variant, applied selections, preview mode, localized alignment buttons, open panel, and uncommitted-input flag. Asset-production rules apply only when creating or editing layers; a request for an opinion does not request changes. Follow assetPolicy.workflow.visualReview when editing. ${CHARACTER_BACKGROUND_GUIDANCE}`,
+      input: {
+        ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include a clean PNG of the current Character preview for visual feedback. Omit for lightweight metadata only.' } }),
+        readOnly: true,
+      },
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.inspect-workspace' },
     }),
@@ -640,7 +644,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/navigate-character.yaml',
     envelope('Procedure', 'navigate-character', {
       title: 'Navigate Character',
-      description: 'Navigate to the Character library or an exact Character category or variant returned by inspect_workspace. A successful call pushes that route in the SPA without mutating Character data.',
+      description: `Navigate to the Character library or an exact Character category or variant returned by inspect_workspace. A successful call pushes that route in the SPA without mutating Character data. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         destination: { enum: ['characters', 'character-expressions', 'character-outfits', 'character-props'] },
         characterId: { type: 'string', minLength: 1 },
@@ -738,7 +742,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Required before replacing, repairing, or aligning character art. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. replace_character_asset installs a complete finished layer without preserving old pixels and is the only operation for outfits. repair_character_asset is available only for a current expression and stitches into that exact head asset. Expressions contain only a complete whole head. Outfits contain the complete dressed character skin.`,
+      description: `Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -763,7 +767,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-profile.yaml',
     envelope('Procedure', 'update-character-profile', {
       title: 'Update Character Profile',
-      description: 'Update one or more identity fields of a Character using its exact revision. The current unsaved workshop uses characterId new and revision 0; its first edit creates a saved Character and returns its permanent ID. Omitted fields stay unchanged; empty description, backstory, or attributes clear that field. A successful call saves one undoable change and opens that Character editor.',
+      description: `Update one or more identity fields of a Character using its exact revision. The current unsaved workshop uses characterId new and revision 0; its first edit creates a saved Character and returns its permanent ID. Omitted fields stay unchanged; empty description, backstory, or attributes clear that field. A successful call saves one undoable change and opens that Character editor. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -787,7 +791,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `Install one complete canonical Character layer after inspect_character_contract. This is a true replacement: it never stitches or preserves pixels from the old asset. Expressions must contain only a complete whole head with transparency everywhere else. Outfits must contain the complete dressed character skin in a pose and registration compatible with the canonical reference; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA by default, or explicitly request the deterministic normalization returned by inspect_character_contract.`,
+      description: `Install one complete canonical Character layer after inspect_character_contract and its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },
@@ -815,7 +819,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/repair-character-asset.yaml',
     envelope('Procedure', 'repair-character-asset', {
       title: 'Repair Character Asset',
-      description: `Repair one existing expression after inspect_character_contract. The current head asset and editable-region mask are the only edit source; this tool never falls back to the canonical body. Accepted pixels are deterministically stitched into that current asset, preserving protected pixels. Outfits and other complete layers must use replace_character_asset.`,
+      description: `Repair one existing expression after inspect_character_contract and its backgroundPreparation workflow. The current head asset and editable-region mask are the only edit source; this tool never falls back to the canonical body. Accepted pixels are deterministically stitched into that current asset, preserving protected pixels. Outfits and other complete layers must use replace_character_asset. After acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { const: 'expression' },
@@ -843,7 +847,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-selection.yaml',
     envelope('Procedure', 'set-character-variant-selection', {
       title: 'Set Character Variant Selection',
-      description: 'Activate or deactivate an existing expression, outfit, or prop using the exact saved revision from inspect_character_contract. selected.props persists bottom-to-top activation order within each front/back rig slot: later-added props stack above earlier props. Activating an already-active prop is a no-op; deactivate then activate it to move it to the top. Selection uses the same command and undo history as the UI. Success opens the selected composition.',
+      description: `Activate or deactivate an existing expression, outfit, or prop using the exact saved revision from inspect_character_contract. selected.props persists bottom-to-top activation order within each front/back rig slot: later-added props stack above earlier props. Activating an already-active prop is a no-op; deactivate then activate it to move it to the top. Selection uses the same command and undo history as the UI. Success opens the selected composition. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'prop'] },
@@ -866,7 +870,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-transform.yaml',
     envelope('Procedure', 'set-character-variant-transform', {
       title: 'Set Character Variant Transform',
-      description: 'Visually align an existing expression whole head, outfit, or prop by changing only its full-canvas translation and uniform scale. Inspect the Character in the browser first; x moves right, y moves down, and values are absolute rather than deltas. Use the exact revision from inspect_character_contract. Success opens the exact variant so you can verify Composite, Overlay, Difference, and Align before continuing. Head-anchor changes rebase current expressions; front and back prop layers share one transform. The canonical body is locked.',
+      description: `Visually align an existing expression whole head, outfit, or prop by changing only its full-canvas translation and uniform scale. Inspect the Character in the browser first; x moves right, y moves down, and values are absolute rather than deltas. Use the exact revision from inspect_character_contract. Success opens the exact variant; follow alignment.visualReview.checks using the browser buttons Composite, Overlay, Difference, and Align, then return to Composite. Repeat after every correction before continuing. Head-anchor changes rebase current expressions; front and back prop layers share one transform. The canonical body is locked. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'prop'] },
@@ -891,7 +895,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/undo-character-change.yaml',
     envelope('Procedure', 'undo-character-change', {
       title: 'Undo Character Change',
-      description: 'Undo the latest change of the active Character editing session. Requires the exact saved Character revision and a settled (saved) session; inactive, pending, failed, conflicted, stale, or empty-history requests return a structured status without mutation or navigation. Success persists the previous Character as a new revision and opens that Character editor.',
+      description: `Undo the latest change of the active Character editing session. Requires the exact saved Character revision and a settled (saved) session; inactive, pending, failed, conflicted, stale, or empty-history requests return a structured status without mutation or navigation. Success persists the previous Character as a new revision and opens that Character editor. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: characterHistoryInputSchema,
       output: characterHistoryResultSchema,
       handler: { kind: 'ref', ref: 'companion.undo-character-change' },
@@ -908,7 +912,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/redo-character-change.yaml',
     envelope('Procedure', 'redo-character-change', {
       title: 'Redo Character Change',
-      description: 'Redo the most recently undone change of the active Character editing session. Same preconditions and structured statuses as undo_character_change. Success persists the next Character as a new revision and opens that Character editor.',
+      description: `Redo the most recently undone change of the active Character editing session. Same preconditions and structured statuses as undo_character_change. Success persists the next Character as a new revision and opens that Character editor. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: characterHistoryInputSchema,
       output: characterHistoryResultSchema,
       handler: { kind: 'ref', ref: 'companion.redo-character-change' },

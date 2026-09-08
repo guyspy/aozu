@@ -496,7 +496,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       </section>
 
   return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
-    <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6">
+    <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
+      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={category.id}
+      data-variant-id={selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
+      data-panel={profileOpen ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
+      data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
       <aside className="character-spell-guide" aria-labelledby="character-spell-title">
         <div className="spell-icon"><AozuIcon name="book" /></div>
         <div className="min-w-0 flex-1">
@@ -542,7 +546,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
           {previewLayers.length > 0 && <div className="absolute right-2 top-2"><DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} /></div>}
         </div>
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
-          {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
+          {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
         <section id="character-profile" className="character-profile-panel" inert={!profileOpen ? true : undefined} aria-hidden={!profileOpen}>

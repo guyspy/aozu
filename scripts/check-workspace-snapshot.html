@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Character snapshot check</title>
+<!-- Run pnpm dev; open /scripts/check-workspace-snapshot.html. Uses memory-only IndexedDB. -->
+<main data-workspace-view="character" data-category="outfits" data-preview-mode="overlay"></main>
+<pre id="result">Running…</pre>
+<script type="module">
+  import 'fake-indexeddb/auto'
+  import { createApplication } from '/src/bootstrap.ts'
+  import { activateCharacterVariant, saveCharacterDraftAsset, setCharacterVariantTransform } from '/src/core/application/character-creation.ts'
+
+  const check = (condition, message) => { if (!condition) throw new Error(message) }
+  const registered = new Map()
+  const location = { pathname: '/collections/default' }
+  const page = document.querySelector('main').dataset
+  const application = createApplication({
+    defaultView: { location, navigator: {}, addEventListener() {}, removeEventListener() {} },
+    querySelector: document.querySelector.bind(document),
+    modelContext: { registerTool: (tool) => registered.set(tool.name, tool) },
+  })
+  const inspect = async (input = { includeSnapshot: true }) => (await registered.get('inspect_workspace').execute(input, {})).data
+  const syncView = (variantId) => {
+    const state = application.editor.store.getState()
+    page.characterId = state.activeCharacterId
+    page.characterRevision = String(state.persistedRevision)
+    if (variantId) page.variantId = variantId
+    else delete page.variantId
+    location.pathname = `/characters/${page.characterId}/outfits${variantId ? `/${variantId}` : ''}`
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = 512; canvas.height = 768
+  const context = canvas.getContext('2d')
+  const pixels = async (blob) => {
+    const bitmap = await createImageBitmap(blob)
+    context.clearRect(0, 0, 512, 768); context.drawImage(bitmap, 0, 0); bitmap.close()
+    return context.getImageData(0, 0, 512, 768).data
+  }
+  const add = async (group, variantId, color) => {
+    context.clearRect(0, 0, 512, 768)
+    context.fillStyle = color; context.fillRect(100, 100, 100, 100)
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+    const asset = await application.editor.stageAsset(blob, `${variantId}.png`, 'user')
+    await application.editor.dispatch((draft) => saveCharacterDraftAsset(draft, { group, variantId, label: variantId, layer: group === 'prop' ? 'front' : 'body' }, asset))
+    check(application.editor.store.getState().saveStatus === 'saved', application.editor.store.getState().saveError)
+  }
+  try {
+    await application.webmcp.ready
+    check(!('snapshot' in await inspect({})), 'Metadata inspection rendered an image')
+    check((await inspect()).snapshot.status === 'unavailable', 'Library returned a Character image')
+    await application.editor.open('new'); syncView()
+    check((await inspect()).snapshot.reason.includes('no artwork'), 'Empty Character returned an image')
+    await add('body', 'base', '#ff0000')
+    await add('outfit', 'blue', '#0000ff')
+    await add('outfit', 'green', '#00ff00')
+    await add('prop', 'badge', '#ffffff')
+    await application.editor.dispatch((draft) => setCharacterVariantTransform(activateCharacterVariant(activateCharacterVariant(draft, { group: 'outfit', id: 'blue' }), { group: 'prop', id: 'badge' }), 'prop', 'badge', { x: 50, y: 50, scale: 1 }))
+    syncView('green')
+    const before = application.editor.store.getState()
+    const history = application.editor.history.getState().pastStates.length
+    const snapshot = (await inspect()).snapshot
+    check(snapshot.status === 'ready' && snapshot.preview.id === 'green', 'Viewed variant was not captured')
+    const actual = await pixels(await (await fetch(snapshot.dataUrl)).blob())
+    const pixel = (x, y) => [...actual.slice((y * 512 + x) * 4, (y * 512 + x) * 4 + 4)].join(',')
+    check(pixel(110, 110) === '0,255,0,255', 'Snapshot used applied outfit instead of preview')
+    check(pixel(160, 160) === '255,255,255,255' && pixel(240, 240) === '255,255,255,255', 'Prop transform or layer order was lost')
+    check(pixel(0, 0) === '0,0,0,0', 'Snapshot lost transparency')
+    const expected = await pixels(await application.exportCharacterPng(before.character, { group: 'outfit', id: 'green' }))
+    check(actual.every((value, i) => value === expected[i]), 'Snapshot differs from Download PNG')
+    page.previewMode = 'diagnostic'
+    check((await inspect()).snapshot.dataUrl === snapshot.dataUrl, 'Diagnostic overlays leaked into the composite')
+    check(application.editor.store.getState() === before && application.editor.history.getState().pastStates.length === history, 'Inspection changed the Character or history')
+    page.hasUncommittedInput = 'true'
+    check((await inspect()).snapshot.reason.includes('uncommitted'), 'Local edits returned an outdated image')
+    delete page.hasUncommittedInput
+    application.editor.store.setState({ saveStatus: 'saving' })
+    check((await inspect()).snapshot.reason.includes('not saved'), 'Pending save returned an image')
+    application.editor.store.setState({ saveStatus: 'saved' })
+    page.characterRevision = '0'
+    check((await inspect()).snapshot.reason.includes('do not match'), 'Outdated view returned an image')
+    syncView('green')
+    const decode = window.createImageBitmap
+    window.createImageBitmap = async (...args) => { page.previewMode = 'composite'; return decode(...args) }
+    try { check((await inspect()).snapshot.reason.includes('changed while rendering'), 'View change during rendering returned stale context') }
+    finally { window.createImageBitmap = decode }
+    check(location.pathname.endsWith('/outfits/green'), 'Snapshot navigated the page')
+    document.querySelector('#result').textContent = 'PASS: optional snapshot, preview vs applied outfit, prop transform/order, alpha, Download PNG parity, clean diagnostic mode, read-only history, empty/local/unsaved/stale/changing views'
+  } catch (error) {
+    document.querySelector('#result').textContent = `FAIL: ${error.stack ?? error.message}`
+    console.error(error)
+  } finally { application.webmcp.dispose() }
+</script>

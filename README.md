@@ -57,6 +57,14 @@ AOZU exposes ten public tools on every page:
 
 Successful tool calls can also return navigation effects, so the SPA takes the human directly to the affected character or variant for visual review.
 
+The website applies `effects.navigation`; agents observe the rendered result instead of repeating the navigation. `inspect_workspace` returns a fresh snapshot of the route, current Collection, viewed variant, applied selections, preview mode, localized alignment controls, open panel, and whether local input is uncommitted. It is not a live subscription, and uncommitted field values still require inspecting the visible UI.
+
+For feedback on the current outfit, call `inspect_workspace({ includeSnapshot: true })` and view `data.snapshot.dataUrl`. The optional 512×768 RGBA PNG uses the same composition as Download PNG, including the viewed variant and all selected layers/transforms, without diagnostic overlays. It does not navigate, save, or change selections. Missing artwork, uncommitted input, unsaved changes, or a changing view return an unavailable reason instead of a misleading image. Ordinary workspace inspection remains metadata-only. Run the memory-only browser check at `/scripts/check-workspace-snapshot.html` with `pnpm dev`.
+
+Artwork preparation defaults to solid-color generation followed by background removal with a permitted tool available in the agent's environment. Agents verify real alpha and edges on light and dark backgrounds before submission. AOZU validates the resulting PNG; it does not perform background removal.
+
+Composite, Overlay, Difference, and Align are browser preview modes. The returned visual-review checklist explains what to inspect in each, requires repeating the checks after variant mutations or alignment corrections, and finishes in Composite. Intentional expression or outfit differences must not be "corrected" away merely to minimize the Difference view.
+
 ## Deterministic safety boundary
 
 Creative generation is probabilistic; accepting an asset does not have to be.

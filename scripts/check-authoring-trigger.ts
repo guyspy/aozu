@@ -118,6 +118,8 @@ const selected = await runtime.invokeTrigger({
 assert.equal(selected.ok, true)
 assert.equal(createdEntry?.collection, 'experience-drafts')
 assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: {}, ctx: context })).ok, true)
+assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: { includeSnapshot: true }, ctx: context })).ok, true)
+assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: { includeSnapshot: 'true' }, ctx: context })).ok, false)
 assert.equal((await runtime.invokeTrigger({ trigger: 'navigate-character', input: { destination: 'characters' }, ctx: context })).ok, true)
 const profile = { characterId: 'character:triggered', expectedRevision: 1, name: 'Renamed', backstory: 'Line one.\n\nLine two.', attributes: { courage: 8, nocturnal: true } }
 assert.equal((await runtime.invokeTrigger({ trigger: 'update-character-profile', input: profile, ctx: context })).ok, true)
