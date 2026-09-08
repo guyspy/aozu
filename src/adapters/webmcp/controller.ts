@@ -21,7 +21,7 @@ export function readWorkspaceView(document: Document) {
     previewMode: view.previewMode ?? null,
     panel: referenceView ? 'reference' : view.panel ?? null,
     ...(referenceView ? { referenceView } : {}),
-    hasUncommittedInput: view.hasUncommittedInput === 'true',
+    hasUncommittedInput: view.hasUncommittedInput === 'true' || Boolean(page.querySelector('[data-has-uncommitted-input="true"]')),
     alignmentControls: [...page.querySelectorAll<HTMLButtonElement>('button[data-alignment-mode]')].map((button) => ({
       mode: button.dataset.alignmentMode,
       label: button.textContent?.trim(),

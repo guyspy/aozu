@@ -9,6 +9,8 @@ import type { CharacterFitSuggestion } from '@/core/application/character-alignm
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
+import { CharacterAppearances } from '@/ui/CharacterAppearances'
+import { activeCharacterAppearance, sameCharacterSelection } from '@/core/application/character-appearances'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
@@ -496,11 +498,13 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         {(['expressions', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={(mode === 'model-sheet') === isModelSheet ? 'secondary' : 'ghost'} aria-current={(mode === 'model-sheet') === isModelSheet ? 'page' : undefined}
           onClick={() => { revert(); setProfileForm(undefined); setProfileOpen(false); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : 'modelSheet.appearance')}</Button>)}
       </nav>
+      <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
+        commit={(produce) => { commit(produce); if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : category.id}`) }} />
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
           referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
           upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })}
-          useCurrent={previewLayers.length ? () => void runBusy('reference', async () => { await replaceReference('front'); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/front`) }) : undefined} />
+          useCurrent={previewLayers.length && (!activeCharacterAppearance(draft) || sameCharacterSelection(draft.selected, activeCharacterAppearance(draft)!.selected)) ? () => void runBusy('reference', async () => { await replaceReference('front'); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/front`) }) : undefined} />
         {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         {actions}
       </> :

@@ -1158,7 +1158,13 @@ button.gate-action {
 @media (max-height: 600px) {
   .draft-workshop-shell {
     flex: none;
-    height: 44rem;
+    height: auto;
+  }
+  .draft-workshop {
+    height: auto;
+  }
+  .draft-workshop-grid {
+    min-height: 32rem;
   }
 }
 

@@ -2,6 +2,7 @@ import { EntryDataValidator, type Entry } from '@aotter/mantle-spec'
 
 import { AUTHORING_NAMESPACE } from './authoring.ts'
 import { characterAssets } from './character-assets.ts'
+import { validateCharacterAppearances } from './character-appearances.ts'
 import { modelSheetReferences, validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
 import { validateCharacterAssetInspection } from './character-creation.ts'
 import { CHARACTER_COLLECTIONS } from '../domain/character-collection.ts'
@@ -72,9 +73,11 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
     if (!(blob instanceof Blob) || blob.type !== 'image/png' || blob.size !== asset.inspection.size ||
       ('blobId' in asset && asset.blobId !== asset.inspection.sha256)) fail('missing or inconsistent Character asset')
   }
-  if (draft.modelSheet !== undefined) {
-    validateModelSheet(draft.modelSheet)
-    for (const { asset } of Object.values(modelSheetReferences<CharacterDraftAsset | StoredCharacterAsset>(draft.modelSheet))) validateAsset(asset, true)
+  validateCharacterAppearances(draft)
+  for (const sheet of [draft.modelSheet, ...draft.appearances?.map(({ modelSheet }) => modelSheet) ?? []]) {
+    if (!sheet) continue
+    validateModelSheet(sheet)
+    for (const { asset } of Object.values(modelSheetReferences<CharacterDraftAsset | StoredCharacterAsset>(sheet))) validateAsset(asset, true)
   }
   const variants = new Set<string>()
   for (const variant of draft.variants) {
@@ -144,18 +147,10 @@ export function validateCharacterLibrarySnapshot(snapshot: CharacterLibrarySnaps
   const draftIds = new Set<string>()
   for (const draft of snapshot.legacyDrafts) {
     validateDraft(draft, assets)
-    const { id: _id, updatedAt: _updatedAt, approvedAt: _approvedAt, variants, modelSheet, ...data } = draft as CharacterDraft & { approvedAt?: number }
+    const { id: _id, updatedAt: _updatedAt, approvedAt: _approvedAt, ...data } = draft as CharacterDraft & { approvedAt?: number }
     const descriptorFor = ({ blob: _blob, ...asset }: CharacterDraftAsset) => ({ ...asset, blobId: asset.inspection.sha256 })
-    validateAuthoringData('character-workspaces', {
-      ...data,
-      ...(modelSheet ? { modelSheet: { ...modelSheet,
-        views: Object.fromEntries(Object.entries(modelSheet.views).map(([view, reference]) => [view, { ...reference, asset: descriptorFor(reference.asset) }])),
-        ...(modelSheet.references ? { references: Object.fromEntries(Object.entries(modelSheet.references).map(([id, reference]) => [id, { ...reference, asset: descriptorFor(reference.asset) }])) } : {}),
-      } } : {}),
-      variants: variants.map(({ layers, ...variant }) => ({ ...variant, layers: Object.fromEntries(Object.entries(layers).map(([layer, asset]) => {
-        return [layer, descriptorFor(asset!)]
-      })) })),
-    })
+    validateAuthoringData('character-workspaces', JSON.parse(JSON.stringify(data, (_key, value) =>
+      value?.blob instanceof Blob ? descriptorFor(value as CharacterDraftAsset) : value)))
     if (draftIds.has(draft.id) || characterIds.has(draft.id) || packIds.has(draft.packId)) fail('duplicate legacy Character ID or pack ID')
     draftIds.add(draft.id)
     packIds.add(draft.packId)

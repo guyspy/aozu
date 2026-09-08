@@ -4,6 +4,7 @@ import type { MantleRuntime } from '@aotter/mantle-runtime'
 import { resolveCharacterDraftPlacements } from '../../core/application/character-creation.ts'
 import { characterAssets, mapCharacterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 
 import {
   CharacterRevisionConflict,
@@ -34,6 +35,7 @@ const dataFrom = async (draft: CharacterDraft): Promise<CharacterWorkspaceData> 
   ...await mapCharacterAssets(draft, ({ blob: _blob, ...descriptor }) => ({ ...descriptor, blobId: descriptor.inspection.sha256 })),
   ...(draft.headRegistration ? { headRegistration: structuredClone(draft.headRegistration) } : {}),
   selected: structuredClone(draft.selected),
+  ...(draft.activeAppearanceId ? { activeAppearanceId: draft.activeAppearanceId } : {}),
 })
 
 export function createCharacterWorkspaceRepository(
@@ -41,6 +43,7 @@ export function createCharacterWorkspaceRepository(
   assets: AssetRepositoryFactory,
 ) {
   const persistAssets = async (draft: CharacterDraft) => {
+    validateCharacterAppearances(draft)
     if (draft.modelSheet) validateModelSheet(draft.modelSheet)
     const repository = assets(characterAssetScope(draft.packId))
     const unique = new Map(characterAssets(draft).map((asset) => [asset.inspection.sha256, asset.blob]))

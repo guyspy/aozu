@@ -50,7 +50,8 @@ import {
   updateCharacterProfile,
   saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
-import { updateCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
+import { updateCharacterModelSheet, characterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
+import { activeCharacterAppearance, changeCharacterAppearance, sameCharacterSelection, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
@@ -76,10 +77,17 @@ const describeReference = ({ asset, ...reference }: CharacterReference) => ({
   ...reference, filename: asset.filename, sha256: asset.inspection.sha256, width: asset.inspection.width, height: asset.inspection.height,
 })
 const modelSheetPath = (id: string, referenceId?: string) => `/characters/${encodeURIComponent(id)}/model-sheet${referenceId ? `/${encodeURIComponent(referenceId)}` : ''}`
+const describeAppearances = (character: CharacterDraft) => ({
+  activeAppearanceId: character.activeAppearanceId ?? null,
+  matchesSaved: !activeCharacterAppearance(character) || sameCharacterSelection(character.selected, activeCharacterAppearance(character)!.selected),
+  appearances: (character.appearances ?? []).map(({ id, label, selected, modelSheet }) => ({ id, label, selected,
+    referenceCount: Object.keys(modelSheetReferences(modelSheet)).length })),
+})
 const describeModelSheet = (character: CharacterDraft) => ({
+  appearanceId: character.activeAppearanceId ?? null,
   heightCm: character.modelSheet?.heightCm ?? null,
-  views: Object.fromEntries(Object.entries(character.modelSheet?.views ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
-  references: Object.fromEntries(Object.entries(character.modelSheet?.references ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
+  views: Object.fromEntries(Object.entries(characterModelSheet(character).views).map(([id, reference]) => [id, describeReference(reference)])),
+  references: Object.fromEntries(Object.entries(characterModelSheet(character).references ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
 })
 const MODEL_SHEET_POLICY = {
   tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
@@ -379,7 +387,7 @@ export function createApplication(document: Document) {
       const { character, revision } = activeCharacter()
       return updateModelSheet({ characterId, expectedRevision: revision, referenceId, ...metadata,
         ...(blob ? { filename: blob instanceof File ? blob.name : `${referenceId}.png` } : { fromAppearance: true }),
-        expectedAssetSha256: modelSheetReferences(character.modelSheet)[referenceId]?.asset.inspection.sha256 ?? null,
+        expectedAssetSha256: modelSheetReferences(characterModelSheet(character))[referenceId]?.asset.inspection.sha256 ?? null,
       }, blob, 'user')
     },
     async deleteCharacter(characterId: string) {
@@ -484,7 +492,7 @@ export function createApplication(document: Document) {
       }
       if (view.category === 'model-sheet') {
         const referenceId = view.referenceView ?? selectedRoute?.variantId
-        const reference = referenceId ? modelSheetReferences(character.modelSheet)[referenceId] : undefined
+        const reference = referenceId ? modelSheetReferences(characterModelSheet(character))[referenceId] : undefined
         if (!reference) return unavailable('Open a reference image or call inspect_character_contract with scope:model-sheet and images:[referenceId]. Request images:["appearance"] for the current Appearance separately.')
         return { status: 'ready' as const, source: 'model-sheet-reference', characterId: character.id, revision: current.version, referenceId,
           ...describeReference(reference), dataUrl: await readDataUrl(reference.asset.blob), instruction: MODEL_SHEET_REVIEW.instruction }
@@ -551,6 +559,7 @@ export function createApplication(document: Document) {
           revision: current.version,
           updatedAt: character.updatedAt,
           selected: character.selected,
+          ...describeAppearances(character),
           missingTargets: missingCharacterTargets,
         } : null,
         ...(includeSnapshot ? { snapshot: await renderSnapshot() } : {}),
@@ -575,7 +584,7 @@ export function createApplication(document: Document) {
     const character = characterId ? await editor.open(characterId) : null
     if (!character) throw new Error('A valid Character ID is required for this destination')
     if (destination === 'character-model-sheet') {
-      if (referenceId && !modelSheetReferences(character.modelSheet)[referenceId]) throw new Error('Reference not found; inspect the model sheet first')
+      if (referenceId && !modelSheetReferences(characterModelSheet(character))[referenceId]) throw new Error('Reference not found; inspect the model sheet first')
       const path = modelSheetPath(character.id, referenceId)
       return { status: 'ok', data: { path }, effects: { navigation: { path, mode: 'push', reason: 'Open the Character model sheet.' } } }
     }
@@ -613,16 +622,20 @@ export function createApplication(document: Document) {
   }
 
   async function setCharacterSelection(rawInput: unknown) {
-    const { characterId, expectedRevision, group, variantId, active } = rawInput as {
+    const { characterId, expectedRevision, group, variantId, active, appearance } = rawInput as {
       characterId: string
       expectedRevision: number
       group: 'expression' | 'outfit' | 'prop'
       variantId: string
       active: boolean
+      appearance?: CharacterAppearanceCommand
     }
+    if (appearance ? group !== undefined || variantId !== undefined || active !== undefined
+      : !['expression', 'outfit', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') throw new Error('Choose either appearance or group/variantId/active')
+    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
     await editor.open(characterId)
     const target = { group, id: variantId }
-    const changed = await editor.dispatch((character) => active
+    const changed = await editor.dispatch((character) => appearance ? changeCharacterAppearance(character, appearance) : active
       ? activateCharacterVariant(character, target)
       : deactivateCharacterVariant(character, target), expectedRevision)
     const character = activeCharacter().character
@@ -631,11 +644,13 @@ export function createApplication(document: Document) {
       data: {
         characterId: character.id,
         selected: character.selected,
+        ...describeAppearances(character),
+        modelSheet: describeModelSheet(character),
         revision: settledRevision('Character selection'),
         changed,
       },
       nextActions: characterNextActions(character),
-      effects: { navigation: { path: characterPath(character.id, group), mode: 'push', reason: 'Show the selected Character composition.' } },
+      effects: { navigation: { path: characterPath(character.id, appearance ? 'expression' : group), mode: 'push', reason: 'Show the selected Character composition.' } },
     }
   }
 
@@ -896,6 +911,7 @@ export function createApplication(document: Document) {
             backstory: draft.backstory ?? '',
             attributes: draft.attributes ?? {},
             selected: draft.selected,
+            ...describeAppearances(draft),
             revision: version,
           },
           modelSheet: describeModelSheet(draft),
@@ -948,7 +964,7 @@ export function createApplication(document: Document) {
     if (['group', 'variantId', 'layer'].some((key) => key in metadata)) throw new Error('Model-sheet references do not use Appearance group/variant/layer targets')
     if (referenceId) validateReferenceId(referenceId)
     const { character: draft, version } = await editor.view(characterId)
-    const references = modelSheetReferences(draft.modelSheet)
+    const references = modelSheetReferences(characterModelSheet(draft))
     const current = referenceId ? references[referenceId] : undefined
     const sourceImages = await Promise.all(images.map(async (id) => {
       const asset = id === 'canonical' ? draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body : references[id]?.asset
@@ -964,10 +980,11 @@ export function createApplication(document: Document) {
       reason: 'After generating and visually checking art, add filename/dataUrl and the source image hash to this template. For metadata-only edits, add notes or guides.', input: submission },
       ...(referenceId === 'front' ? [{ tool: 'update_character_model_sheet', required: false, reason: 'Capture the actual current Appearance into front without regenerating it; then visually review its pose.', input: { ...submission, fromAppearance: true } }] : [])] : []
     return { status: 'ok', data: {
-      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, revision: version, selected: draft.selected },
+      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, revision: version, selected: draft.selected, ...describeAppearances(draft) },
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
+        'References belong to modelSheet.appearanceId. Inspect character.appearances and use set_character_variant_selection with appearance:{action:"select",id} to change sets, then inspect again. If character.matchesSaved is false, the current composition has changed: save it with appearance:{action:"save",id,label} or reselect the saved Appearance before capturing front. Saving the first Appearance adopts existing references; later sets start empty. Variant art is shared, while selection and reference images are saved per Appearance.',
         'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
         'Keep one consistent outfit and identity across the four turnaround views. Capture front from Appearance; do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
         'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
@@ -992,11 +1009,13 @@ export function createApplication(document: Document) {
     await editor.open(characterId)
     const { character, revision } = activeCharacter()
     if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
-    const references = modelSheetReferences(character.modelSheet)
+    const references = modelSheetReferences(characterModelSheet(character))
     const previous = referenceId ? references[referenceId] : undefined
     if ((input.dataUrl || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
     if (referenceId && !isTurnaroundView(referenceId) && !previous && (!label?.trim() || !kind)) throw new Error('New supplemental references require label and kind')
     if (fromAppearance && !resolveCharacterDraftLayers(character).length) throw new Error('Create Appearance before capturing front')
+    const appearance = activeCharacterAppearance(character)
+    if (fromAppearance && appearance && !sameCharacterSelection(character.selected, appearance.selected)) throw new Error('Current combination differs from the saved Appearance; save a new Appearance or reselect it before capturing front')
     const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
     const filename = fromAppearance ? 'front-appearance.png' : input.filename
     if (blob && (!filename?.trim() || filename.length > 200)) throw new Error('A valid filename is required')
@@ -1006,7 +1025,7 @@ export function createApplication(document: Document) {
     const asset = blob ? await editor.stageAsset(blob, filename!, source, undefined, 'reference') : undefined
     await editor.dispatch((current) => {
       if (current.id !== character.id) throw new Error('Active Character changed; inspect it again')
-      let sheet = current.modelSheet ?? { views: {} }
+      let sheet = characterModelSheet(current)
       const reference = referenceId ? modelSheetReferences(sheet)[referenceId] : undefined
       if (referenceId && !asset && !reference) throw new Error('Add reference art before editing or removing it')
       if (referenceId) sheet = setModelSheetReference(sheet, referenceId, remove ? undefined : {

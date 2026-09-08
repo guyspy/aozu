@@ -54,7 +54,7 @@ const nextActionSchema = objectSchema({
 
 const toolEffectsSchema = objectSchema({
   navigation: objectSchema({
-    path: { type: 'string', pattern: '^/characters(?:/|$)' },
+    path: { type: 'string', pattern: '^/(?:characters|collections)(?:/|$)' },
     mode: { const: 'push' },
     reason: { type: 'string', minLength: 1 },
   }, ['path', 'mode', 'reason']),
@@ -246,11 +246,19 @@ const referenceSchema = objectSchema({
   notes: { type: 'string', maxLength: 1000 },
   guides: referenceGuidesSchema,
 }, ['asset'])
-const modelSheetSchema = objectSchema({
-  heightCm: { type: 'number', exclusiveMinimum: 0, maximum: 100_000 },
+const referenceSetProperties = {
   views: objectSchema(Object.fromEntries(CHARACTER_REFERENCE_VIEWS.map((view) => [view, referenceSchema]))),
   references: { type: 'object', maxProperties: 100, additionalProperties: referenceSchema },
+} satisfies Record<string, JsonSchema>
+const modelSheetSchema = objectSchema({
+  heightCm: { type: 'number', exclusiveMinimum: 0, maximum: 100_000 },
+  ...referenceSetProperties,
 }, ['views'])
+const characterSelectionSchema = objectSchema({
+  expression: { type: 'string', minLength: 1, maxLength: 40 },
+  outfit: { type: 'string', minLength: 1, maxLength: 40 },
+  props: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+}, ['props'])
 
 const characterAttributesSchema: JsonSchema = {
   type: 'object',
@@ -270,6 +278,13 @@ const characterWorkspaceProperties = {
   backstory: { type: 'string', maxLength: 8_000 },
   attributes: characterAttributesSchema,
   modelSheet: modelSheetSchema,
+  activeAppearanceId: referenceIdSchema,
+  appearances: { type: 'array', maxItems: 100, items: objectSchema({
+    id: referenceIdSchema,
+    label: { type: 'string', minLength: 1, maxLength: 80 },
+    selected: characterSelectionSchema,
+    modelSheet: objectSchema(referenceSetProperties, ['views']),
+  }, ['id', 'label', 'selected']) },
   variants: {
     type: 'array',
     minItems: 1,
@@ -288,11 +303,7 @@ const characterWorkspaceProperties = {
     }, ['id', 'group', 'label', 'layers']),
   },
   headRegistration: objectSchema({ variantId: { type: 'string', minLength: 1, maxLength: 40 } }, ['variantId']),
-  selected: objectSchema({
-    expression: { type: 'string', minLength: 1, maxLength: 40 },
-    outfit: { type: 'string', minLength: 1, maxLength: 40 },
-    props: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
-  }, ['props']),
+  selected: characterSelectionSchema,
 }
 const characterWorkspaceRequired = ['schemaVersion', 'packId', 'rigProfile', 'name', 'variants', 'selected']
 
@@ -782,7 +793,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Use scope:model-sheet for reference art, scope:appearance (default) for composited layers. For model sheets, use referenceId (a default view or a supplemental ID), optional label/kind/viewpoint/pose, and images (up to 5 IDs: appearance, canonical, or stored reference IDs) to obtain actual source PNGs. Image bytes are opt-in for model sheets. Capture front from current Appearance using the returned action; supplement it with head/structure/expression/detail/style references. Follow the returned task-specific policy and required browser visual-review workflow. ${CHARACTER_A_POSE_GUIDANCE} Appearance only: Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
+      description: `Use scope:model-sheet for reference art, scope:appearance (default) for composited layers. Inspect character.appearances and activeAppearanceId for named combinations. Use set_character_variant_selection with appearance to save/select/rename a combination; then re-inspect its model sheet. For model sheets, use referenceId (a default view or a supplemental ID), optional label/kind/viewpoint/pose, and images (up to 5 IDs: appearance, canonical, or stored reference IDs) to obtain actual source PNGs. Image bytes are opt-in for model sheets. Capture front from current Appearance using the returned action; supplement it with head/structure/expression/detail/style references. Follow the returned task-specific policy and required browser visual-review workflow. ${CHARACTER_A_POSE_GUIDANCE} Appearance only: Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -835,7 +846,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-model-sheet.yaml',
     envelope('Procedure', 'update-character-model-sheet', {
       title: 'Update Character Model Sheet',
-      description: `Edit a Character model sheet after inspect_character_contract with scope:model-sheet. Use referenceId for one image: front/three-quarter/side/back are the default turnaround slots; other IDs create supplemental references with label and kind. view is a compatibility alias for a default slot. Optional viewpoint and pose describe that reference. PNGs may be opaque and keep original dimensions up to 4096 × 4096 / 5 MiB. For replacement supply dataUrl, filename and exact expectedAssetSha256 (null for empty). Alternatively fromAppearance:true captures the current composition into front with its source hash; do not supply dataUrl or filename. sourceSha256 identifies the source image used for generated art. remove:true deletes only this reference and requires its exact hash. All edits use expectedRevision. Replacement clears old guides and source hash unless a new source is supplied. Notes and guides need existing art; guides are original-image y fractions with head above feet, excluding hats, raised arms and props. heightCm is the character’s actual height, never inferred from pixels; null clears height or guides. Omitted fields remain unchanged. accepted:true means stored, not visually verified or user-approved. Follow visualReview on the exact reference. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Edit the active Appearance’s model sheet after inspect_character_contract with scope:model-sheet. References belong to modelSheet.appearanceId; switch saved sets through set_character_variant_selection, then re-inspect. If character.matchesSaved is false, save the changed combination as a new Appearance or reselect the saved one before fromAppearance capture. Height remains shared across all Appearances. Use referenceId for one image: front/three-quarter/side/back are the default turnaround slots; other IDs create supplemental references with label and kind. view is a compatibility alias for a default slot. Optional viewpoint and pose describe that reference. PNGs may be opaque and keep original dimensions up to 4096 × 4096 / 5 MiB. For replacement supply dataUrl, filename and exact expectedAssetSha256 (null for empty). Alternatively fromAppearance:true captures the current composition into front with its source hash; do not supply dataUrl or filename. sourceSha256 identifies the source image used for generated art. remove:true deletes only this reference and requires its exact hash. All edits use expectedRevision. Replacement clears old guides and source hash unless a new source is supplied. Notes and guides need existing art; guides are original-image y fractions with head above feet, excluding hats, raised arms and props. heightCm is the character’s actual height, never inferred from pixels; null clears height or guides. Omitted fields remain unchanged. accepted:true means stored, not visually verified or user-approved. Follow visualReview on the exact reference. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -921,14 +932,15 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-selection.yaml',
     envelope('Procedure', 'set-character-variant-selection', {
       title: 'Set Character Variant Selection',
-      description: `Activate or deactivate an existing expression, outfit, or prop using the exact saved revision from inspect_character_contract. selected.props persists bottom-to-top activation order within each front/back rig slot: later-added props stack above earlier props. Activating an already-active prop is a no-op; deactivate then activate it to move it to the top. Selection uses the same command and undo history as the UI. Success opens the selected composition. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Activate or deactivate an existing expression, outfit, or prop using the exact saved revision from inspect_character_contract. Alternatively supply appearance:{action:save|select|rename,id,label?} and omit group/variantId/active. save requires a new ID and label, captures the current selected expression/outfit/ordered props and activates it; the first saved Appearance adopts the existing model sheet, later Appearances start with empty references. select restores that saved combination; rename changes its label only. Saved combinations reuse variant assets; edits to shared variant art affect all combinations using it. Switching variants does not overwrite a saved Appearance. Save a new Appearance for the changed combination before capturing its front. selected.props persists bottom-to-top activation order within each front/back rig slot: later-added props stack above earlier props. Activating an already-active prop is a no-op; deactivate then activate it to move it to the top. Selection uses the same command and undo history as the UI. Success opens the selected composition. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         expectedRevision: { type: 'integer', minimum: 0 },
         active: { type: 'boolean' },
-      }, ['characterId', 'group', 'variantId', 'expectedRevision', 'active']),
+        appearance: objectSchema({ action: { enum: ['save', 'select', 'rename'] }, id: referenceIdSchema, label: { type: 'string', minLength: 1, maxLength: 80 } }, ['action', 'id']),
+      }, ['characterId', 'expectedRevision']),
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.set-character-variant-selection' },
     }),

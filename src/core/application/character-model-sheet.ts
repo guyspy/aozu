@@ -4,6 +4,17 @@ export const MAX_REFERENCE_DIMENSION = 4096
 export const MAX_REFERENCE_BYTES = 5 * 1024 * 1024
 export const isTurnaroundView = (id: string): id is typeof CHARACTER_REFERENCE_VIEWS[number] => (CHARACTER_REFERENCE_VIEWS as readonly string[]).includes(id)
 export const modelSheetReferences = <A>(sheet?: CharacterModelSheet<A>): Record<string, CharacterReference<A>> => ({ ...sheet?.views, ...sheet?.references })
+/** Empty views stay empty for a new Appearance; never fall back to another outfit's references. */
+export function characterModelSheet(draft: CharacterDraft): CharacterModelSheet {
+  const appearance = draft.appearances?.find(({ id }) => id === draft.activeAppearanceId)
+  return appearance ? { views: {}, ...appearance.modelSheet, heightCm: draft.modelSheet?.heightCm } : draft.modelSheet ?? { views: {} }
+}
+export function withCharacterModelSheet(draft: CharacterDraft, sheet: CharacterModelSheet): CharacterDraft {
+  if (!draft.activeAppearanceId) return { ...draft, modelSheet: sheet }
+  const { heightCm, ...references } = sheet
+  return { ...draft, modelSheet: { ...draft.modelSheet, views: draft.modelSheet?.views ?? {}, heightCm },
+    appearances: draft.appearances?.map((appearance) => appearance.id === draft.activeAppearanceId ? { ...appearance, modelSheet: references } : appearance) }
+}
 export function setModelSheetReference<A>(sheet: CharacterModelSheet<A>, id: string, reference?: CharacterReference<A>): CharacterModelSheet<A> {
   const key = isTurnaroundView(id) ? 'views' : 'references'
   const entries: Record<string, CharacterReference<A>> = { ...sheet[key] }
@@ -61,5 +72,5 @@ export function validateModelSheet(sheet: CharacterModelSheet<unknown>) {
 export function updateCharacterModelSheet(draft: CharacterDraft, modelSheet: CharacterModelSheet): CharacterDraft {
   validateModelSheet(modelSheet)
   for (const { asset } of Object.values(modelSheetReferences(modelSheet))) validateReferenceInspection(asset.inspection)
-  return JSON.stringify(draft.modelSheet ?? { views: {} }) === JSON.stringify(modelSheet) ? draft : { ...draft, modelSheet }
+  return JSON.stringify(characterModelSheet(draft)) === JSON.stringify(modelSheet) ? draft : withCharacterModelSheet(draft, modelSheet)
 }

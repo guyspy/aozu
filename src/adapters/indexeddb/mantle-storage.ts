@@ -28,6 +28,7 @@ import { AUTHORING_NAMESPACE } from '../../core/application/authoring.ts'
 import { CHARACTER_LIBRARY_REVISION_FLOOR } from '../../core/application/character-library.ts'
 import { characterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 import {
   type CompanionDatabase,
   ENTRY_STORE,
@@ -59,6 +60,7 @@ const allEntries = (database: CompanionDatabase, bundleId: string): Promise<Stor
 
 const requireCharacterAssets = async (data: Entry['data'], get: (key: [string, string]) => Promise<StoredAsset | undefined>) => {
   const character = data as unknown as CharacterWorkspaceData
+  validateCharacterAppearances(character)
   if (character.modelSheet) validateModelSheet(character.modelSheet)
   for (const asset of characterAssets(character)) {
     const stored = await get([characterAssetScope(character.packId), asset.blobId])

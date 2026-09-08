@@ -2,6 +2,13 @@ import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
   modelSheet: {
+    appearances: {
+      title: '造型', choose: '已儲存造型', unnamed: '目前搭配',
+      saveNew: '另存為新造型', rename: '重新命名', name: '造型名稱', save: '儲存造型',
+      modified: '已調整', restore: '還原已存搭配',
+      hint: '保存表情、衣著與道具的組合。每個造型有自己的設定集。',
+      modifiedHint: '目前搭配已調整。另存為新造型，即可保留原本搭配與它的設定圖。',
+    },
     title: '設定集', appearance: '造型', mode: '角色工作區', fullBody: '全身四視圖',
     description: '把同一個角色的外形定下來。加入參考圖，或請 ChatGPT 協助補齊。',
     count: '{{count}} / 4 個視角', height: '身高（cm）', unknownHeight: '尚未設定',

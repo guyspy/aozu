@@ -1,6 +1,7 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 
 import { mapCharacterAssets } from '../../core/application/character-assets.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 import { validateModelSheet, validateReferenceInspection, validateReferencePng } from '../../core/application/character-model-sheet.ts'
 import { buildCharacterPack, validateCharacterAssetInspection } from '../../core/application/character-creation.ts'
 import {
@@ -110,15 +111,11 @@ export async function readCharacterDraftZip(
     if (transform) validateCharacterVariantTransform(transform)
     variants.push({ group, id, label, layers, ...(transform ? { transform } : {}) })
   }
-  let modelSheet: CharacterModelSheet | undefined
-  if (raw.modelSheet !== undefined) {
-    const archived = raw.modelSheet as CharacterModelSheet<unknown>
-    validateModelSheet(archived)
-    modelSheet = { ...archived, views: Object.fromEntries(await Promise.all(Object.entries(archived.views).map(async ([view, reference]) =>
-      [view, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${view}.png`, true) }]))),
-      ...(archived.references ? { references: Object.fromEntries(await Promise.all(Object.entries(archived.references).map(async ([id, reference]) =>
-        [id, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${id}.png`, true) }]))) } : {}), }
-  }
+  if (raw.modelSheet !== undefined) validateModelSheet(raw.modelSheet as CharacterModelSheet<unknown>)
+  const appearanceContent = { variants, appearances: raw.appearances as CharacterDraft['appearances'], activeAppearanceId: raw.activeAppearanceId as string | undefined }
+  validateCharacterAppearances(appearanceContent)
+  const references = await mapCharacterAssets({ ...appearanceContent, variants: [], modelSheet: raw.modelSheet as CharacterModelSheet<unknown> | undefined },
+    (asset, key) => readAsset(asset, `assets/${key}.png`, true))
   if (assetPaths.size) throw new Error(`Character Draft contains an unreferenced asset: ${[...assetPaths][0]}`)
 
   const selected = object(raw.selected, 'Character Draft selection')
@@ -143,7 +140,9 @@ export async function readCharacterDraftZip(
       ...(backstory ? { backstory } : {}),
       ...(profileAttributes && Object.keys(profileAttributes).length ? { attributes: profileAttributes } : {}),
       variants,
-      ...(modelSheet ? { modelSheet } : {}),
+      ...(references.modelSheet ? { modelSheet: references.modelSheet } : {}),
+      ...(references.appearances ? { appearances: references.appearances } : {}),
+      ...(appearanceContent.activeAppearanceId ? { activeAppearanceId: appearanceContent.activeAppearanceId } : {}),
       ...(headRegistration ? { headRegistration: { variantId: headRegistration.variantId as string } } : {}),
       selected: {
         ...(selected.expression ? { expression: selected.expression as string } : {}),
@@ -177,6 +176,7 @@ export async function exportCharacterDraftZip(
     attributes: draft.attributes,
     headRegistration: draft.headRegistration,
     selected: draft.selected,
+    activeAppearanceId: draft.activeAppearanceId,
     updatedAt: draft.updatedAt,
     ...content,
   })

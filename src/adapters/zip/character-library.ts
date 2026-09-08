@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate'
 import { mapCharacterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 
 import {
   characterLibraryDigest, inspectCharacterLibrarySnapshot,
@@ -17,7 +18,7 @@ const accepts = (path: string) => path === 'library.json' || path === 'integrity
 const json = (value: unknown) => strToU8(JSON.stringify(value))
 interface IntegrityFile { path: string; byteLength: number; sha256: string }
 interface AssetDescriptor { bundleId: string; id: string; path: string; mediaType: string }
-type ArchivedDraft = Omit<CharacterDraft, 'variants' | 'modelSheet'> & CharacterAssetContent<Omit<CharacterDraftAsset, 'blob'> & { path: string; mediaType: string }>
+type ArchivedDraft = Omit<CharacterDraft, 'variants' | 'modelSheet' | 'appearances'> & CharacterAssetContent<Omit<CharacterDraftAsset, 'blob'> & { path: string; mediaType: string }>
 
 interface Manifest {
   format: 'aozu-character-library'
@@ -93,6 +94,7 @@ export async function readCharacterLibraryZip(blob: Blob, inspect: (blob: Blob) 
     if (!draft || !Array.isArray(draft.variants)) throw new Error('Invalid legacy Character library draft')
     for (const variant of draft.variants) if (!variant || !variant.layers || typeof variant.layers !== 'object' || Array.isArray(variant.layers)) throw new Error('Invalid legacy Character library layers')
     if (draft.modelSheet !== undefined) validateModelSheet(draft.modelSheet)
+    validateCharacterAppearances(draft)
     return { ...draft, ...await mapCharacterAssets(draft, (asset) => {
       const blob = take(asset)
       const { path: _path, mediaType: _mediaType, ...descriptor } = asset

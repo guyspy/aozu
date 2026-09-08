@@ -159,6 +159,13 @@ export const en = {
     },
   },
   modelSheet: {
+    appearances: {
+      title: 'Appearance', choose: 'Saved Appearance', unnamed: 'Current combination',
+      saveNew: 'Save as new Appearance', rename: 'Rename', name: 'Appearance name', save: 'Save Appearance',
+      modified: 'modified', restore: 'Restore saved combination',
+      hint: 'Save a named combination of expression, outfit and props. Each Appearance has its own model sheet.',
+      modifiedHint: 'This combination has changed. Save it as a new Appearance to keep the original combination and its references.',
+    },
     title: 'Model sheet', appearance: 'Appearance', mode: 'Character workspace', fullBody: 'Full-body views',
     description: 'Keep the character’s shape consistent across views. Add reference art here or ask ChatGPT to help.',
     count: '{{count}} / 4 views', height: 'Height (cm)', unknownHeight: 'Not set',

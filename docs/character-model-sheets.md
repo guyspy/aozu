@@ -9,6 +9,14 @@ AOZU 最終要走向 skeletal character。這一階段先把「角色長什麼�
 - 補充設定圖可依用途、角度與姿勢加入，與四視圖共用原圖、註記、存檔與 ZIP。關節標記和多角色尺寸對照仍標示尚未開放。
 - 四視圖是第一組預設；4/4 代表已有四張圖，不代表整份設定已完成或一致性已確認。
 
+## 命名 Appearance
+
+在造型頁調整表情、衣著與道具，再選 `Save as new Appearance` 保存目前搭配。下拉選單可切換已保存的造型，`Rename` 修改名稱。保存的是既有 variant ID 與道具疊放順序；圖片仍共用，替換某個 variant 素材會影響使用它的所有造型。
+
+第一次保存會將現有設定圖歸入這個 Appearance；後續新造型從空設定集開始。每套造型保留自己的四視圖、補圖、註記、來源 hash 與校正線。身高仍屬於角色，所有造型共用。調整搭配不會覆蓋已存組合；另存為新造型，或用 `Restore saved combination` 還原。搭配與已存造型不同時，不能直接覆蓋該造型的正面。
+
+資料保存在同一份 Mantle character workspace，切換與命名沿用原本的復原／重做與版本檢查；單角色 ZIP、整庫備份與複製都包含所有 Appearance 與原圖。這一版先做完整造型的保存；跨造型共用參考圖的編輯介面留到下一步。
+
 ## 完整內容
 
 | 設定內容 | 要交代的資訊 |
@@ -82,6 +90,8 @@ A-pose 是新角色的製作契約；既有圖片仍需視覺確認。landmarks 
 ## WebMCP authoring
 
 維持 12 個工具。先呼叫 `inspect_workspace`，再用 `inspect_character_contract` 的 `scope: "model-sheet"` 取得針對設定圖的契約。`referenceId` 是四視圖 ID 或補圖 ID；`images` 明確要求最多 5 張原圖，例如 `["appearance", "front"]`。`appearance` 是目前合成結果，`canonical` 才是基礎 body。設定圖契約不套用合成素材的透明背景與 512 × 768 要求。
+
+契約中的 `character.appearances` 列出已存造型，`activeAppearanceId` 是目前設定集的歸屬，`matchesSaved` 說明目前搭配是否仍與該造型相同。沿用 `set_character_variant_selection`，傳入 `appearance: { action: "save", id: "gym", label: "健身服" }` 保存；`action: "select"` 配合既有 ID 切換；`action: "rename"` 配合 ID／label 改名。使用 appearance 時省略 group／variantId／active，並傳入剛檢查的 expectedRevision。切換後重新 inspect，圖像 ID 在目前 Appearance 內解讀。
 
 `update_character_model_sheet` 沿用 revision/hash 檢查、編輯佇列、復原與 ZIP。`fromAppearance: true` 可將目前合成圖再次帶入 `front`；補圖以自己的 ID 和 label/kind 儲存，viewpoint/pose 分別交代角度與姿勢。`sourceSha256` 記錄繪圖所依據的圖片版本；替換圖後重新校準 guides。導航直接打開該參考圖，`inspect_workspace` 的 snapshot 可讀取正在審閱的原圖。
 

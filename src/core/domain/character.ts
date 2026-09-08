@@ -118,6 +118,21 @@ export interface CharacterModelSheet<Asset = CharacterDraftAsset> {
 export interface CharacterAssetContent<Asset> {
   variants: Array<Omit<CharacterDraftVariant, 'layers'> & { layers: Partial<Record<CharacterVariantLayer, Asset>> }>
   modelSheet?: CharacterModelSheet<Asset>
+  appearances?: CharacterAppearance<Asset>[]
+}
+
+export interface CharacterSelection {
+  expression?: string
+  outfit?: string
+  /** Bottom to top within each prop rig slot. */
+  props: string[]
+}
+
+export interface CharacterAppearance<Asset = CharacterDraftAsset> {
+  id: string
+  label: string
+  selected: CharacterSelection
+  modelSheet?: Omit<CharacterModelSheet<Asset>, 'heightCm'>
 }
 
 export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsset> {
@@ -130,19 +145,15 @@ export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsse
   backstory?: string
   attributes?: Record<string, CharacterAttributeValue>
   headRegistration?: { variantId: string }
-  selected: {
-    expression?: string
-    outfit?: string
-    /** Bottom to top within each prop rig slot; activating an absent prop appends it. */
-    props: string[]
-  }
+  selected: CharacterSelection
+  activeAppearanceId?: string
   updatedAt: number
 }
 
 export const characterAssetScope = (packId: string) => `character:${packId}`
 
 export type StoredCharacterAsset = Omit<CharacterDraftAsset, 'blob'> & { blobId: string }
-export type CharacterWorkspaceData = Omit<CharacterDraft, 'id' | 'updatedAt' | 'variants' | 'modelSheet'> & CharacterAssetContent<StoredCharacterAsset>
+export type CharacterWorkspaceData = Omit<CharacterDraft, 'id' | 'updatedAt' | 'variants' | 'modelSheet' | 'appearances'> & CharacterAssetContent<StoredCharacterAsset>
 
 export interface AppearanceRef {
   packId: string

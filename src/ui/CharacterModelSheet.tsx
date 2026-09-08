@@ -2,7 +2,7 @@ import { ImagePlusIcon, RulerIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { updateCharacterModelSheet, modelSheetReferences, setModelSheetReference, isTurnaroundView } from '@/core/application/character-model-sheet'
+import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, isTurnaroundView } from '@/core/application/character-model-sheet'
 import { CHARACTER_REFERENCE_VIEWS, CHARACTER_REFERENCE_KINDS, type CharacterDraft, type CharacterReference, type CharacterReferenceMetadata } from '@/core/domain/character'
 import { DataControls } from '@/ui/DataControls'
 import { BlobImage } from '@/ui/BlobImage'
@@ -24,14 +24,14 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
 }) {
   const { t } = useTranslation()
   const trigger = useRef<HTMLButtonElement>(null)
-  const sheet = draft.modelSheet ?? { views: {} }
+  const sheet = characterModelSheet(draft)
   const references = modelSheetReferences(sheet)
   const reference = view ? references[view] : undefined
   const calibratable = !reference?.kind || ['full-body', 'structure'].includes(reference.kind)
   const guides = reference?.guides ?? { head: 0.1, feet: 0.9 }
   const label = (id: string) => references[id]?.label ?? (isTurnaroundView(id) ? t(`modelSheet.views.${id}`) : id)
   const change = (patch: Partial<CharacterReference>) => {
-    if (view && reference) edit({ ...draft, modelSheet: setModelSheetReference(sheet, view, { ...reference, ...patch }) })
+    if (view && reference) edit(withCharacterModelSheet(draft, setModelSheetReference(sheet, view, { ...reference, ...patch })))
   }
   const fileInput = (id: string) => <input type="file" accept="image/png" disabled={busy}
     aria-label={t('modelSheet.uploadView', { view: label(id) })}
@@ -59,11 +59,11 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
         <input type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')}
           value={sheet.heightCm ?? ''} onChange={(event) => {
             const heightCm = event.currentTarget.value === '' ? undefined : event.currentTarget.valueAsNumber
-            if (heightCm === undefined || Number.isFinite(heightCm)) edit({ ...draft, modelSheet: { ...sheet, heightCm } })
+            if (heightCm === undefined || Number.isFinite(heightCm)) edit(withCharacterModelSheet(draft, { ...sheet, heightCm }))
           }} onBlur={(event) => {
             if (!event.currentTarget.checkValidity()) { event.currentTarget.reportValidity(); return }
             const heightCm = event.currentTarget.value === '' ? undefined : event.currentTarget.valueAsNumber
-            commit((current) => updateCharacterModelSheet(current, { ...current.modelSheet, views: current.modelSheet?.views ?? {}, heightCm }))
+            commit((current) => updateCharacterModelSheet(current, { ...characterModelSheet(current), heightCm }))
           }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') revert() }} />
       </label>
     </div>
@@ -116,8 +116,8 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
           <form className="grid gap-4" onSubmit={(event) => {
             event.preventDefault()
             commit((current) => {
-              if (modelSheetReferences(current.modelSheet)[view]?.asset.inspection.sha256 !== reference.asset.inspection.sha256) throw new Error('Reference changed; reopen it before saving')
-              return updateCharacterModelSheet(current, setModelSheetReference(current.modelSheet!, view, { ...reference, ...(calibratable ? { guides } : {}) }))
+              if (current.activeAppearanceId !== draft.activeAppearanceId || modelSheetReferences(characterModelSheet(current))[view]?.asset.inspection.sha256 !== reference.asset.inspection.sha256) throw new Error('Reference changed; reopen it before saving')
+              return updateCharacterModelSheet(current, setModelSheetReference(characterModelSheet(current), view, { ...reference, ...(calibratable ? { guides } : {}) }))
             })
           }}>
             {calibratable && (['head', 'feet'] as const).map((line) => <label key={line} className="grid grid-cols-[4rem_1fr_3rem] items-center gap-3">
@@ -133,8 +133,8 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
             <div className="flex flex-wrap items-center justify-between gap-3">
               <DataControls exportData={async () => reference.asset.blob} exportFilename={reference.asset.filename} exportIconOnly exportLabel={t('modelSheet.download')} />
               <Button type="button" variant="ghost" disabled={busy} onClick={() => { commit((current) => {
-                if (modelSheetReferences(current.modelSheet)[view]?.asset.inspection.sha256 !== reference.asset.inspection.sha256) throw new Error('Reference changed; reopen it before removing')
-                return updateCharacterModelSheet(current, setModelSheetReference(current.modelSheet!, view))
+                if (current.activeAppearanceId !== draft.activeAppearanceId || modelSheetReferences(characterModelSheet(current))[view]?.asset.inspection.sha256 !== reference.asset.inspection.sha256) throw new Error('Reference changed; reopen it before removing')
+                return updateCharacterModelSheet(current, setModelSheetReference(characterModelSheet(current), view))
               }); openReference() }}>{t('modelSheet.remove')}</Button>
             </div>
             {error && <p role="alert" className="text-destructive">{error}</p>}

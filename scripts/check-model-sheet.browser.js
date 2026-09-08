@@ -126,7 +126,68 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(Math.abs(poseArt.clientWidth / poseArt.clientHeight - 1.5) < 0.03, 'Landscape preview lost its original aspect ratio')
     check(Math.abs(frontArt.clientWidth / frontArt.clientHeight - 2 / 3) < 0.03, 'Portrait preview lost its original aspect ratio')
     check(document.querySelector('.model-sheet').scrollWidth <= document.querySelector('.model-sheet').clientWidth + 1, 'Reference layout overflows')
-    result.textContent = 'PASS: 12 tools, scoped source contract, A-pose guidance, supplemental pose, exact review snapshot, stale writes, guides/history, backup/reload and landscape/portrait layout'
+    document.querySelector('.model-sheet-detail [data-slot=sheet-close]')?.click()
+    await ready(() => !document.querySelector('.model-sheet-detail'))
+    const buttons = (text) => [...document.querySelectorAll('button')].find((button) => button.textContent === text)
+    buttons('Save as new Appearance').click()
+    await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))
+    const nameInput = document.querySelector('section[data-has-uncommitted-input="true"] input')
+    await fill(nameInput, 'Gym')
+    check((await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Appearance name form is invisible to agents')
+    const formRevision = state().persistedRevision
+    const blockedName = await call('set_character_variant_selection', { characterId: id, expectedRevision: formRevision, appearance: { action: 'save', id: 'interrupt', label: 'Interrupt' } }).then(() => false, () => true)
+    check(blockedName && state().persistedRevision === formRevision, 'Agent interrupted Appearance naming')
+    nameInput.form.querySelector('button[type=submit]').click()
+    await ready(() => state().character.appearances?.length === 1); await settled()
+    const gym = state().character.activeAppearanceId
+    check(state().character.appearances[0].modelSheet.references['t-pose'] && !state().character.modelSheet.views.front, 'First Appearance failed to adopt references')
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 768
+    canvas.getContext('2d').fillRect(128, 32, 256, 700)
+    const layerPng = canvas.toDataURL('image/png')
+    for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front']]) {
+      await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, dataUrl: layerPng })
+    }
+    await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
+    const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
+    check(!modified.character.matchesSaved && modified.modelSheet.appearanceId === gym, 'Modified combination lost its saved reference scope')
+    const captureBlocked = await call('update_character_model_sheet', { characterId: id, expectedRevision: state().persistedRevision, referenceId: 'front', fromAppearance: true, expectedAssetSha256: modified.modelSheet.views.front.sha256 }).then(() => false, (error) => error.message.includes('differs from the saved Appearance'))
+    check(captureBlocked, 'Changed combination overwrote the saved Appearance front')
+    await ready(() => buttons('Save as new Appearance') && !buttons('Save as new Appearance').disabled)
+    buttons('Save as new Appearance').click()
+    await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))
+    const nextName = document.querySelector('section[data-has-uncommitted-input="true"] input')
+    await fill(nextName, 'With prop'); nextName.form.querySelector('button[type=submit]').click()
+    await ready(() => state().character.appearances?.length === 2); await settled()
+    const withProp = state().character.activeAppearanceId
+    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await ready(() => document.querySelectorAll('.model-sheet-empty').length === 4)
+    check(document.querySelectorAll('.model-sheet-art img').length === 0, 'New Appearance inherited another outfit’s pictures')
+    await call('update_character_model_sheet', { characterId: id, expectedRevision: state().persistedRevision, referenceId: 'front', fromAppearance: true, expectedAssetSha256: null })
+    await ready(() => route.pathname.endsWith('/model-sheet/front') && document.querySelector('.model-sheet-detail') && Number(document.querySelector('main').dataset.characterRevision) === state().persistedRevision)
+    const scoped = (await call('inspect_workspace', { includeSnapshot: true })).data
+    check(scoped.currentCharacter.modelSheet.appearanceId === withProp && scoped.snapshot.referenceId === 'front', 'Reference snapshot lost Appearance ownership')
+    document.querySelector('.model-sheet-detail [data-slot=sheet-close]')?.click()
+    await ready(() => !document.querySelector('.model-sheet-detail'))
+    const select = document.querySelector('select[aria-label="Saved Appearance"]')
+    select.value = gym; select.dispatchEvent(new Event('change', { bubbles: true })); await settled()
+    await ready(() => state().character.activeAppearanceId === gym && document.querySelectorAll('.model-sheet-art img').length === 3)
+    check(state().character.selected.props.length === 0, 'UI selector did not restore saved prop selection')
+    await call('undo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
+    check(state().character.activeAppearanceId === withProp && state().character.selected.props[0] === 'prop-1', 'Undo separated Appearance from its combination')
+    await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'rename', id: withProp, label: 'Prop look' } })
+    const archive = await app.exportCharacter(id)
+    const { readCharacterDraftZip } = await import('/src/adapters/zip/character-draft.ts')
+    const { inspectCharacterImage } = await import('/src/adapters/browser/character-image.ts')
+    const roundtrip = (await readCharacterDraftZip(archive, inspectCharacterImage)).draft
+    check(roundtrip.appearances.length === 2 && roundtrip.activeAppearanceId === withProp && roundtrip.appearances[0].modelSheet.references['t-pose'].pose === 't-pose', 'Character ZIP lost saved Appearances')
+    await app.editor.reload()
+    const afterReload = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
+    check(afterReload.character.appearances.length === 2 && afterReload.character.matchesSaved && afterReload.modelSheet.appearanceId === withProp, 'Mantle reload lost Appearance state')
+    const namedBackup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
+    check(namedBackup.entries.find((entry) => entry.id === id).data.appearances.length === 2, 'Library backup lost saved Appearances')
+    await call('navigate_character', { destination: 'characters' })
+    await ready(() => route.pathname === '/collections')
+    result.textContent = 'PASS: 12 tools, UI save/switch, Appearance-scoped references, protected front capture, naming guard, undo, Mantle reload, both archives and responsive layout'
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }
 }
