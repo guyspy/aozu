@@ -152,18 +152,23 @@ export async function renderStitchedCharacterEditBlob(
 
 const renderCharacterCompositeCanvas = async (
   layers: ReadonlyArray<ResolvedCharacterLayer & { blob: Blob }>,
+  width: number = CHARACTER_RIG.canvas.width,
+  signal?: AbortSignal,
 ) => {
   const canvas = document.createElement('canvas')
-  canvas.width = CHARACTER_RIG.canvas.width
-  canvas.height = CHARACTER_RIG.canvas.height
+  canvas.width = width
+  canvas.height = width * CHARACTER_RIG.canvas.height / CHARACTER_RIG.canvas.width
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
   for (const { blob, transform } of layers) {
+    signal?.throwIfAborted()
     const bitmap = await createImageBitmap(blob)
     try {
+      signal?.throwIfAborted()
       context.save()
       try {
-        context.setTransform(transform.scale, 0, 0, transform.scale, transform.x, transform.y)
+        const ratio = width / CHARACTER_RIG.canvas.width
+        context.setTransform(transform.scale * ratio, 0, 0, transform.scale * ratio, transform.x * ratio, transform.y * ratio)
         context.drawImage(bitmap, 0, 0)
       } finally {
         context.restore()
@@ -202,4 +207,37 @@ export function renderCharacterEditMaskDataUrl(region: CharacterEditableRegion) 
   context.ellipse(region.shape.cx, region.shape.cy, region.shape.rx, region.shape.ry, 0, 0, Math.PI * 2)
   context.fill()
   return canvas.toDataURL('image/png')
+}
+
+/** Library cards never retain full-resolution layers or create WebGL contexts. */
+export async function renderCharacterThumbnail(layers: ReadonlyArray<ResolvedCharacterLayer & { blob: Blob }>, signal?: AbortSignal) {
+  return pngBlob(await renderCharacterCompositeCanvas(layers, 160, signal))
+}
+
+const assetThumbnails = new WeakMap<Blob, Blob>()
+let assetThumbnailQueue = Promise.resolve()
+export function renderCharacterAssetThumbnail(blob: Blob, bounds?: CharacterAssetInspection['visibleBounds'], signal?: AbortSignal) {
+  const result = assetThumbnailQueue.then(async () => {
+    signal?.throwIfAborted()
+    const cached = assetThumbnails.get(blob)
+    if (cached) return cached
+    const bitmap = await createImageBitmap(blob)
+    try {
+      signal?.throwIfAborted()
+      const crop = bounds ?? { x: 0, y: 0, width: bitmap.width, height: bitmap.height }
+      const ratio = Math.min(1, 160 / Math.max(crop.width, crop.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(crop.width * ratio))
+      canvas.height = Math.max(1, Math.round(crop.height * ratio))
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas is unavailable')
+      context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height)
+      const thumbnail = await pngBlob(canvas)
+      signal?.throwIfAborted()
+      assetThumbnails.set(blob, thumbnail)
+      return thumbnail
+    } finally { bitmap.close() }
+  })
+  assetThumbnailQueue = result.then(() => {}, () => {})
+  return result
 }

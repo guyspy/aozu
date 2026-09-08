@@ -1,99 +1,90 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CircleAlertIcon, LoaderCircleIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { CHARACTER_RIG, IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetInspection, type CharacterTextureAtlas, type CharacterVariantTransform } from '@/core/domain/character'
-import { CrossfadeBlobImage } from '@/ui/BlobImage'
+import { CHARACTER_RIG, type CharacterAssetInspection } from '@/core/domain/character'
+import type { CharacterRenderView, mountCharacterRenderer } from '@/adapters/browser/pixi-character-renderer'
+import { renderCharacterAssetThumbnail } from '@/adapters/browser/character-image'
+import { useBlobUrl } from '@/ui/useBlobUrl'
 import { cn } from '@/ui/lib/utils'
 
-type Layer = { id: string; blob: Blob; slotOrder: number; layerOrder: number; transform?: CharacterVariantTransform }
 type Bounds = NonNullable<CharacterAssetInspection['visibleBounds']>
+type Status = 'loading' | 'ready' | 'failed'
 
-const layerStyle = (layer: Layer, style?: CSSProperties): CSSProperties => {
-  const transform = layer.transform ?? IDENTITY_CHARACTER_TRANSFORM
-  return {
-    zIndex: layer.slotOrder * 100 + layer.layerOrder,
-    left: `${transform.x / CHARACTER_RIG.canvas.width * 100}%`,
-    top: `${transform.y / CHARACTER_RIG.canvas.height * 100}%`,
-    transform: `scale(${transform.scale})`,
-    transformOrigin: 'top left',
-    ...style,
-  }
-}
-
-const Layers = ({ layers, style }: { layers: Layer[]; style?: CSSProperties }) => layers.map((layer) => <CrossfadeBlobImage
-  key={`${layer.slotOrder}:${layer.layerOrder}`}
-  blob={layer.blob}
-  className="absolute size-full object-contain"
-  style={layerStyle(layer, style)}
-/>)
-
-function RenderStatus({ failed = false }: { failed?: boolean }) {
+export function RenderStatus({ failed = false, retry }: { failed?: boolean; retry?: () => void }) {
   const { t } = useTranslation()
   return <span className="absolute inset-0 grid place-content-center text-muted-foreground" role={failed ? 'alert' : 'status'}>
-    {failed ? <CircleAlertIcon className="mx-auto size-5" /> : <LoaderCircleIcon className="mx-auto size-5 animate-spin" />}
+    {failed ? retry
+      ? <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={retry} aria-label={t('characterDraft.status.retry')} title={t('characterDraft.status.retry')}><CircleAlertIcon className="mx-auto size-5" /></button>
+      : <CircleAlertIcon className="mx-auto size-5" />
+      : <LoaderCircleIcon className="mx-auto size-5 animate-spin" />}
     <span className="sr-only">{t(failed ? 'startup.error' : 'startup.loading')}</span>
   </span>
 }
 
-/** Publish readiness only after Pixi has drawn; loading never paints the raw layers first. */
-function AtlasLayers({ atlas, layers, onStatus }: { atlas: CharacterTextureAtlas; layers: Layer[]; onStatus(status: 'loading' | 'ready' | 'failed'): void }) {
+export function CharacterRenderer({ label, className, candidateBounds, referenceBounds, footLine, ...view }: CharacterRenderView & {
+  label: string
+  className?: string
+  candidateBounds?: Bounds
+  referenceBounds?: Bounds
+  footLine?: number
+}) {
   const host = useRef<HTMLDivElement>(null)
-  const controller = useRef<{ update(atlas: CharacterTextureAtlas, frameIds: readonly string[]): Promise<boolean>; destroy(): void }>(undefined)
-  const latest = useRef({ atlas, frameIds: layers.map(({ id }) => id) })
-  const frameIds = layers.map(({ id }) => id).join('\n')
+  const controller = useRef<Awaited<ReturnType<typeof mountCharacterRenderer>>>(undefined)
+  const latest = useRef(view)
+  const [status, setStatus] = useState<Status>('loading')
+  const [attempt, setAttempt] = useState(0)
+  const [drawn, setDrawn] = useState<CharacterRenderView>()
+  const sources = (value: CharacterRenderView) => [
+    ...(value.atlas ? [value.atlas.image] : value.layers.map(({ blob }) => blob)),
+    ...(value.mode && value.mode !== 'composite' ? value.referenceLayers?.map(({ blob }) => blob) ?? [] : []),
+  ]
+  const desired = sources(view)
+  const previous = drawn ? sources(drawn) : []
+  const ready = status === 'ready' && drawn?.atlas === view.atlas && desired.length === previous.length && desired.every((blob, i) => blob === previous[i])
 
   useEffect(() => {
     let disposed = false
     void (async () => {
-      const { mountCharacterTextureAtlas } = await import('@/adapters/browser/pixi-character-atlas')
+      const { mountCharacterRenderer } = await import('@/adapters/browser/pixi-character-renderer')
       if (disposed || !host.current) return
-      const mounted = await mountCharacterTextureAtlas(host.current)
+      const mounted = await mountCharacterRenderer(host.current)
       if (disposed) return mounted.destroy()
       controller.current = mounted
-      const rendered = await mounted.update(latest.current.atlas, latest.current.frameIds)
-      if (disposed) return
-      if (rendered) onStatus('ready')
+      const next = latest.current
+      if (await mounted.update(next) && !disposed) { setDrawn(next); setStatus('ready') }
     })().catch((error) => {
-      console.error('Character atlas render failed', error)
-      if (!disposed) onStatus('failed')
+      console.error('Character render failed', error)
+      if (!disposed) setStatus('failed')
     })
-    return () => {
-      disposed = true
-      controller.current?.destroy()
-      controller.current = undefined
-      onStatus('loading')
-    }
-  // onStatus is a stable setState from the parent.
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return () => { disposed = true; controller.current?.destroy(); controller.current = undefined }
+  }, [attempt])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    latest.current = view
     let active = true
-    latest.current = { atlas, frameIds: frameIds.split('\n') }
-    void controller.current?.update(atlas, frameIds.split('\n')).then((rendered) => { if (active && rendered) onStatus('ready') }).catch((error) => {
-      console.error('Character atlas update failed', error)
-      if (active) onStatus('failed')
+    void controller.current?.update(view).then((rendered) => {
+      if (active && rendered) { setDrawn(view); setStatus('ready') }
+    }).catch((error) => {
+      console.error('Character update failed', error)
+      if (active) setStatus('failed')
     })
     return () => { active = false }
+  // Depend on the inputs, not the rest object or readiness state.
   // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlas, frameIds])
+  }, [view.layers, view.referenceLayers, view.mode, view.atlas])
 
-  return <div ref={host} aria-hidden="true" className="absolute inset-0" />
-}
-
-export function CharacterRenderer({ label, layers, atlas, loading = false, className }: { label: string; layers: Layer[]; atlas?: CharacterTextureAtlas; loading?: boolean; className?: string }) {
-  const [canvasStatus, setCanvasStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
-  const useCanvas = Boolean(atlas) && layers.length > 0
-  return (
-    <div className={cn('relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40', className)} role="img" aria-label={label}>
-      {!layers.length && <div className="character-empty-placeholder absolute inset-0 p-8"><img src="/assets/placeholders/companion-body-faint.webp" alt="" /></div>}
-      {layers.length > 0 && (loading || useCanvas
-        ? (loading || canvasStatus !== 'ready') && <RenderStatus failed={!loading && canvasStatus === 'failed'} />
-        : <Layers layers={layers} />)}
-      {useCanvas && <AtlasLayers atlas={atlas!} layers={layers} onStatus={setCanvasStatus} />}
-    </div>
-  )
+  return <div className={cn('relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40', className)} role="img" aria-label={label}>
+    {!view.layers.length && <div className="character-empty-placeholder absolute inset-0 p-8"><img src="/assets/placeholders/companion-body-faint.webp" alt="" /></div>}
+    {view.layers.length > 0 && !ready && <RenderStatus failed={status === 'failed'} retry={() => { setStatus('loading'); setAttempt((value) => value + 1) }} />}
+    <div ref={host} aria-hidden="true" className="absolute inset-0" style={{ visibility: ready ? 'visible' : 'hidden' }} />
+    {view.mode === 'diagnostic' && <>
+      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-foreground/30" />
+      {footLine !== undefined && <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 border-t border-dashed border-foreground/30" style={{ top: `${footLine / CHARACTER_RIG.canvas.height * 100}%` }} />}
+      <BoundsBox bounds={referenceBounds} className="border-cyan-500" />
+      <BoundsBox bounds={candidateBounds} className="border-fuchsia-500" />
+    </>}
+  </div>
 }
 
 const BoundsBox = ({ bounds, className }: { bounds?: Bounds; className: string }) => bounds && <span
@@ -106,42 +97,6 @@ const BoundsBox = ({ bounds, className }: { bounds?: Bounds; className: string }
     height: `${bounds.height / CHARACTER_RIG.canvas.height * 100}%`,
   }}
 />
-
-export function CharacterAlignmentRenderer({
-  label,
-  candidateLayers,
-  referenceLayers,
-  mode,
-  candidateBounds,
-  referenceBounds,
-  footLine,
-}: {
-  label: string
-  candidateLayers: Layer[]
-  referenceLayers: Layer[]
-  mode: 'composite' | 'overlay' | 'difference' | 'diagnostic'
-  candidateBounds?: Bounds
-  referenceBounds?: Bounds
-  footLine?: number
-}) {
-  if (mode === 'composite') return <CharacterRenderer label={label} layers={candidateLayers} />
-  const diagnostic = mode === 'diagnostic'
-  const difference = mode === 'difference'
-  return <div className="relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40" role="img" aria-label={label}>
-    <Layers layers={referenceLayers} style={diagnostic
-      ? { opacity: 0.65, filter: 'brightness(0) saturate(100%) invert(75%) sepia(94%) saturate(1454%) hue-rotate(128deg) brightness(103%) contrast(103%)', mixBlendMode: 'screen' }
-      : { opacity: difference ? 1 : 0.45 }} />
-    <Layers layers={candidateLayers} style={diagnostic
-      ? { opacity: 0.65, filter: 'brightness(0) saturate(100%) invert(23%) sepia(97%) saturate(7478%) hue-rotate(312deg) brightness(111%) contrast(111%)', mixBlendMode: 'screen' }
-      : { opacity: difference ? 1 : 0.65, ...(difference ? { mixBlendMode: 'difference' } : {}) }} />
-    {diagnostic && <>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-foreground/30" />
-      {footLine !== undefined && <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 border-t border-dashed border-foreground/30" style={{ top: `${footLine / CHARACTER_RIG.canvas.height * 100}%` }} />}
-      <BoundsBox bounds={referenceBounds} className="border-cyan-500" />
-      <BoundsBox bounds={candidateBounds} className="border-fuchsia-500" />
-    </>}
-  </div>
-}
 
 export function CharacterSlotPlaceholder({ src, label }: { src: string; label?: string }) {
   return <div
@@ -162,34 +117,27 @@ export function CharacterSlotPlaceholder({ src, label }: { src: string; label?: 
   />
 }
 
-export function CharacterAtlasFrameImage({ atlas, src, frameId, label = '' }: {
-  atlas?: CharacterTextureAtlas
-  src?: string
-  frameId: string
-  label?: string
-}) {
-  const [loaded, setLoaded] = useState<{ src: string; failed?: boolean }>()
-  const frame = atlas?.data.frames[frameId]?.frame
-  const ready = Boolean(frame && src && loaded?.src === src && !loaded.failed)
-  const failed = Boolean((atlas && !frame) || (src && loaded?.src === src && loaded.failed))
-  return <span className="relative flex size-full items-center justify-center overflow-hidden">
-    {!ready && <RenderStatus failed={failed} />}
-    {atlas && frame && src && <span className="relative block max-h-full max-w-full overflow-hidden" style={{ aspectRatio: `${frame.w}/${frame.h}`, ...(frame.w >= frame.h ? { width: '100%' } : { height: '100%' }) }}>
-      <img
-        src={src}
-        alt={label}
-        className="absolute max-w-none"
-        onLoad={() => setLoaded({ src })}
-        onError={() => setLoaded({ src, failed: true })}
-        style={{
-          visibility: ready ? 'visible' : 'hidden',
-          width: `${atlas.data.meta.size.w / frame.w * 100}%`,
-          height: `${atlas.data.meta.size.h / frame.h * 100}%`,
-          maxHeight: 'none',
-          left: `${-frame.x / frame.w * 100}%`,
-          top: `${-frame.y / frame.h * 100}%`,
-        }}
-      />
-    </span>}
+export function CharacterAssetThumbnail({ blob, bounds, label = '' }: { blob: Blob; bounds?: CharacterAssetInspection['visibleBounds']; label?: string }) {
+  const [result, setResult] = useState<{ source: Blob; thumbnail?: Blob; failed?: boolean }>()
+  const [visible, setVisible] = useState(false)
+  const host = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => { if (entry?.isIntersecting) { setVisible(true); observer.disconnect() } })
+    if (host.current) observer.observe(host.current)
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    if (!visible) return
+    const controller = new AbortController()
+    void renderCharacterAssetThumbnail(blob, bounds, controller.signal).then(
+      (thumbnail) => { if (!controller.signal.aborted) setResult({ source: blob, thumbnail }) },
+      () => { if (!controller.signal.aborted) setResult({ source: blob, failed: true }) },
+    )
+    return () => controller.abort()
+  }, [blob, bounds, visible])
+  const current = result?.source === blob ? result : undefined
+  const src = useBlobUrl(current?.thumbnail)
+  return <span ref={host} className="relative flex size-full items-center justify-center overflow-hidden">
+    {src ? <img src={src} alt={label} className="max-h-full max-w-full object-contain" /> : <RenderStatus failed={current?.failed} />}
   </span>
 }

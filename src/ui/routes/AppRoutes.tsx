@@ -21,7 +21,6 @@ function CharacterEditor({ application, refresh, savedRevision }: { application:
     savedRevision={savedRevision}
     autoFitVariant={application.autoFitCharacterVariant}
     fitSuggestion={application.characterFitSuggestion}
-    compileAtlas={application.compileCharacterAtlas}
     exportCharacter={() => application.exportCharacter(characterId)}
     exportCharacterPng={application.exportCharacterPng}
     replaceAsset={(target, blob) => application.replaceCharacterAsset(characterId, target, blob)}
@@ -103,6 +102,7 @@ export function AppRoutes({ application }: { application: Application }) {
   const home = library.characters.length ? `/collections/${library.collections.some(({ id }) => id === lastBook) ? lastBook : DEFAULT_CHARACTER_COLLECTION}` : '/characters/new/expressions'
   const libraryPage = <CharacterLibraryPage
     characters={library.characters}
+    loadThumbnail={application.loadCharacterThumbnail}
     collections={library.collections}
     createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
     updateCollection={application.updateCollection}

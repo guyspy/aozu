@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
-import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -7,9 +7,9 @@ import { useStore } from 'zustand'
 import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
-import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterTextureAtlas, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
+import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
-import { CharacterAlignmentRenderer, CharacterAtlasFrameImage, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
+import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
 import {
   AlertDialog,
@@ -26,7 +26,6 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import { DataControls } from '@/ui/DataControls'
 import { StatusPage } from '@/ui/pages/StatusPage'
-import { useBlobUrl } from '@/ui/useBlobUrl'
 
 type CharacterCategoryId = 'expressions' | 'outfits' | 'props'
 type CharacterCategory = { id: CharacterCategoryId; group: CharacterVariantGroup; icon: AozuIconName }
@@ -76,12 +75,11 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, compileAtlas, exportCharacter, exportCharacterPng, replaceAsset, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, saveAs, deleteCharacter }: {
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
   fitSuggestion(group: CharacterVariantGroup, variantId: string): Promise<CharacterFitSuggestion>
-  compileAtlas(draft: CharacterDraft): Promise<CharacterTextureAtlas | undefined>
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
@@ -104,7 +102,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const [local, setLocal] = useState<{ base: CharacterDraft; value: CharacterDraft }>()
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
-  const [compiled, setCompiled] = useState<{ key: string; atlas?: CharacterTextureAtlas; error?: string }>()
   const [fit, setFit] = useState<{ key: string; value: CharacterFitSuggestion }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -166,21 +163,9 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       .catch((caught) => setError(describe(caught)))
       .finally(() => { if (refreshingRevision.current === externalRevision) refreshingRevision.current = undefined })
   }, [activeCharacterId, characterId, editor, externalRevision, local, profileForm, saveStatus])
-  const atlasKey = committed ? characterDraftAtlasKey(committed) : undefined
-  useEffect(() => {
-    if (!committed || !atlasKey || compiled?.key === atlasKey) return
-    let active = true
-    void compileAtlas(committed)
-      .then((atlas) => { if (active) setCompiled({ key: atlasKey, atlas }) })
-      .catch((caught) => {
-        console.error('Character atlas compile failed', caught)
-        if (active) setCompiled({ key: atlasKey, error: describe(caught) })
-      })
-    return () => { active = false }
-  }, [committed, atlasKey, compileAtlas, compiled?.key])
-
+  const assetKey = useMemo(() => committed ? characterDraftAtlasKey(committed) : undefined, [committed])
   const fitGroup = category?.group === 'expression' || category?.group === 'outfit' ? category.group : undefined
-  const fitKey = committed && atlasKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${atlasKey}` : undefined
+  const fitKey = committed && assetKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${assetKey}` : undefined
   useEffect(() => {
     if (!fitKey || !fitGroup || !variantId) return
     let active = true
@@ -191,10 +176,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   }, [fitKey, fitGroup, variantId, fitSuggestion])
   const suggestion = fit && fitKey && fit.key === fitKey ? fit.value : undefined
 
-  const atlasPending = compiled?.key !== atlasKey
-  const atlas = !atlasPending ? compiled?.atlas : undefined
-  const atlasSrc = useBlobUrl(atlas?.image)
-
   if (!step || step === 'identity' || step === 'accessories') return <Navigate to={`/characters/${encodeURIComponent(characterId ?? '')}/expressions`} replace />
   if (!category) return <Navigate to={`/characters/${encodeURIComponent(characterId ?? '')}/expressions`} replace />
   if (loadError && loadError.characterId === characterId) return <StatusPage>
@@ -202,10 +183,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     {activeCharacterId && activeCharacterId !== characterId && <><br /><Button variant="link" onClick={() => navigate(`/characters/${encodeURIComponent(activeCharacterId)}/expressions`)}>{t('characterDraft.backToActive', { name: character?.name })}</Button></>}
   </StatusPage>
   if (!draft) return <StatusPage>{t('startup.loading')}</StatusPage>
-  if (!atlasPending && compiled?.error) return <StatusPage>
-    <span role="alert">{compiled.error}</span><br />
-    <Button variant="link" onClick={() => setCompiled(undefined)}>{t('characterDraft.status.retry')}</Button>
-  </StatusPage>
   const exportName = draft.name.trim() || 'character'
 
   const edit = (value: CharacterDraft) => { if (committed) setLocal({ base: committed, value }) }
@@ -362,12 +339,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 ? 'front'
                 : group.layers.find((layer) => isCharacterDraftAssetCurrent(draft, variant, layer))
               const thumbnail = thumbnailLayer ? variant.layers[thumbnailLayer] : undefined
-              const frameId = thumbnailLayer && `${variant.group}-${variant.id}-${thumbnailLayer}`
               const selected = isSelected(variant)
               return <div key={variantKey(variant)} className={`variant-card ${selected ? 'is-selected' : ''}`}>
                 <button type="button" aria-label={variant.label} title={variant.label} aria-pressed={selected} className="block w-full" onClick={() => toggleVariant(variant)}>
                   <span className={`variant-preview ${variant.group === 'expression' ? 'is-expression' : ''}`}>{thumbnail
-                    ? <CharacterAtlasFrameImage atlas={atlas} src={atlasSrc} frameId={frameId!} label={variant.label} />
+                    ? <CharacterAssetThumbnail blob={thumbnail.blob} bounds={thumbnail.inspection.visibleBounds} label={variant.label} />
                     : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}</span><span className="variant-label">{variant.label}</span>
                 </button>
                 <button type="button" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon className="size-4" /></button>
@@ -456,14 +432,14 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="asset-upload-card">
               <span className="asset-upload-preview">{primaryAsset
-                ? <CharacterAtlasFrameImage atlas={atlas} src={atlasSrc} frameId={`${selectedVariant.group}-${selectedVariant.id}-${primaryLayer}`} />
+                ? <CharacterAssetThumbnail blob={primaryAsset.blob} bounds={primaryAsset.inspection.visibleBounds} />
                 : <CharacterVariantPlaceholder group={selectedVariant.group} variantId={selectedVariant.id} />}</span>
               <span>{t(layeredAccessory ? 'characterDraft.layers.primary' : `characterDraft.layers.${primaryLayer}`)}</span>
               {fileInput(selectedVariant, primaryLayer)}
             </label>
             {layeredAccessory && <label className="asset-upload-card">
               <span className="asset-upload-preview">{behindAsset
-                ? <CharacterAtlasFrameImage atlas={atlas} src={atlasSrc} frameId={`${selectedVariant.group}-${selectedVariant.id}-back`} />
+                ? <CharacterAssetThumbnail blob={behindAsset.blob} bounds={behindAsset.inspection.visibleBounds} />
                 : <Layers2Icon className="size-8 text-muted-foreground" />}</span>
               <span>{t('characterDraft.layers.behindOptional')}</span>
               {fileInput(selectedVariant, 'back')}
@@ -523,7 +499,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             aria-label={t('characterDraft.missingRequired')}
             title={t('characterDraft.missingRequired')}
           >
-            <CharacterRenderer label={draft.name} layers={previewLayers} atlas={atlas} loading={atlasPending} />
+            <CharacterRenderer label={draft.name} layers={previewLayers} />
             {fileInput(baseVariant, 'body')}
           </label> : <div
             className={`aspect-2/3 h-full max-h-full max-w-full ${draggable ? 'cursor-move touch-none' : ''}`}
@@ -532,17 +508,15 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             onPointerMove={moveDrag}
             onPointerUp={finishDrag}
             onPointerCancel={finishDrag}
-          >{selectedVariant && selectedAsset && !atlasPending
-            ? <CharacterAlignmentRenderer
+          ><CharacterRenderer
                 label={draft.name}
-                candidateLayers={previewLayers}
+                layers={previewLayers}
                 referenceLayers={referenceLayers}
-                mode={alignmentMode}
+                mode={selectedVariant && selectedAsset ? alignmentMode : 'composite'}
                 candidateBounds={candidateBounds}
                 referenceBounds={referenceBounds}
                 footLine={registration.footLine}
-              />
-            : <CharacterRenderer label={draft.name} layers={previewLayers} atlas={atlas} loading={atlasPending} />}</div>}
+              /></div>}
           {previewLayers.length > 0 && <div className="absolute right-2 top-2"><DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} /></div>}
         </div>
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>

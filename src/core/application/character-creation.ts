@@ -555,7 +555,9 @@ const ref = (pack: CharacterPack, appearanceId: string): AppearanceRef => ({
 
 const variantKey = ({ group, id }: Pick<CharacterDraftVariant, 'group' | 'id'>) => `${group}-${id}`
 const assetKey = (variant: Pick<CharacterDraftVariant, 'group' | 'id'>, layer: CharacterVariantLayer) => `${variantKey(variant)}-${layer}`
-const findVariant = (draft: CharacterDraft, group: CharacterVariantGroup, id: string) => draft.variants.find((variant) => variant.group === group && variant.id === id)
+type VariantMetadata = Omit<CharacterDraftVariant, 'layers'> & { layers: Partial<Record<CharacterVariantLayer, Pick<CharacterDraftAsset, 'inspection' | 'canonicalSha256'>>> }
+type SelectionMetadata<V extends VariantMetadata = VariantMetadata> = { variants: V[]; selected: CharacterDraft['selected'] }
+const findVariant = <V extends VariantMetadata>(draft: { variants: V[] }, group: CharacterVariantGroup, id: string) => draft.variants.find((variant) => variant.group === group && variant.id === id)
 const canonicalAsset = (draft: CharacterDraft) => findVariant(draft, 'body', 'base')?.layers.body
 
 export function characterHeadRegistration(draft: CharacterDraft) {
@@ -566,14 +568,14 @@ export function characterHeadRegistration(draft: CharacterDraft) {
 }
 
 export function isCharacterDraftAssetCurrent(
-  draft: CharacterDraft,
-  variant: CharacterDraftVariant,
+  draft: { variants: VariantMetadata[] },
+  variant: VariantMetadata,
   layer: CharacterVariantLayer,
 ) {
   const asset = variant.layers[layer]
   if (!asset) return false
   if (variant.group === 'body') return variant.id === 'base' && layer === 'body'
-  const canonical = canonicalAsset(draft)
+  const canonical = findVariant(draft, 'body', 'base')?.layers.body
   if (!canonical) return false
   return asset.canonicalSha256 === canonical.inspection.sha256
 }
@@ -605,7 +607,7 @@ export function resolveCharacterAssetSources(
 }
 
 export const hasCurrentCharacterLayer = (
-  draft: CharacterDraft,
+  draft: SelectionMetadata,
   group: CharacterVariantGroup,
   id: string,
   layer: CharacterVariantLayer,
@@ -648,7 +650,7 @@ export function clearCharacterVariantSelection(draft: CharacterDraft, group: Cha
     ? draft : { ...draft, selected: { ...draft.selected, [group]: undefined } }
 }
 
-const selectedPropIds = (draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+const selectedPropIds = (draft: SelectionMetadata, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
   const ids = draft.selected.props
   if (new Set(ids).size !== ids.length) throw new Error('Duplicate selected character prop ID')
   if (ids.some((id) => !findVariant(draft, 'prop', id))) throw new Error('Selected character prop is missing')
@@ -656,7 +658,7 @@ const selectedPropIds = (draft: CharacterDraft, preview?: Pick<CharacterDraftVar
 }
 
 /** Preserve activation order, then assign unused variants unique orders for portable pack appearances. */
-const characterPropOrders = (draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+const characterPropOrders = (draft: SelectionMetadata, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
   const selected = selectedPropIds(draft, preview)
   const inactive = draft.variants.filter(({ group, id }) => group === 'prop' && !selected.includes(id)).map(({ id }) => id)
   return new Map([...selected, ...inactive].map((id, index) => [id, index + 1]))
@@ -666,8 +668,8 @@ const currentLayerEntries = (draft: CharacterDraft, variant: CharacterDraftVaria
   (Object.entries(variant.layers) as Array<[CharacterVariantLayer, CharacterDraftAsset | undefined]>)
     .filter(([layer, asset]) => asset && isCharacterDraftAssetCurrent(draft, variant, layer)) as Array<[CharacterVariantLayer, CharacterDraftAsset]>
 
-const selectedVariants = (
-  draft: CharacterDraft,
+const selectedCharacterVariants = <V extends VariantMetadata>(
+  draft: SelectionMetadata<V>,
   preview?: Pick<CharacterDraftVariant, 'group' | 'id'>,
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ) => {
@@ -681,7 +683,7 @@ const selectedVariants = (
     .filter((id) => exclude?.group !== 'prop' || exclude.id !== id)
     .map((id) => findVariant(draft, 'prop', id))
   return [outfit ?? findVariant(draft, 'body', 'base'), expression, ...props]
-    .filter((variant): variant is CharacterDraftVariant => Boolean(variant && currentLayerEntries(draft, variant).length))
+    .filter((variant): variant is V => Boolean(variant && Object.keys(variant.layers).some((layer) => isCharacterDraftAssetCurrent(draft, variant, layer as CharacterVariantLayer))))
 }
 
 export const characterAssetPlacement = (group: CharacterVariantGroup, layer: CharacterVariantLayer, propOrder = 1) => {
@@ -690,26 +692,36 @@ export const characterAssetPlacement = (group: CharacterVariantGroup, layer: Cha
   return { slot: layer === 'back' ? 'item-back' : 'item-front', order: propOrder }
 }
 
+/** Resolve paint order from metadata so library cards need only the PNGs actually painted. */
+export const resolveCharacterDraftPlacements = <V extends VariantMetadata>(
+  draft: SelectionMetadata<V>,
+  preview?: Pick<CharacterDraftVariant, 'group' | 'id'>,
+  exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
+) => {
+  const slotOrders = new Map<string, number>(CHARACTER_RIG.slots.map(({ id, order }) => [id, order]))
+  const propOrders = characterPropOrders(draft, preview)
+  return selectedCharacterVariants(draft, preview, exclude).flatMap((variant) =>
+    (Object.keys(variant.layers) as CharacterVariantLayer[]).filter((layer) => isCharacterDraftAssetCurrent(draft, variant, layer)).map((layer) => {
+      const placement = characterAssetPlacement(variant.group, layer, propOrders.get(variant.id))
+      return {
+        variant, layer,
+        id: assetKey(variant, layer),
+        blobId: assetKey(variant, layer),
+        slot: placement.slot,
+        slotOrder: slotOrders.get(placement.slot)!,
+        layerOrder: placement.order,
+        transform: variant.transform ? { ...variant.transform } : { ...IDENTITY_CHARACTER_TRANSFORM },
+      }
+    }),
+  ).sort((left, right) => left.slotOrder - right.slotOrder || left.layerOrder - right.layerOrder || left.id.localeCompare(right.id))
+}
+
 const resolveDraftLayers = (
   draft: CharacterDraft,
   preview?: Pick<CharacterDraftVariant, 'group' | 'id'>,
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
-): Array<ResolvedCharacterLayer & { blob: Blob }> => {
-  const slotOrders = new Map<string, number>(CHARACTER_RIG.slots.map(({ id, order }) => [id, order]))
-  const propOrders = characterPropOrders(draft, preview)
-  return selectedVariants(draft, preview, exclude).flatMap((variant) => currentLayerEntries(draft, variant).map(([layer, asset]) => {
-    const placement = characterAssetPlacement(variant.group, layer, propOrders.get(variant.id))
-    return {
-      id: assetKey(variant, layer as CharacterVariantLayer),
-      blobId: assetKey(variant, layer as CharacterVariantLayer),
-      slot: placement.slot,
-      slotOrder: slotOrders.get(placement.slot)!,
-      layerOrder: placement.order,
-      transform: variant.transform ? { ...variant.transform } : { ...IDENTITY_CHARACTER_TRANSFORM },
-      blob: asset.blob,
-    }
-  })).sort((left, right) => left.slotOrder - right.slotOrder || left.layerOrder - right.layerOrder || left.id.localeCompare(right.id))
-}
+): Array<ResolvedCharacterLayer & { blob: Blob }> => resolveCharacterDraftPlacements(draft, preview, exclude)
+  .map(({ variant, layer, ...placement }) => ({ ...placement, blob: variant.layers[layer]!.blob }))
 
 export const resolveCharacterDraftLayers = (
   draft: CharacterDraft,
@@ -783,7 +795,7 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
     }),
     defaultComposition: [],
   }
-  pack.defaultComposition = selectedVariants(draft).map((variant) => ref(pack, variantKey(variant)))
+  pack.defaultComposition = selectedCharacterVariants(draft).map((variant) => ref(pack, variantKey(variant)))
   validateCharacterPack(pack, new Map(draft.variants.flatMap((variant) => currentLayerEntries(draft, variant).map(([layer, asset]) => [
     assetKey(variant, layer), asset.inspection,
   ] as const))))
