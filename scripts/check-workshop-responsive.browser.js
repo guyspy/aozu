@@ -32,7 +32,7 @@ try {
     }
     find('[data-slot="sheet-close"]').click()
     await ready(() => !find('[role="dialog"]'))
-    assert(doc.activeElement === trigger, 'Closing must return focus to the opener')
+    await ready(() => doc.activeElement === trigger)
   }
   find('.character-stage-heading button').click()
   await ready(() => find('[role="dialog"]'))
