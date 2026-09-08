@@ -8,6 +8,7 @@ export const ja: Messages = {
     error: 'ローカルデータを読み込めませんでした。ページを再読み込みしてもう一度お試しください。',
   },
   draft: { name: 'キャラクター名', download: 'キャラクターを書き出す' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'AOZU キャラクターアーカイブ',
@@ -29,11 +30,6 @@ export const ja: Messages = {
     deleteTitle: 'このキャラクターを削除しますか？',
     deleteDescription: '「{{name}}」とそのローカル画像をこの端末から削除します。',
     empty: 'キャラクターはまだありません。作成するか、以前書き出したキャラクターを読み込んでください。',
-    story: {
-      title: 'ストーリーモード',
-      description: 'ストーリーと冒険は近日公開予定です。',
-      comingSoon: '近日公開',
-    },
   },
   characterDraft: {
     title: 'キャラクター工房',

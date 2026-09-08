@@ -8,6 +8,7 @@ export const de: Messages = {
     error: 'Lokale Daten konnten nicht geladen werden. Seite neu laden und erneut versuchen.',
   },
   draft: { name: 'Name der Figur', download: 'Figur exportieren' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'AOZU-FIGURENARCHIV',
@@ -29,11 +30,6 @@ export const de: Messages = {
     deleteTitle: 'Diese Figur löschen?',
     deleteDescription: '„{{name}}“ und die zugehörigen lokalen Bilder von diesem Gerät löschen?',
     empty: 'Noch keine Figuren. Erstelle eine oder importiere eine zuvor exportierte Figur.',
-    story: {
-      title: 'Story-Modus',
-      description: 'Geschichten und Abenteuer folgen bald.',
-      comingSoon: 'Bald verfügbar',
-    },
   },
   characterDraft: {
     title: 'Figurenwerkstatt',

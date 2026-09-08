@@ -49,7 +49,7 @@
     editor,
     webmcp: { getState: () => ({ status: 'ready', toolCount: 0 }), setNavigate: (navigate) => { navigateTo = navigate; return () => {} }, subscribe: () => () => {} },
     subscribeCharacterChanges: () => () => {},
-    loadCharacterLibrary: async () => ({ collections: [], characters: characters.map((c) => ({ ...c, revision: 1, layers: resolveCharacterDraftLayers(c) })) }),
+    loadCharacterLibrary: async () => ({ collections: [{ id: 'default', name: 'My characters', description: '', backstory: '', version: 0, updatedAt: 0, characterIds: characters.map((c) => c.id) }], characters: characters.map((c) => ({ ...c, revision: 1, layers: resolveCharacterDraftLayers(c) })) }),
     compileCharacterAtlas: (c) => failAtlas ? Promise.reject(new Error('Simulated atlas failure')) : atlases.get(c.id).promise,
     characterFitSuggestion: async () => ({ status: 'aligned' }),
   }
@@ -88,7 +88,7 @@
       await wait(250)
       document.querySelector('header button').click()
     }
-    await ready(() => document.querySelector('.companion-vault'))
+    await ready(() => document.querySelector('.book-page'))
     for (const character of characters) atlases.set(character.id, deferred())
     navigateTo('/characters/a/expressions')
     await ready(() => document.querySelector('.character-stage-canvas [role="status"]'))

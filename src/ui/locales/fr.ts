@@ -8,6 +8,7 @@ export const fr: Messages = {
     error: 'Impossible de charger les données locales. Actualisez la page et réessayez.',
   },
   draft: { name: 'Nom du personnage', download: 'Exporter le personnage' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'ARCHIVES DES PERSONNAGES AOZU',
@@ -29,11 +30,6 @@ export const fr: Messages = {
     deleteTitle: 'Supprimer ce personnage ?',
     deleteDescription: 'Supprimer « {{name}} » et ses images locales de cet appareil ?',
     empty: 'Aucun personnage pour l’instant. Créez-en un ou importez un personnage exporté précédemment.',
-    story: {
-      title: 'Mode histoire',
-      description: 'Histoires et aventures arrivent bientôt.',
-      comingSoon: 'Bientôt disponible',
-    },
   },
   characterDraft: {
     title: 'Atelier des personnages',

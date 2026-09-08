@@ -39,6 +39,7 @@ const runtime = await bootMantleRuntime({
     },
   },
   handlers: {
+    'companion.update-collection-profile': async (input) => ({ status: 'ok', data: input }),
     'companion.inspect-workspace': async () => ({ status: 'ok', data: {} }),
     'companion.navigate-character': async (input) => ({ status: 'ok', data: input }),
     'companion.update-character-profile': async (input) => {
@@ -187,3 +188,6 @@ const transform = { characterId: 'character:triggered', group: 'expression', var
 assert.equal((await runtime.invokeTrigger({ trigger: 'set-character-variant-transform', input: transform, ctx: context })).ok, true)
 assert.deepEqual(transformInput, transform)
 console.log('authoring triggers: ok')
+
+assert.equal((await runtime.invokeTrigger({ trigger: 'update-collection-profile', input: { collectionId: 'default', expectedRevision: 0, backstory: 'Shared world' }, ctx: context })).ok, true)
+assert.equal((await runtime.invokeTrigger({ trigger: 'update-collection-profile', input: { collectionId: 'default', expectedRevision: 0, backstory: 'x'.repeat(8001) }, ctx: context })).ok, false)

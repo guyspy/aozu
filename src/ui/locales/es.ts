@@ -8,6 +8,7 @@ export const es: Messages = {
     error: 'No se pudieron cargar los datos locales. Recarga la página e inténtalo de nuevo.',
   },
   draft: { name: 'Nombre del personaje', download: 'Exportar personaje' },
+  books: en.books,
   library: en.library,
   characters: {
     kicker: 'ARCHIVO DE PERSONAJES AOZU',
@@ -29,11 +30,6 @@ export const es: Messages = {
     deleteTitle: '¿Eliminar este personaje?',
     deleteDescription: '¿Eliminar «{{name}}» y sus imágenes locales de este dispositivo?',
     empty: 'Aún no hay personajes. Crea uno o importa uno que hayas exportado antes.',
-    story: {
-      title: 'Modo historia',
-      description: 'Las historias y aventuras llegarán pronto.',
-      comingSoon: 'Próximamente',
-    },
   },
   characterDraft: {
     title: 'Taller de personajes',

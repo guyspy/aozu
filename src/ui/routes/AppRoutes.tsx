@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
 
+import { DEFAULT_CHARACTER_COLLECTION } from '@/core/domain/character-collection'
+
 import type { Application } from '@/bootstrap.ts'
 import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
@@ -26,7 +28,7 @@ function CharacterEditor({ application, refresh, savedRevision }: { application:
     deleteCharacter={async () => {
       await application.deleteCharacter(characterId)
       await refresh()
-      navigate('/characters')
+      navigate(`/collections/${DEFAULT_CHARACTER_COLLECTION}`)
     }}
     saveAs={async () => {
       const saved = await application.saveCharacterAs()
@@ -44,6 +46,14 @@ export function AppRoutes({ application }: { application: Application }) {
   const [webmcp, setWebmcp] = useState(application.webmcp.getState())
   const [library, setLibrary] = useState<Awaited<ReturnType<Application['loadCharacterLibrary']>>>()
   const [loadError, setLoadError] = useState(false)
+  const lastBook = (() => {
+    try { return localStorage.getItem('aozu-last-collection') ?? DEFAULT_CHARACTER_COLLECTION } catch { return DEFAULT_CHARACTER_COLLECTION }
+  })()
+  useEffect(() => {
+    const id = /^\/collections\/([^/]+)$/.exec(location.pathname)?.[1]
+    if (!id || !library?.collections.some((book) => book.id === id)) return
+    try { localStorage.setItem('aozu-last-collection', id) } catch { /* Browsing still works without preference storage. */ }
+  }, [location.pathname, library])
   useLayoutEffect(() => { document.getElementById('root')?.scrollTo(0, 0) }, [location.pathname])
   const refresh = useCallback(async () => {
     try {
@@ -89,37 +99,41 @@ export function AppRoutes({ application }: { application: Application }) {
   const editing = /^\/characters\/[^/]+/.test(location.pathname)
   const characterId = editing ? decodeURIComponent(location.pathname.split('/')[2] ?? '') : undefined
   const character = library.characters.find(({ id }) => id === characterId)
+  const characterBook = library.collections.find(({ characterIds }) => characterId && characterIds.includes(characterId))?.id ?? DEFAULT_CHARACTER_COLLECTION
+  const home = library.characters.length ? `/collections/${library.collections.some(({ id }) => id === lastBook) ? lastBook : DEFAULT_CHARACTER_COLLECTION}` : '/characters/new/expressions'
+  const libraryPage = <CharacterLibraryPage
+    characters={library.characters}
+    collections={library.collections}
+    createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
+    updateCollection={application.updateCollection}
+    deleteCollection={application.deleteCollection}
+    assignCollection={application.assignCollection}
+    exportLibrary={application.exportCharacterLibrary}
+    prepareLibraryImport={application.prepareCharacterLibraryImport}
+    importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
+    openCharacter={(id) => navigate(`/characters/${encodeURIComponent(id)}/expressions`)}
+    importCharacter={async (blob) => {
+      const imported = await application.importCharacter(blob)
+      await refresh()
+      navigate(`/characters/${encodeURIComponent(imported.id)}/expressions`)
+    }}
+    refresh={refresh}
+  />
   return <>
     <AppHeader
       webmcp={webmcp}
       title={character?.name}
-      onBack={editing ? () => navigate('/characters') : undefined}
+      onBack={editing ? () => navigate(`/collections/${characterBook}`) : undefined}
     />
     <Routes>
-      <Route index element={<Navigate to="/characters" replace />} />
-      <Route path="/characters" element={<CharacterLibraryPage
-        characters={library.characters}
-        collections={library.collections}
-        createCollection={async (name) => { await application.createCollection(name); await refresh() }}
-        renameCollection={async (id, name, version) => { await application.renameCollection(id, name, version); await refresh() }}
-        deleteCollection={async (id, version) => { await application.deleteCollection(id, version); await refresh() }}
-        assignCollection={async (id, collectionId) => { await application.assignCollection(id, collectionId); await refresh() }}
-        exportLibrary={application.exportCharacterLibrary}
-        prepareLibraryImport={application.prepareCharacterLibraryImport}
-        importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
-        createCharacter={() => application.createCharacter(null)}
-        openCharacter={(id) => navigate(`/characters/${encodeURIComponent(id)}/expressions`)}
-        importCharacter={async (blob) => {
-          const imported = await application.importCharacter(blob)
-          await refresh()
-          navigate(`/characters/${encodeURIComponent(imported.id)}/expressions`)
-        }}
-        refresh={refresh}
-      />} />
+      <Route index element={<Navigate to={home} replace />} />
+      <Route path="/characters" element={<Navigate to={home} replace />} />
+      <Route path="/collections" element={libraryPage} />
+      <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />
       <Route path="/characters/:characterId/:step" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
       <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
-      <Route path="*" element={<Navigate to="/characters" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </>
 }
