@@ -77,7 +77,7 @@ export function CharacterViewport({ children, download, enabled, editing }: { ch
       }}>
       <div className="character-viewport-transform absolute inset-0 flex items-center justify-center" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>{children}</div>
     </div>
-    <div className="absolute right-2 bottom-2 flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur-sm" role="group" aria-label={t('preview.controls')}>
+    <div className="absolute left-2 top-2 flex flex-col items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur-sm" role="group" aria-label={t('preview.controls')}>
       <TooltipProvider>{[
         { label: 'pan', icon: HandIcon, pressed: pan, run: () => setPan(!pan), disabled: !enabled },
         { label: 'zoomOut', icon: MinusIcon, run: () => setView((value) => zoom(value, 0.8, { x: 0, y: 0 })), disabled: !enabled || view.scale <= 0.5 },
