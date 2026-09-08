@@ -110,15 +110,17 @@ edits while preserving shared character height and profile. They do not become a
 layers or atlas frames. Cross-character scale lineups are a subsequent step.
 
 Named Appearances autosave their current expression, outfit and ordered props.
-Use **Save as new Appearance** before editing to preserve the original look.
-The dropdown’s **Add new Appearance** starts with the shared base body, no selected
+Use **Save as…** before editing to preserve the original look.
+The dropdown’s **Add new** starts with the shared base body, no selected
 variants and an empty model sheet. Existing unnamed work appears as an editable
 Default look; viewing it does not write until the next edit.
 Linked front references follow composition edits; other art stays intact with a
 review flag. Switching looks starts a fresh Undo session. **Character profile**
 is the middle tab and previews the current Appearance alongside the existing
 biography and attributes. Character ZIP, copy and delete sit at the right of the glass document tabs;
-A shadcn menu beside the preview groups Appearance switching, inline Rename, Save as, Add new and Delete; Undo/Redo, PNG and autosave status stay on the toolbar. Delete preserves shared art and requires at least one remaining look.
+A shadcn menu beside the preview groups switching, inline Rename, Save as, Add new and Delete; Undo/Redo and autosave status stay on the toolbar. Delete preserves shared art and requires at least one remaining look.
+PNG download sits inside the preview with pan, zoom and fit controls. Drag in pan mode, use two-finger pan/pinch, or focus the preview and use arrows, +/− and 0. View transforms never change artwork, alignment or exported pixels.
+Ordinary actions reuse shadcn Button variants and a single 32px icon size; avoid page-specific button size/color overrides. Document tabs and artwork selection cards keep their distinct navigation layouts.
 
 The page reserves the remaining sections without creating empty character data.
 See the [model sheet plan](docs/character-model-sheets.md) for the agreed scope,

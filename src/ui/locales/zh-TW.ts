@@ -1,14 +1,15 @@
 import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
+  preview: { title: '角色預覽', controls: '預覽操作', pan: '平移視圖', zoomIn: '放大', zoomOut: '縮小', fit: '完整顯示' },
   modelSheet: {
     appearances: {
-      title: '造型', choose: '已儲存造型', addNew: '新增造型', newName: '新造型',
-      saveNew: '另存為新造型', rename: '重新命名', name: '造型名稱', save: '建立造型',
+      title: '造型', choose: '已儲存造型', addNew: '新增', newName: '新造型',
+      saveNew: '另存為…', rename: '重新命名', name: '造型名稱', save: '建立',
       copyName: '{{name}} 副本',
-      delete: '刪除造型', deleteTitle: '要刪除這個造型嗎？',
+      delete: '刪除', deleteTitle: '要刪除這個造型嗎？',
       deleteDescription: '刪除「{{name}}」及其設定集？角色共用素材與其他造型會保留。',
-      keepOne: '至少保留一個造型',
+      keepOne: '至少保留一個',
     },
     title: '設定集', appearance: '造型', mode: '角色工作區', fullBody: '全身四視圖',
     description: '把同一個角色的外形定下來。加入參考圖，或請 ChatGPT 協助補齊。',

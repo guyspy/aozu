@@ -142,7 +142,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
       item.click()
       await ready(() => !document.querySelector('[role="menu"]'))
     }
-    check(!buttons('Save as new Appearance') && !buttons('Rename') && !buttons('Use current appearance'), 'Model sheet still exposes Appearance authoring controls')
+    check(!buttons('Save as…') && !buttons('Rename') && !buttons('Use current appearance'), 'Model sheet still exposes Appearance authoring controls')
     check(document.querySelector('.model-sheet-toolbar button[aria-label="Saved Appearance"]'), 'Model sheet lacks its saved Appearance selector')
     buttons('Appearance').click()
     await ready(() => document.querySelector('.character-stage-preview button[aria-label="Saved Appearance"]'))
@@ -170,7 +170,40 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
     check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.props[0] === 'prop-1', 'Current Appearance was not autosaved')
     check(modified.modelSheet.views.front.needsReview, 'A manual front did not flag changed composition')
-    await appearanceMenu('Save as new Appearance')
+    // View gestures must never become authoring edits or alter export pixels.
+    await ready(() => document.querySelector('[aria-label="Zoom in"]:not(:disabled)'))
+    const viewport = document.querySelector('[aria-label="Character preview"]')
+    const transform = () => new DOMMatrix(document.querySelector('.character-viewport-transform').style.transform)
+    const beforeView = state().persistedRevision
+    const beforePixels = await dataUrlFor(await app.exportCharacterPng(state().character))
+    check(document.querySelector('.character-stage-canvas').contains(buttons('Download PNG')) && !document.querySelector('.appearance-toolbar').contains(buttons('Download PNG')), 'PNG download is outside the canvas')
+    buttons('Zoom in').click(); await ready(() => transform().a > 1)
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaX: 20, deltaY: 30, bubbles: true, cancelable: true }))
+    await ready(() => transform().e === -20 && transform().f === -30)
+    const bounds = viewport.getBoundingClientRect()
+    viewport.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -30, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2, bubbles: true, cancelable: true }))
+    await ready(() => transform().a > 1.5)
+    buttons('Fit to view').click(); await ready(() => transform().a === 1 && transform().e === 0 && transform().f === 0)
+    // Synthetic pointers have no native capture; scope this stub to the fixture element.
+    const capture = viewport.setPointerCapture
+    viewport.setPointerCapture = () => {}
+    const pointer = (type, id, x, y) => viewport.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', button: 0, clientX: bounds.left + x, clientY: bounds.top + y, bubbles: true, cancelable: true }))
+    try {
+      pointer('pointerdown', 1, 100, 100); pointer('pointermove', 1, 130, 110)
+      await ready(() => transform().e === 30 && transform().f === 10)
+      pointer('pointerdown', 2, 230, 110); pointer('pointermove', 2, 280, 110)
+      await ready(() => transform().a === 1.5)
+      const translated = transform().e
+      pointer('pointercancel', 2, 280, 110); pointer('pointermove', 1, 140, 110)
+      await ready(() => transform().e !== translated)
+      pointer('pointerup', 1, 140, 110)
+    } finally { viewport.setPointerCapture = capture }
+    buttons('Fit to view').click(); await ready(() => transform().a === 1 && transform().e === 0)
+    viewport.focus(); viewport.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true }))
+    await ready(() => transform().a > 1)
+    check(state().persistedRevision === beforeView && await dataUrlFor(await app.exportCharacterPng(state().character)) === beforePixels, 'View gestures mutated data or PNG bytes')
+    buttons('Fit to view').click(); await ready(() => transform().a === 1)
+    await appearanceMenu('Save as…')
     await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))
     const nextName = document.querySelector('section[data-has-uncommitted-input="true"] input')
     check(nextName.value === 'Gym copy', 'Save as does not suggest a copy name')
@@ -245,7 +278,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await ready(() => document.querySelector('main[data-category="expressions"] button[aria-label="Saved Appearance"]') && !buttons('Saved Appearance').disabled)
     const preservedLooks = state().character.appearances
     const preservedVariants = state().character.variants
-    await appearanceMenu('Add new Appearance')
+    await appearanceMenu('Add new')
     await ready(() => state().character.appearances.length === 3); await settled()
     const fresh = state().character.activeAppearanceId
     check(state().character.selected.props.length === 0 && !state().character.selected.expression && !state().character.selected.outfit && state().character.variants === preservedVariants, 'Add new did not reset only the selection')
@@ -292,15 +325,15 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await call('navigate_character', { destination: 'character-expressions', characterId: id })
     await ready(() => document.querySelector('main[data-category="expressions"] button[aria-label="Saved Appearance"]') && !buttons('Saved Appearance').disabled)
     const beforeDelete = state().character
-    await appearanceMenu('Delete Appearance')
+    await appearanceMenu('Delete')
     await ready(() => document.querySelector('[role="alertdialog"]'))
     check((await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Delete confirmation is invisible to agents')
     buttons('Cancel').click()
     await ready(() => !document.querySelector('[role="alertdialog"]'))
     check(state().character === beforeDelete, 'Cancelled delete changed the character')
-    await appearanceMenu('Delete Appearance')
+    await appearanceMenu('Delete')
     await ready(() => document.querySelector('[role="alertdialog"]'))
-    buttons('Delete Appearance').click()
+    document.querySelector('[role="alertdialog"] [data-slot="alert-dialog-action"]').click()
     await ready(() => state().character.appearances.length === 2); await settled()
     check(state().character.activeAppearanceId === gym && state().character.variants === beforeDelete.variants && state().character.appearances[0] === beforeDelete.appearances[0], 'Delete lost shared art or the remaining look')
     check(!await app.editor.undo(), 'Undo resurrects a deleted Appearance across navigation')

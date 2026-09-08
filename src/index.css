@@ -195,7 +195,6 @@ body::before {
   content: "";
 }
 
-#root button,
 #root input,
 #root textarea,
 #root select,
@@ -356,7 +355,7 @@ body::before {
 .companion-card-portrait { width: 100%; overflow: hidden; border-radius: 0.5rem; background: radial-gradient(circle, #fff1c575, transparent); }
 .companion-card-portrait [role="img"] { border: 0; border-radius: 0; background-color: transparent; }
 .companion-card-name { width: 100%; overflow-wrap: anywhere; padding-inline: 0.25rem; color: #4e2d19; font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; }
-.book-card-action { position: absolute; bottom: 0.35rem; right: 0.35rem; width: 2.5rem; height: 2.5rem; }
+.book-card-action { position: absolute; bottom: 0.35rem; right: 0.35rem; }
 .bookshelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 1.5rem; }
 .collection-cover { display: flex; min-width: 0; min-height: 19rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; border: 1px solid #986637; border-left: 0.5rem solid #644126; border-radius: 0.4rem 1rem 1rem 0.4rem; background: linear-gradient(120deg, #79522e, #51361f); color: #f3d899; text-align: center; box-shadow: inset 0 0 0 5px #deb46e33, 0.25rem 0.35rem 0 #d6b374, 0.4rem 0.6rem 1rem #45250f22; }
 .collection-cover h2 { font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700; overflow-wrap: anywhere; }
@@ -376,16 +375,6 @@ body::before {
   .book-card-grid, .bookshelf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .collection-cover { min-height: 15rem; padding: 1rem 0.75rem; }
   .collection-cover h2 { font-size: 1.1rem; }
-}
-
-/* One treatment for every icon action: card and character actions, including destructive ones. */
-.workbench-actions [data-variant="outline"] {
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid rgb(113 44 30 / 30%);
-  background: rgb(130 54 36 / 12%);
-  color: #7a2f1f;
-  box-shadow: inset 0 1px rgb(255 247 211 / 60%);
 }
 
 .start-gate {
@@ -409,16 +398,6 @@ body::before {
 
 .gate-action {
   grid-column: 1 / -1;
-}
-
-.gate-action [data-slot="button"],
-button.gate-action {
-  min-height: 2.75rem;
-  width: 100%;
-  border: 1px solid #82501f;
-  background: linear-gradient(#8a582d, #684021);
-  color: #fae7ab;
-  box-shadow: inset 0 1px rgb(255 235 172 / 26%), 0 0.35rem 0.8rem rgb(72 38 18 / 14%);
 }
 
 .parchment-notice {
@@ -474,20 +453,6 @@ button.gate-action {
 [data-slot="alert-dialog-footer"] {
   border-top: 1px dashed rgb(107 64 31 / 42%);
   background: transparent;
-}
-
-[data-slot="alert-dialog-cancel"] {
-  border: 1px solid #9b6929;
-  background: rgb(250 233 187 / 55%);
-  color: #5a361d;
-}
-
-[data-slot="alert-dialog-action"][data-variant="destructive"],
-[data-slot="alert-dialog-action"]:not([data-variant]) {
-  border: 1px solid #7a2f1f;
-  background: linear-gradient(#8a3a2a, #6a2a1e);
-  color: #fae7ab;
-  box-shadow: inset 0 1px rgb(255 235 172 / 26%), 0 0.35rem 0.8rem rgb(72 38 18 / 18%);
 }
 
 /* ---------------------------------------------------------------------------
@@ -878,18 +843,7 @@ button.gate-action {
   white-space: nowrap;
 }
 
-.variant-edit {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid #94632d;
-  border-radius: 0.5rem;
-  background: rgb(244 222 170 / 92%);
-}
+.variant-edit { position: absolute; top: 0.3rem; right: 0.3rem; }
 
 .add-variant {
   display: flex;
@@ -997,7 +951,7 @@ button.gate-action {
 
 .character-workbench-drawer > .doll-workbench {
   flex: 1;
-  padding: 1rem;
+  padding: 3.25rem 1rem 1rem;
   border: 0;
   border-radius: 0;
 }

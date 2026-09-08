@@ -7,6 +7,7 @@ import type { CharacterRenderView, mountCharacterRenderer } from '@/adapters/bro
 import { renderCharacterAssetThumbnail } from '@/adapters/browser/character-image'
 import { useBlobUrl } from '@/ui/useBlobUrl'
 import { cn } from '@/ui/lib/utils'
+import { Button } from '@/ui/components/ui/button'
 
 type Bounds = NonNullable<CharacterAssetInspection['visibleBounds']>
 type Status = 'loading' | 'ready' | 'failed'
@@ -15,7 +16,7 @@ export function RenderStatus({ failed = false, retry }: { failed?: boolean; retr
   const { t } = useTranslation()
   return <span className="absolute inset-0 grid place-content-center text-muted-foreground" role={failed ? 'alert' : 'status'}>
     {failed ? retry
-      ? <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={retry} aria-label={t('characterDraft.status.retry')} title={t('characterDraft.status.retry')}><CircleAlertIcon className="mx-auto size-5" /></button>
+      ? <Button type="button" size="icon" variant="outline" onPointerDown={(event) => event.stopPropagation()} onClick={retry} aria-label={t('characterDraft.status.retry')} title={t('characterDraft.status.retry')}><CircleAlertIcon /></Button>
       : <CircleAlertIcon className="mx-auto size-5" />
       : <LoaderCircleIcon className="mx-auto size-5 animate-spin" />}
     <span className="sr-only">{t(failed ? 'startup.error' : 'startup.loading')}</span>

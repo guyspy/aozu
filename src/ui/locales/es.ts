@@ -1,6 +1,7 @@
 import { en, type Messages } from './en'
 
 export const es: Messages = {
+  preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Cerrar', productName: 'AOZU', back: 'Atrás', cancel: 'Cancelar', language: 'Idioma' },
   navigation: { ...en.navigation, primary: 'Navegación principal' },

@@ -21,6 +21,8 @@ try {
     assert(find('.character-stage-canvas').clientHeight > 200, `Collapsed preview at ${width}px`)
     assert(!find('.doll-workbench'), `Closed drawer still occupies the page at ${width}px`)
     const trigger = find('.character-stage-preview button[aria-label="Customize appearance"]')
+    assert(trigger.getBoundingClientRect().height === 32, 'Customize button has a local size override')
+    for (const button of doc.querySelectorAll('[aria-label="Preview controls"] button')) assert(button.getBoundingClientRect().height === 32, 'Preview button has a local size override')
     trigger.click()
     await ready(() => find('[role="dialog"]'))
     await wait(250)
@@ -30,7 +32,11 @@ try {
     for (const label of doc.querySelectorAll('.workbench-tabs [role="tab"] > span:last-child')) {
       assert(label.scrollWidth <= label.clientWidth + 1, `Clipped category at ${width}px: ${label.textContent}`)
     }
-    find('[data-slot="sheet-close"]').click()
+    const close = find('[data-slot="sheet-close"]')
+    const edit = find('.variant-edit')
+    assert(close.getBoundingClientRect().height === 32 && edit.getBoundingClientRect().height === 32, 'Portal buttons have inconsistent sizes')
+    assert(frame.contentWindow.getComputedStyle(close).backgroundColor === frame.contentWindow.getComputedStyle(edit).backgroundColor, 'Close and edit buttons use different treatments')
+    close.click()
     await ready(() => !find('[role="dialog"]'))
     await ready(() => doc.activeElement === trigger)
   }

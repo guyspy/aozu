@@ -5,7 +5,7 @@ import { activeCharacterAppearance, type CharacterAppearanceCommand } from '@/co
 import type { CharacterDraft } from '@/core/domain/character'
 import { Button } from '@/ui/components/ui/button'
 import { Input } from '@/ui/components/ui/input'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/ui/components/ui/alert-dialog'
 
 export function CharacterAppearances({ draft, change, busy, manage = false, children }: {
@@ -50,11 +50,9 @@ export function CharacterAppearances({ draft, change, busy, manage = false, chil
           {manage && active && <><DropdownMenuItem onSelect={() => setForm({ action: 'rename', label: active.label })}><PencilIcon />{t('modelSheet.appearances.rename')}</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setForm({ action: 'save-as', label: newLabel(t('modelSheet.appearances.copyName', { name: active.label })) })}><SaveIcon />{t('modelSheet.appearances.saveNew')}</DropdownMenuItem>
             <DropdownMenuSeparator /></>}
-          <DropdownMenuGroup><DropdownMenuLabel>{t('modelSheet.appearances.choose')}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={draft.activeAppearanceId} onValueChange={(id) => change({ action: 'select', id })}>
-              {draft.appearances?.map(({ id, label }) => <DropdownMenuRadioItem key={id} value={id}><span className="truncate">{label}</span></DropdownMenuRadioItem>)}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
+          <DropdownMenuRadioGroup value={draft.activeAppearanceId} onValueChange={(id) => change({ action: 'select', id })}>
+            {draft.appearances?.map(({ id, label }) => <DropdownMenuRadioItem key={id} value={id}><span className="truncate">{label}</span></DropdownMenuRadioItem>)}
+          </DropdownMenuRadioGroup>
           {manage && <>
             <DropdownMenuItem onSelect={() => {
               change({ action: 'create', id: `look-${crypto.randomUUID().slice(0, 8)}`, label: newLabel(t('modelSheet.appearances.newName')) })

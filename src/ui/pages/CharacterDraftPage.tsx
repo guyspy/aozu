@@ -10,6 +10,7 @@ import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
 import { activeCharacterAppearance } from '@/core/application/character-appearances'
+import { CharacterViewport } from '@/ui/CharacterViewport'
 import { CharacterAppearances } from '@/ui/CharacterAppearances'
 import type { CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
@@ -330,7 +331,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
             </span>
 
-  const characterActions = <div className="character-actions workbench-actions flex shrink-0 items-center gap-1" role="group" aria-label={t('characterDraft.characterActions')}>
+  const characterActions = <div className="character-actions flex shrink-0 items-center gap-1" role="group" aria-label={t('characterDraft.characterActions')}>
     <TooltipProvider>
       <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{t('characterDraft.saveAs')}</TooltipContent></Tooltip>
       <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
@@ -369,7 +370,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                     ? <CharacterAssetThumbnail blob={thumbnail.blob} bounds={thumbnail.inspection.visibleBounds} label={variant.label} />
                     : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}</span><span className="variant-label">{variant.label}</span>
                 </button>
-                <button type="button" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon className="size-4" /></button>
+                <Button type="button" variant="outline" size="icon" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon /></Button>
               </div>
             })}
             <button type="button" title={t(`characterDraft.groups.${category.group}.add`)} className="variant-card add-variant" aria-label={t(`characterDraft.groups.${category.group}.add`)} onClick={() => addVariant(category.group)}>
@@ -490,7 +491,6 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
       {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
     </TooltipProvider>}
-    {previewLayers.length > 0 && !isModelSheet && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}
     {saveFeedback}
   </CharacterAppearances>
 
@@ -516,9 +516,10 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         <div className="character-stage-content">
         <div className="character-stage-preview">
         <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
-          {narrow && !isProfile && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="size-10" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
+          {narrow && !isProfile && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
         </div>
-        <div className="character-stage-canvas relative">
+        <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
+          download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
             aria-label={t('characterDraft.missingRequired')}
@@ -542,7 +543,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 referenceBounds={referenceBounds}
                 footLine={registration.footLine}
               /></div>}
-        </div>
+        </CharacterViewport>
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}

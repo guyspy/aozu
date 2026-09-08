@@ -1,6 +1,7 @@
 import { en, type Messages } from './en'
 
 export const ptBR: Messages = {
+  preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Fechar', productName: 'AOZU', back: 'Voltar', cancel: 'Cancelar', language: 'Idioma' },
   navigation: { ...en.navigation, primary: 'Navegação principal' },
