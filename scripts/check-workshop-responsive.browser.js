@@ -69,13 +69,27 @@ try {
     matches()
     button('Cancel').click()
     await ready(() => !find('#character-profile input'))
+    button('Model sheet').click()
+    await ready(() => find('.model-sheet-content'))
+    const sheet = find('.model-sheet').getBoundingClientRect()
+    const selector = find('.model-sheet [aria-label="Saved Appearance"]').getBoundingClientRect()
+    for (const key of ['x', 'y']) {
+      assert(Math.abs(sheet[key] - before[0][key]) < 1, `Model sheet panel ${key} shifts at ${width}px`)
+      assert(Math.abs(selector[key] - before[2][key]) < 1, `Model sheet toolbar ${key} shifts at ${width}px`)
+    }
+    assert(find('.model-sheet-content').clientHeight > 100 && find('.model-sheet').scrollWidth <= find('.model-sheet').clientWidth + 1, 'Model sheet must retain a scrollable board without overflow')
+    find('.model-sheet-content').scrollTop = find('.model-sheet-content').scrollHeight
+    assert(find('.model-sheet [aria-label="Saved Appearance"]').getBoundingClientRect().y === selector.y, 'Scrolling references moved the toolbar')
   }
   button('Appearance').click()
   await ready(() => !find('#character-profile'))
   frame.style.width = '844px'; frame.style.height = '390px'
   await wait(350)
   assert(find('.character-stage-canvas').clientHeight > 200 && find('#root').scrollHeight > 390, 'Short windows must scroll instead of collapsing the preview')
-  result.textContent = 'PASS: responsive drawer/buttons, stable Appearance/profile preview at 320–1280px including profile editing, and short-window scrolling'
+  button('Model sheet').click()
+  await ready(() => find('.model-sheet-content'))
+  assert(find('.model-sheet-toolbar').clientHeight < 150 && find('.model-sheet-content').clientHeight > 100, 'Short windows must keep a compact model sheet toolbar and usable board')
+  result.textContent = 'PASS: responsive drawer/buttons, stable Appearance/profile preview and aligned Model sheet panel/toolbar at 320–1280px, and short-window scrolling'
 } catch (error) {
   result.textContent = `FAIL: ${error.message}`
   throw error

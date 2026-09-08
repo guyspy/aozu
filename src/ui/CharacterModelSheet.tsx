@@ -7,6 +7,7 @@ import { CHARACTER_REFERENCE_VIEWS, CHARACTER_REFERENCE_KINDS, type CharacterDra
 import { DataControls } from '@/ui/DataControls'
 import { BlobImage } from '@/ui/BlobImage'
 import { Button } from '@/ui/components/ui/button'
+import { Input } from '@/ui/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
 
 export function CharacterModelSheet({ draft, edit, commit, revert, upload, appearanceSelector, busy, error, saveFeedback, referenceId: view, openReference }: {
@@ -51,13 +52,11 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     </article>
   }
 
-  return <section className="model-sheet min-h-0 flex-1 overflow-auto" aria-label={t('modelSheet.title')} data-reference-view={view}>
-    <div className="model-sheet-toolbar">
-      <div><h2 className="font-heading text-xl font-semibold">{draft.name} · {t('modelSheet.fullBody')}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p></div>
-      <div className="min-w-0 flex-1 basis-48">{appearanceSelector}</div>
+  return <section className="model-sheet mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border bg-background sm:mt-3" aria-label={t('modelSheet.title')} data-reference-view={view}>
+    <div className="model-sheet-toolbar draft-workshop-grid shrink-0">
+      <div className="min-w-0">{appearanceSelector}</div>
       <label className="model-sheet-height"><span><RulerIcon className="size-4" />{t('modelSheet.height')}</span>
-        <input type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')}
+        <Input type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')}
           value={sheet.heightCm ?? ''} onChange={(event) => {
             const heightCm = event.currentTarget.value === '' ? undefined : event.currentTarget.valueAsNumber
             if (heightCm === undefined || Number.isFinite(heightCm)) edit(withCharacterModelSheet(draft, { ...sheet, heightCm }))
@@ -67,6 +66,11 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
             commit((current) => updateCharacterModelSheet(current, { ...characterModelSheet(current), heightCm }))
           }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') revert() }} />
       </label>
+    </div>
+    <div className="model-sheet-content mt-3 min-h-0 flex-1 overflow-auto">
+    <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h2 className="font-heading text-xl font-semibold">{t('modelSheet.fullBody')}</h2>
+      <p className="text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p>
     </div>
     <p className="mb-4 text-sm text-muted-foreground">{t('modelSheet.brief')}</p>
     <div className="model-sheet-grid">{CHARACTER_REFERENCE_VIEWS.map(card)}</div>
@@ -105,6 +109,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
         </li>)}
       </ul>
     </section>
+    </div>
     <Sheet open={Boolean(view && reference)} onOpenChange={(open) => { if (!open) { revert(); openReference() } }}>
       <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
         {view && reference && <>
