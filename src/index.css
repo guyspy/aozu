@@ -378,7 +378,7 @@ body::before {
   .collection-cover h2 { font-size: 1.1rem; }
 }
 
-/* One treatment for every icon action: card actions (destructive included) and the workshop footer's export/duplicate. */
+/* One treatment for every icon action: card and character actions, including destructive ones. */
 .workbench-actions [data-variant="outline"] {
   width: 2rem;
   height: 2rem;
@@ -491,7 +491,7 @@ button.gate-action {
 }
 
 /* ---------------------------------------------------------------------------
-   Character Workshop: ChatGPT guide, the stage, and the doll workbench
+   Character workspace: document tabs, preview and appearance tools
    --------------------------------------------------------------------------- */
 
 /* Fills whatever the header leaves, so the editor never adds a scroll range of its own. */
@@ -501,12 +501,52 @@ button.gate-action {
   overflow: hidden;
 }
 
+/* Tabs share the glass document's top edge; character actions belong to the entire document. */
+.draft-workshop { --workspace-padding: 0.85rem; --workspace-tab-height: 2.75rem; }
+#root main.draft-workshop::before { top: calc(var(--workspace-padding) + var(--workspace-tab-height) - 1px); }
+.character-workspace-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; flex-shrink: 0; }
+.character-workspace-tabs { display: flex; align-items: flex-end; gap: 0.2rem; min-width: 0; height: var(--workspace-tab-height); }
+.character-workspace-tabs .character-workspace-tab {
+  position: relative;
+  height: calc(var(--workspace-tab-height) - 0.35rem);
+  padding: 0.65rem 1rem;
+  border: 1px solid rgb(125 77 35 / 25%);
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: rgb(192 155 91 / 18%);
+  color: #78573b;
+  box-shadow: inset 0 1px rgb(255 248 219 / 35%);
+  transform: none;
+  transition: background-color 150ms, color 150ms;
+}
+.character-workspace-tabs .character-workspace-tab:hover { background: rgb(255 242 201 / 36%); }
+.character-workspace-tabs .character-workspace-tab[aria-current="page"] {
+  z-index: 1;
+  height: var(--workspace-tab-height);
+  border-color: rgb(125 77 35 / 34%);
+  background: linear-gradient(rgb(255 249 224 / 58%), rgb(241 224 184 / 68%));
+  color: #4b2e1c;
+  font-weight: 700;
+  box-shadow: inset 0 1px rgb(255 252 237 / 80%);
+}
+.character-workspace-tab[aria-current="page"]::after { content: ''; position: absolute; inset: auto 0 -1px; height: 2px; background: #ecdbb2; }
+.character-workspace-tab:focus-visible { z-index: 2; }
+.character-actions { padding-bottom: 0.3rem; }
+@media (min-width: 640px) { .draft-workshop { --workspace-padding: 1.5rem; } }
+@media (max-width: 639px) {
+  .character-workspace-bar { flex-wrap: wrap; gap: 0; }
+  .character-actions { margin-left: auto; padding-bottom: 0.5rem; }
+  .character-workspace-tabs { order: 1; width: 100%; }
+  .character-workspace-tabs .character-workspace-tab { flex: 1; padding-inline: 0.5rem; font-size: 0.75rem; }
+  #root main.draft-workshop::before { top: calc(var(--workspace-padding) + var(--workspace-tab-height) + 2.5rem - 1px); }
+}
+@media (prefers-reduced-motion: reduce) { .character-workspace-tabs .character-workspace-tab { transition: none; } }
+
 .draft-workshop-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(7rem, 1fr);
   gap: 0.75rem;
   align-items: stretch;
-  transition: grid-template-columns 280ms ease, gap 280ms ease;
 }
 
 .draft-workshop-grid.is-profile-open {
@@ -531,7 +571,6 @@ button.gate-action {
 
 .doll-workbench {
   overflow: hidden;
-  transition: opacity 180ms ease, padding 280ms ease, border-width 280ms ease;
 }
 
 .character-stage-content {
@@ -540,7 +579,6 @@ button.gate-action {
   flex: 1;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
   gap: 0;
-  transition: grid-template-columns 280ms ease, gap 280ms ease;
 }
 
 .character-stage-preview {
@@ -1048,12 +1086,7 @@ button.gate-action {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .draft-workshop-grid,
-  .character-stage-content,
-  .character-profile-panel,
-  .doll-workbench {
-    transition: none;
-  }
+  .character-profile-panel { transition: none; }
 }
 
 /* Reference sheets share the workshop shell and the collection's parchment cards. */
@@ -1077,5 +1110,3 @@ button.gate-action {
 .model-sheet-guide.is-feet span { color: #286647; }
 .model-sheet-replace { position: relative; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; }
 @media (max-width: 699px) { .model-sheet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; } }
-
-.character-actions > summary::-webkit-details-marker { display: none; }

@@ -1,6 +1,5 @@
-import { ArrowLeftIcon, EllipsisIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -10,6 +9,7 @@ import type { CharacterFitSuggestion } from '@/core/application/character-alignm
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
+import { activeCharacterAppearance } from '@/core/application/character-appearances'
 import { CharacterAppearances } from '@/ui/CharacterAppearances'
 import type { CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
@@ -330,16 +330,13 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
               {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
             </span>
 
-  const characterActions = <details className="character-actions relative">
-    <summary aria-label={t('characterDraft.characterActions')} title={t('characterDraft.characterActions')} className="flex size-9 cursor-pointer list-none items-center justify-center rounded-md hover:bg-accent"><EllipsisIcon className="size-5" /></summary>
-    <div className="absolute right-0 top-full mt-2 flex gap-2 rounded-lg border bg-background p-3 shadow-lg">
-          <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
-            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
-          </div></TooltipProvider>
-        </div>
-  </details>
+  const characterActions = <div className="character-actions workbench-actions flex shrink-0 items-center gap-1" role="group" aria-label={t('characterDraft.characterActions')}>
+    <TooltipProvider>
+      <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{t('characterDraft.saveAs')}</TooltipContent></Tooltip>
+      <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
+      <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
+    </TooltipProvider>
+  </div>
 
   const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')}>
         <div className="workbench-lockable">
@@ -493,22 +490,20 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
       {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
     </TooltipProvider>}
-    {previewLayers.length > 0 && !isModelSheet && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}
+    {previewLayers.length > 0 && !isModelSheet && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}
     {saveFeedback}
   </CharacterAppearances>
-  const headerActions = document.getElementById('character-actions')
 
   return <Sheet open={narrow && workbenchOpen} onOpenChange={setWorkbenchOpen}><div className="draft-workshop-shell">
-    {headerActions && createPortal(characterActions, headerActions)}
     <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={isProfile ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
-      <nav className="my-3 flex shrink-0 gap-1" aria-label={t('modelSheet.mode')}>
-        {(['expressions', 'profile', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" size="sm" variant={mode === activeMode ? 'secondary' : 'ghost'} aria-current={mode === activeMode ? 'page' : undefined}
+      <div className="character-workspace-bar"><nav className="character-workspace-tabs" aria-label={t('modelSheet.mode')}>
+        {(['expressions', 'profile', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" className="character-workspace-tab" variant={mode === activeMode ? 'secondary' : 'ghost'} aria-current={mode === activeMode ? 'page' : undefined}
           onClick={() => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : mode === 'profile' ? 'characterDraft.profile.title' : 'modelSheet.appearance')}</Button>)}
-      </nav>
+      </nav>{characterActions}</div>
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}

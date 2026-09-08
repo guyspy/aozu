@@ -52,7 +52,7 @@ AOZU exposes these public tools on every page:
 | `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides, and set or clear character height against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
-| `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or save-as/select/rename a look against its exact revision |
+| `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or create/save-as/select/rename/delete a look against its exact revision |
 | `set_character_variant_transform` | Apply an explicit translation and uniform scale when a generated layer needs a small alignment correction |
 | `undo_character_change` | Undo the latest settled Appearance edit, preserving Character profile and shared height |
 | `redo_character_change` | Redo within the current Appearance session; switching looks resets history |
@@ -111,11 +111,14 @@ layers or atlas frames. Cross-character scale lineups are a subsequent step.
 
 Named Appearances autosave their current expression, outfit and ordered props.
 Use **Save as new Appearance** before editing to preserve the original look.
+The dropdown’s **Add new Appearance** starts with the shared base body, no selected
+variants and an empty model sheet. Existing unnamed work appears as an editable
+Default look; viewing it does not write until the next edit.
 Linked front references follow composition edits; other art stays intact with a
 review flag. Switching looks starts a fresh Undo session. **Character profile**
 is the middle tab and previews the current Appearance alongside the existing
-biography and attributes. Character ZIP, copy and delete live in the header menu;
-Appearance switching, Save as, Undo/Redo and PNG stay beside the preview.
+biography and attributes. Character ZIP, copy and delete sit at the right of the glass document tabs;
+A shadcn menu beside the preview groups Appearance switching, inline Rename, Save as, Add new and Delete; Undo/Redo, PNG and autosave status stay on the toolbar. Delete preserves shared art and requires at least one remaining look.
 
 The page reserves the remaining sections without creating empty character data.
 See the [model sheet plan](docs/character-model-sheets.md) for the agreed scope,
@@ -154,7 +157,7 @@ action still accepts single-Character ZIPs.
 
 In the workshop, **Download PNG** saves the current visible composition as one
 transparent `512 × 768` PNG, including the selected skin, expression, props, and
-live placement. Diagnostic guides are omitted. Later-added props paint above
+live placement. Its filename is `CharacterName_AppearanceName.png`. Diagnostic guides are omitted. Later-added props paint above
 earlier props within their front/back rig planes. Remove and readd a prop to move
 it to the top; selecting an already active prop keeps its position. That order
 survives undo/redo, reload, ZIP export, and WebMCP selection.

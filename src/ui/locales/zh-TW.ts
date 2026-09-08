@@ -3,14 +3,17 @@ import { en, type Messages } from './en'
 export const zhTW: Messages = {
   modelSheet: {
     appearances: {
-      title: '造型', choose: '已儲存造型', unnamed: '未命名造型',
+      title: '造型', choose: '已儲存造型', addNew: '新增造型', newName: '新造型',
       saveNew: '另存為新造型', rename: '重新命名', name: '造型名稱', save: '建立造型',
-      saveNewHelp: '先另存為新造型，再修改，即可保留原本造型。',
+      copyName: '{{name}} 副本',
+      delete: '刪除造型', deleteTitle: '要刪除這個造型嗎？',
+      deleteDescription: '刪除「{{name}}」及其設定集？角色共用素材與其他造型會保留。',
+      keepOne: '至少保留一個造型',
     },
     title: '設定集', appearance: '造型', mode: '角色工作區', fullBody: '全身四視圖',
     description: '把同一個角色的外形定下來。加入參考圖，或請 ChatGPT 協助補齊。',
     count: '{{count}} / 4 個視角', height: '身高（cm）', unknownHeight: '尚未設定',
-    brief: '選擇已儲存的造型，空白正面會自動帶入該套 A-pose。其餘視角維持同一套服裝與姿勢，保留完整頭部與腳底。',
+    brief: '為選取的造型加入各個視角，使用同一套服裝與姿勢，並讓角色完整入鏡。',
     views: { front: '正面', 'three-quarter': '¾ 側前方', side: '側面', back: '背面' },
     add: '加入參考圖', uploadView: '上傳{{view}}參考圖', openView: '開啟{{view}}參考圖',
     needsReview: '需與目前造型重新核對',

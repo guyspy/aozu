@@ -9,7 +9,7 @@ import {
 } from '../domain/character.ts'
 import { copyCharacter, createCharacterDraft, migrateCharacterDraft, validateCharacterAssetInspection } from './character-creation.ts'
 import { validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
-import { restoreCharacterAppearance, sameAppearanceEdit, saveCurrentCharacterAppearance } from './character-appearances.ts'
+import { restoreCharacterAppearance, sameAppearanceEdit, saveCurrentCharacterAppearance, withDefaultCharacterAppearance } from './character-appearances.ts'
 import {
   CharacterRevisionConflict,
   type AssetRepositoryFactory,
@@ -71,7 +71,7 @@ export function createCharacterEditor(
   const read = async (characterId: string): Promise<CharacterRecord> => {
     const record = await characters.get(characterId)
     if (!record) throw new Error('Character not found')
-    const character = migrateCharacterDraft(record.character)
+    const character = withDefaultCharacterAppearance(migrateCharacterDraft(record.character))
     const variants = await Promise.all(character.variants.map(async (variant) => ({
       ...variant,
       layers: Object.fromEntries(await Promise.all(Object.entries(variant.layers).map(async ([layer, asset]) =>
@@ -81,6 +81,7 @@ export function createCharacterEditor(
   }
 
   const activate = ({ character, version }: CharacterRecord) => {
+    character = withDefaultCharacterAppearance(character)
     persistedCharacter = character
     store.setState({ activeCharacterId: character.id, character, persistedRevision: version, persistedUpdatedAt: character.updatedAt, saveStatus: 'saved', saveError: undefined })
     history.getState().clear()
@@ -131,7 +132,7 @@ export function createCharacterEditor(
       ? { character: createCharacterDraft(undefined, 'new'), version: 0 }
       : await read(characterId)
     activate(record)
-    return record.character
+    return store.getState().character!
   }
 
   /** Copies stay distinguishable in the library: `<name> copy`, then the smallest free numeric suffix. */

@@ -1,9 +1,12 @@
-import { useState, type ReactNode } from 'react'
-import { CopyPlusIcon, PencilIcon } from 'lucide-react'
+import { useRef, useState, type ReactNode } from 'react'
+import { CheckIcon, ChevronsUpDownIcon, PencilIcon, PlusIcon, SaveIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { activeCharacterAppearance, type CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import type { CharacterDraft } from '@/core/domain/character'
 import { Button } from '@/ui/components/ui/button'
+import { Input } from '@/ui/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/ui/components/ui/alert-dialog'
 
 export function CharacterAppearances({ draft, change, busy, manage = false, children }: {
   draft: CharacterDraft
@@ -14,34 +17,64 @@ export function CharacterAppearances({ draft, change, busy, manage = false, chil
 }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<{ action: 'save-as' | 'rename'; label: string }>()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
   const active = activeCharacterAppearance(draft)
-  return <section className="min-w-0 shrink-0" aria-label={t('modelSheet.appearances.title')} data-has-uncommitted-input={Boolean(form)}>
+  const canDelete = (draft.appearances?.length ?? 0) > 1
+  const closeForm = () => { setForm(undefined); requestAnimationFrame(() => trigger.current?.focus()) }
+  const newLabel = (base: string) => {
+    let label = base.slice(0, 80)
+    for (let suffix = 2; draft.appearances?.some((look) => look.label === label); suffix++) {
+      const ending = ` ${suffix}`
+      label = `${base.slice(0, 80 - ending.length)}${ending}`
+    }
+    return label
+  }
+  return <section className="min-w-0 shrink-0" aria-label={t('modelSheet.appearances.title')} data-has-uncommitted-input={Boolean(form) || deleteOpen}>
     <div className="appearance-toolbar flex flex-wrap items-center gap-1">
-      <label className="flex min-w-0 flex-1 basis-36 items-center text-sm font-semibold">
-        <select className="min-w-0 flex-1 rounded border bg-background p-2" aria-label={t('modelSheet.appearances.choose')}
-          value={draft.activeAppearanceId ?? ''} disabled={busy || Boolean(form) || !draft.appearances?.length}
-          onChange={(event) => change({ action: 'select', id: event.currentTarget.value })}>
-          {!active && <option value="" disabled>{t('modelSheet.appearances.unnamed')}</option>}
-          {draft.appearances?.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-        </select>
-      </label>
-      {manage && <Button type="button" size="icon" variant="ghost" title={t('modelSheet.appearances.saveNewHelp')} aria-label={t('modelSheet.appearances.saveNew')} disabled={busy || Boolean(form)} onClick={() => setForm({ action: 'save-as', label: '' })}><CopyPlusIcon /></Button>}
-      {manage && active && <Button type="button" size="icon" variant="ghost" title={t('modelSheet.appearances.rename')} aria-label={t('modelSheet.appearances.rename')} disabled={busy || Boolean(form)} onClick={() => setForm({ action: 'rename', label: active.label })}><PencilIcon /></Button>}
+      {form ? <form className="flex min-w-0 flex-1 basis-36 items-center gap-1" onSubmit={(event) => {
+        event.preventDefault()
+        change({ ...form, id: form.action === 'save-as' ? `look-${crypto.randomUUID().slice(0, 8)}` : active!.id })
+        closeForm()
+      }}>
+        <Input autoFocus required maxLength={80} aria-label={t('modelSheet.appearances.name')} value={form.label} disabled={busy}
+          onFocus={(event) => event.currentTarget.select()} onChange={(event) => setForm({ ...form, label: event.currentTarget.value })}
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); closeForm() } }} />
+        <Button type="button" size="icon" variant="ghost" aria-label={t('common.cancel')} onClick={closeForm} disabled={busy}><XIcon /></Button>
+        <Button type="submit" size="icon" variant="ghost" aria-label={t(form.action === 'rename' ? 'modelSheet.appearances.rename' : 'modelSheet.appearances.save')} disabled={busy || !form.label.trim()}><CheckIcon /></Button>
+      </form> : <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button ref={trigger} type="button" variant="outline" className="min-w-0 flex-1 basis-36 justify-between" aria-label={t('modelSheet.appearances.choose')} disabled={busy}>
+          <span className="truncate">{active?.label}</span><ChevronsUpDownIcon className="text-muted-foreground" />
+        </Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-56 max-w-[calc(100vw-2rem)]">
+          {manage && active && <><DropdownMenuItem onSelect={() => setForm({ action: 'rename', label: active.label })}><PencilIcon />{t('modelSheet.appearances.rename')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setForm({ action: 'save-as', label: newLabel(t('modelSheet.appearances.copyName', { name: active.label })) })}><SaveIcon />{t('modelSheet.appearances.saveNew')}</DropdownMenuItem>
+            <DropdownMenuSeparator /></>}
+          <DropdownMenuGroup><DropdownMenuLabel>{t('modelSheet.appearances.choose')}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={draft.activeAppearanceId} onValueChange={(id) => change({ action: 'select', id })}>
+              {draft.appearances?.map(({ id, label }) => <DropdownMenuRadioItem key={id} value={id}><span className="truncate">{label}</span></DropdownMenuRadioItem>)}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+          {manage && <>
+            <DropdownMenuItem onSelect={() => {
+              change({ action: 'create', id: `look-${crypto.randomUUID().slice(0, 8)}`, label: newLabel(t('modelSheet.appearances.newName')) })
+            }}><PlusIcon />{t('modelSheet.appearances.addNew')}</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={() => setDeleteOpen(true)}><Trash2Icon />{t('modelSheet.appearances.delete')}</DropdownMenuItem>
+            {!canDelete && <DropdownMenuLabel>{t('modelSheet.appearances.keepOne')}</DropdownMenuLabel>}
+          </>}
+        </DropdownMenuContent>
+      </DropdownMenu>}
       {children}
     </div>
-    {form && <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={(event) => {
-      event.preventDefault()
-      const id = form.action === 'save-as' ? `look-${crypto.randomUUID().slice(0, 8)}` : active!.id
-      const command = { ...form, id }
-      change(command)
-      setForm(undefined)
-    }}>
-      <label className="grid min-w-0 flex-1 gap-1 text-sm">{t('modelSheet.appearances.name')}
-        <input autoFocus required maxLength={80} className="min-w-0 rounded border bg-background p-2" value={form.label}
-          onChange={(event) => setForm({ ...form, label: event.currentTarget.value })} onKeyDown={(event) => { if (event.key === 'Escape') setForm(undefined) }} />
-      </label>
-      <Button type="submit" size="sm" disabled={busy || !form.label.trim()}>{t(form.action === 'rename' ? 'modelSheet.appearances.rename' : 'modelSheet.appearances.save')}</Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setForm(undefined)}>{t('common.cancel')}</Button>
-    </form>}
+    <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <AlertDialogContent><AlertDialogHeader>
+        <AlertDialogTitle>{t('modelSheet.appearances.deleteTitle')}</AlertDialogTitle>
+        <AlertDialogDescription>{t('modelSheet.appearances.deleteDescription', { name: active?.label })}</AlertDialogDescription>
+      </AlertDialogHeader><AlertDialogFooter>
+        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+        <AlertDialogAction variant="destructive" disabled={busy || !canDelete} onClick={() => change({ action: 'delete', id: active!.id })}>{t('modelSheet.appearances.delete')}</AlertDialogAction>
+      </AlertDialogFooter></AlertDialogContent>
+    </AlertDialog>
   </section>
 }

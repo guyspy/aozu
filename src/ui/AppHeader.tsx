@@ -1,5 +1,4 @@
 import { ArrowLeftIcon, LanguagesIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
@@ -13,10 +12,9 @@ type AppHeaderProps = {
   webmcp: WebMcpState
   title?: string
   onBack?: () => void
-  actions?: ReactNode
 }
 
-export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
+export function AppHeader({ webmcp, title, onBack }: AppHeaderProps) {
   const { t, i18n } = useTranslation()
   const label = t(`main.webmcp.${webmcp.status}`, { count: webmcp.toolCount })
   const color = webmcp.status === 'ready' ? 'bg-emerald-500' : webmcp.status === 'registering' ? 'bg-amber-500'
@@ -57,7 +55,6 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
             />
             {webmcp.status === 'ready' ? t('main.webmcp.readyShort', { count: webmcp.toolCount }) : 'WebMCP'}
           </span>
-          {actions}
         </div>
       </nav>
     </header>

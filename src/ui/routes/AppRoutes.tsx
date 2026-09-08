@@ -125,7 +125,6 @@ export function AppRoutes({ application }: { application: Application }) {
     <AppHeader
       webmcp={webmcp}
       title={character?.name}
-      actions={editing ? <div id="character-actions" /> : undefined}
       onBack={editing ? () => navigate(`/collections/${characterBook}`) : undefined}
     />
     <Routes>

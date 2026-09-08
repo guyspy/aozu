@@ -4,6 +4,10 @@ import { validateModelSheet } from './character-model-sheet.ts'
 export const activeCharacterAppearance = (draft: Pick<CharacterDraft, 'appearances' | 'activeAppearanceId'>) =>
   draft.appearances?.find(({ id }) => id === draft.activeAppearanceId)
 
+/** Adopt legacy working art in memory; the next real edit persists it through the normal save. */
+export const withDefaultCharacterAppearance = (draft: CharacterDraft): CharacterDraft => draft.appearances?.length ? draft
+  : changeCharacterAppearance(draft, { action: 'save-as', id: 'default', label: 'Default' })
+
 export const sameCharacterSelection = (left: CharacterSelection, right: CharacterSelection) =>
   left.expression === right.expression && left.outfit === right.outfit &&
   left.props.length === right.props.length && left.props.every((id, index) => id === right.props[index])
@@ -63,18 +67,20 @@ export function validateCharacterAppearances(draft: CharacterAssetContent<unknow
   if (draft.activeAppearanceId !== undefined && !ids.has(draft.activeAppearanceId)) throw new Error('Active Appearance is missing')
 }
 
-export type CharacterAppearanceCommand = { action: 'save-as' | 'select' | 'rename'; id: string; label?: string }
+export type CharacterAppearanceCommand = { action: 'create' | 'save-as' | 'select' | 'rename' | 'delete'; id: string; label?: string }
 export function changeCharacterAppearance(draft: CharacterDraft, command: CharacterAppearanceCommand): CharacterDraft {
   const { action, id, label } = command
   const existing = draft.appearances?.find((appearance) => appearance.id === id)
   let next: CharacterDraft
-  if (action === 'save-as') {
+  if (action === 'save-as' || action === 'create') {
     if (existing) throw new Error('Appearance already exists; save with a new ID to preserve its references')
+    if (action === 'create') draft = withDefaultCharacterAppearance(draft)
     const first = !draft.appearances?.length
+    const selected = action === 'create' ? { props: [] } : draft.selected
     const { heightCm, ...references } = draft.modelSheet ?? { views: {} }
-    next = { ...draft, activeAppearanceId: id,
-      appearances: [...draft.appearances ?? [], { id, label: label?.trim() ?? '', selected: structuredClone(draft.selected),
-        ...(first && draft.modelSheet ? { modelSheet: references } : {}) }],
+    next = { ...draft, activeAppearanceId: id, selected,
+      appearances: [...draft.appearances ?? [], { id, label: label?.trim() ?? '', selected: structuredClone(selected),
+        ...(action === 'create' ? { modelSheet: { views: {} } } : first && draft.modelSheet ? { modelSheet: references } : {}) }],
       ...(first && draft.modelSheet ? { modelSheet: { views: {}, ...(heightCm !== undefined ? { heightCm } : {}) } } : {}),
     }
   } else {
@@ -86,6 +92,12 @@ export function changeCharacterAppearance(draft: CharacterDraft, command: Charac
     } else if (action === 'rename') {
       if (existing.label === label?.trim()) return draft
       next = { ...draft, appearances: draft.appearances!.map((appearance) => appearance === existing ? { ...appearance, label: label?.trim() ?? '' } : appearance) }
+    } else if (action === 'delete') {
+      if (label !== undefined) throw new Error('Deleting an Appearance does not rename it')
+      const appearances = draft.appearances!.filter((appearance) => appearance !== existing)
+      if (!appearances.length) throw new Error('Keep at least one Appearance')
+      next = { ...draft, appearances, ...(draft.activeAppearanceId === id
+        ? { activeAppearanceId: appearances[0].id, selected: structuredClone(appearances[0].selected) } : {}) }
     } else throw new Error('Unknown Appearance action')
   }
   validateCharacterAppearances(next)

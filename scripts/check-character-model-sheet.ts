@@ -4,7 +4,7 @@ import { bootMantleRuntime } from '@aotter/mantle-runtime'
 import { createCharacterDraft, resolveCharacterDraftAtlasSources, validateCharacterAssetInspection } from '../src/core/application/character-creation.ts'
 import { characterAssets, mapCharacterAssets } from '../src/core/application/character-assets.ts'
 import { characterModelSheet, setModelSheetReference, updateCharacterModelSheet, validateModelSheet, validateReferenceInspection, validateReferencePng } from '../src/core/application/character-model-sheet.ts'
-import { changeCharacterAppearance, sameCharacterSelection, validateCharacterAppearances } from '../src/core/application/character-appearances.ts'
+import { changeCharacterAppearance, sameCharacterSelection, validateCharacterAppearances, withDefaultCharacterAppearance } from '../src/core/application/character-appearances.ts'
 import { createCharacterEditor } from '../src/core/application/character-editor.ts'
 import { createCharacterWorkspaceRepository } from '../src/adapters/indexeddb/character-workspace-repository.ts'
 import { createIndexedDbAssetRepository } from '../src/adapters/indexeddb/asset-repository.ts'
@@ -58,14 +58,17 @@ assert.deepEqual(saved.character.modelSheet, draft.modelSheet)
 assert.equal((await repository.listSummaries()).find(({ id }) => id === saved.character.id)?.previewKey, '[]', 'reference art leaves card composite cache unchanged')
 const editor = createCharacterEditor(repository, createIndexedDbAssetRepository, inspect)
 await editor.open(saved.character.id)
-await editor.dispatch((current) => updateCharacterModelSheet(current, { ...current.modelSheet!, heightCm: undefined }))
+assert.equal(editor.store.getState().character?.activeAppearanceId, 'default')
+assert.deepEqual(characterModelSheet(editor.store.getState().character!), draft.modelSheet, 'Default adopts legacy reference art')
+assert.equal((await repository.get(saved.character.id))?.version, saved.version, 'Default adoption does not write on read')
+await editor.dispatch((current) => updateCharacterModelSheet(current, { ...characterModelSheet(current), heightCm: undefined }))
 assert.equal(editor.store.getState().saveStatus, 'saved')
 assert.equal((await repository.get(saved.character.id))?.character.modelSheet?.heightCm, undefined)
 assert.equal(await editor.undo(), false, 'Shared height is outside Appearance history')
-await editor.dispatch((current) => updateCharacterModelSheet(current, { ...current.modelSheet!, heightCm: 185 }))
+await editor.dispatch((current) => updateCharacterModelSheet(current, { ...characterModelSheet(current), heightCm: 185 }))
 const copy = await editor.duplicate(editor.store.getState().character!)
 assert.notEqual(copy.character.packId, draft.packId)
-assert.deepEqual(copy.character.modelSheet, draft.modelSheet)
+assert.deepEqual(characterModelSheet(copy.character), draft.modelSheet)
 const restored = (await readCharacterDraftZip(await exportCharacterDraftZip(draft), inspect)).draft
 assert.deepEqual(restored.modelSheet, draft.modelSheet, 'individual ZIP preserves guides, notes, height and original art')
 const { id, updatedAt: _updatedAt, ...data } = draft
@@ -81,6 +84,14 @@ assert.equal(characterAssets(library.legacyDrafts[0]).length, 4)
 await assert.rejects(inspectCharacterLibrarySnapshot({ ...snapshot, assets: [] }, inspect), /missing or inconsistent/)
 
 const first = changeCharacterAppearance(draft, { action: 'save-as', id: 'gym', label: 'Gym' })
+const adopted = withDefaultCharacterAppearance(draft)
+assert.equal(withDefaultCharacterAppearance(adopted), adopted, 'Default adoption is idempotent')
+const fresh = changeCharacterAppearance(draft, { action: 'create', id: 'fresh', label: 'Fresh' })
+assert.equal(fresh.variants, draft.variants, 'Add new reuses the shared assets')
+assert.deepEqual(fresh.selected, { props: [] })
+assert.deepEqual(characterModelSheet(fresh), { views: {}, heightCm: 185 }, 'Add new has no reference art')
+assert.deepEqual(fresh.appearances?.[0], adopted.appearances?.[0], 'Add new preserves the existing working look and references')
+assert.throws(() => changeCharacterAppearance(fresh, { action: 'create', id: 'fresh', label: 'Overwrite' }), /already exists/)
 assert.deepEqual(characterModelSheet(first), draft.modelSheet, 'first Appearance adopts every existing reference without changing art')
 assert.deepEqual(first.modelSheet, { views: {}, heightCm: 185 }, 'height stays on the character')
 assert.equal(characterAssets(first).length, 4, 'adoption does not duplicate assets')
@@ -90,6 +101,16 @@ const withSide = updateCharacterModelSheet(another, { heightCm: 190, views: { si
 assert.equal(characterModelSheet(changeCharacterAppearance(withSide, { action: 'select', id: 'gym' })).views.side, undefined)
 assert.equal(characterModelSheet(changeCharacterAppearance(withSide, { action: 'select', id: 'gym' })).heightCm, 190, 'all Appearances share height')
 assert.deepEqual(changeCharacterAppearance(withSide, { action: 'select', id: 'gym' }).selected, first.selected)
+const deletedActive = changeCharacterAppearance(withSide, { action: 'delete', id: 'formal' })
+assert.equal(deletedActive.activeAppearanceId, 'gym')
+assert.deepEqual(deletedActive.selected, first.selected)
+assert.deepEqual(characterModelSheet(deletedActive), { ...characterModelSheet(first), heightCm: 190 })
+assert.equal(deletedActive.variants, withSide.variants, 'Deleting a look keeps shared art')
+const deletedInactive = changeCharacterAppearance(withSide, { action: 'delete', id: 'gym' })
+assert.equal(deletedInactive.activeAppearanceId, 'formal')
+assert.equal(deletedInactive.selected, withSide.selected)
+assert.throws(() => changeCharacterAppearance(first, { action: 'delete', id: 'gym' }), /at least one/)
+assert.throws(() => changeCharacterAppearance(withSide, { action: 'delete', id: 'missing' }), /not found/)
 assert.equal(sameCharacterSelection({ props: ['a', 'b'] }, { props: ['b', 'a'] }), false, 'prop order is part of the combination')
 assert.throws(() => changeCharacterAppearance(first, { action: 'save-as', id: 'gym', label: 'Overwrite' }), /already exists/)
 assert.throws(() => changeCharacterAppearance(first, { action: 'save-as', id: '../bad', label: 'Bad' }), /Appearance/)
