@@ -39,9 +39,10 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, useCu
 
   const card = (id: string, index: number) => {
     const item = references[id]
-    return <article key={id} className="model-sheet-card">
+    const size = item?.asset.inspection
+    return <article key={id} className={`model-sheet-card${size && size.width > size.height ? ' col-span-2' : ''}`}>
       <h3><span className="text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>{label(id)}</h3>
-      {item ? <button type="button" className="model-sheet-art" aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
+      {item ? <button type="button" className="model-sheet-art" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
       </button> : <label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</label>}
       <p className="model-sheet-state">{item && !isTurnaroundView(id) ? [item.kind && t(`modelSheet.kinds.${item.kind}`), item.viewpoint, item.pose].filter(Boolean).join(' · ') : t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>
