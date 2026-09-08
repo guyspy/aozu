@@ -10,10 +10,10 @@ import {
   PROGRESS_LOOP_IDS,
   PROGRESS_BINDING_SCHEMA,
 } from '../domain/playbook.ts'
-import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
+import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_REFERENCE_KINDS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
 import { MAX_REFERENCE_BYTES, MAX_REFERENCE_DIMENSION } from '../application/character-model-sheet.ts'
 import { compileBundle } from '../bundle.ts'
-import { CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
+import { CHARACTER_A_POSE_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
 
 const source = (sourceId: string, manifest: object): ManifestSource => ({
   sourceId,
@@ -232,13 +232,24 @@ const referenceGuidesSchema = objectSchema({
   head: { type: 'number', minimum: 0, maximum: 1 },
   feet: { type: 'number', minimum: 0, maximum: 1 },
 }, ['head', 'feet'])
+const referenceMetadataProperties = {
+  label: { type: 'string', minLength: 1, maxLength: 80 },
+  kind: { enum: CHARACTER_REFERENCE_KINDS },
+  viewpoint: { type: 'string', minLength: 1, maxLength: 80 },
+  pose: { type: 'string', minLength: 1, maxLength: 80 },
+  sourceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+} satisfies Record<string, JsonSchema>
+const referenceIdSchema = { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' } as const
+const referenceSchema = objectSchema({
+  asset: characterAssetDescriptor(referenceInspectionSchema),
+  ...referenceMetadataProperties,
+  notes: { type: 'string', maxLength: 1000 },
+  guides: referenceGuidesSchema,
+}, ['asset'])
 const modelSheetSchema = objectSchema({
   heightCm: { type: 'number', exclusiveMinimum: 0, maximum: 100_000 },
-  views: objectSchema(Object.fromEntries(CHARACTER_REFERENCE_VIEWS.map((view) => [view, objectSchema({
-    asset: characterAssetDescriptor(referenceInspectionSchema),
-    notes: { type: 'string', maxLength: 1000 },
-    guides: referenceGuidesSchema,
-  }, ['asset'])]))),
+  views: objectSchema(Object.fromEntries(CHARACTER_REFERENCE_VIEWS.map((view) => [view, referenceSchema]))),
+  references: { type: 'object', maxProperties: 100, additionalProperties: referenceSchema },
 }, ['views'])
 
 const characterAttributesSchema: JsonSchema = {
@@ -597,9 +608,9 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-workspace.yaml',
     envelope('Procedure', 'inspect-workspace', {
       title: 'Inspect Workspace',
-      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. For opinions on the user's current character or outfit, call with includeSnapshot:true and actually view snapshot.dataUrl before commenting. The clean composite includes the viewed variant, applied outfit/expression/props, transforms, and layer order, without diagnostic overlays. Taking a snapshot never navigates, saves, or changes selections. If snapshot is unavailable, follow its reason instead of describing unseen artwork. Returns the current route, Collection, Character, viewed variant, applied selections, preview mode, localized alignment buttons, open panel, and uncommitted-input flag. For model sheets, follow the returned modelSheet policy: reference PNGs may have opaque backgrounds and keep their original dimensions. The alpha and 512×768 production rules below apply only to appearance layers. Asset-production rules apply only when creating or editing layers; a request for an opinion does not request changes. Follow assetPolicy.workflow.visualReview when editing. ${CHARACTER_BACKGROUND_GUIDANCE}`,
+      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. Returns the current route, Character/Collection, applied selections, viewed variant or model-sheet reference, save/history state, open panel and uncommitted-input flag. includeSnapshot:true returns the clean current Appearance composite or the original image of an open model-sheet reference. Actually view snapshot.dataUrl before visual feedback; if unavailable, follow its reason. A snapshot never navigates, saves or changes selections. Follow nextActions to inspect the task-specific character contract before producing art. Model-sheet references can be opaque and retain their original dimensions; Appearance layers have separate alpha and fixed-canvas rules. A request for an opinion does not request changes.`,
       input: {
-        ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include a clean PNG of the current Character preview for visual feedback. Omit for lightweight metadata only.' } }),
+        ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include the current Appearance preview or open model-sheet reference PNG for visual feedback. Omit for lightweight metadata only.' } }),
         readOnly: true,
       },
       output: toolResultSchema,
@@ -672,9 +683,10 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/navigate-character.yaml',
     envelope('Procedure', 'navigate-character', {
       title: 'Navigate Character',
-      description: `Navigate to the Character library or an exact Character category or variant returned by inspect_workspace. A successful call pushes that route in the SPA without mutating Character data. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Navigate to the Character library, category, variant, or model-sheet reference returned by inspect_workspace. Use destination:character-model-sheet with referenceId to open the exact reference. A successful call pushes that route in the SPA without mutating Character data. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         destination: { enum: ['characters', 'character-expressions', 'character-outfits', 'character-props', 'character-model-sheet'] },
+        referenceId: referenceIdSchema,
         characterId: { type: 'string', minLength: 1 },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
       }, ['destination']),
@@ -770,13 +782,17 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
+      description: `Use scope:model-sheet for reference art, scope:appearance (default) for composited layers. For model sheets, use referenceId (a default view or a supplemental ID), optional label/kind/viewpoint/pose, and images (up to 5 IDs: appearance, canonical, or stored reference IDs) to obtain actual source PNGs. Image bytes are opt-in for model sheets. Capture front from current Appearance using the returned action; supplement it with head/structure/expression/detail/style references. Follow the returned task-specific policy and required browser visual-review workflow. ${CHARACTER_A_POSE_GUIDANCE} Appearance only: Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
           group: { enum: CHARACTER_VARIANT_GROUPS },
           variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
           layer: { enum: ['body', 'head', 'back', 'front'] },
+          scope: { enum: ['appearance', 'model-sheet'] },
+          referenceId: referenceIdSchema,
+          ...referenceMetadataProperties,
+          images: { type: 'array', maxItems: 5, uniqueItems: true, items: referenceIdSchema },
         }, ['characterId']),
         readOnly: true,
       },
@@ -819,12 +835,16 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-model-sheet.yaml',
     envelope('Procedure', 'update-character-model-sheet', {
       title: 'Update Character Model Sheet',
-      description: `Edit a Character's full-body references or optional height after inspect_workspace. Use one front, three-quarter, side or back PNG per view; opaque backgrounds and original dimensions up to 4096 × 4096 / 5 MiB are accepted. Keep the same outfit and standing pose. Send dataUrl with filename and expectedAssetSha256 (null for an empty view) to replace art. Replacement clears old height guides. Notes and guides require existing art. Guides are fractions of original image height, head above feet, excluding hats and held props; null clears guides. Height is in cm; null clears it. Omitted fields stay unchanged. Reference images do not alter appearance layers. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Edit a Character model sheet after inspect_character_contract with scope:model-sheet. Use referenceId for one image: front/three-quarter/side/back are the default turnaround slots; other IDs create supplemental references with label and kind. view is a compatibility alias for a default slot. Optional viewpoint and pose describe that reference. PNGs may be opaque and keep original dimensions up to 4096 × 4096 / 5 MiB. For replacement supply dataUrl, filename and exact expectedAssetSha256 (null for empty). Alternatively fromAppearance:true captures the current composition into front with its source hash; do not supply dataUrl or filename. sourceSha256 identifies the source image used for generated art. remove:true deletes only this reference and requires its exact hash. All edits use expectedRevision. Replacement clears old guides and source hash unless a new source is supplied. Notes and guides need existing art; guides are original-image y fractions with head above feet, excluding hats, raised arms and props. heightCm is the character’s actual height, never inferred from pixels; null clears height or guides. Omitted fields remain unchanged. accepted:true means stored, not visually verified or user-approved. Follow visualReview on the exact reference. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
         heightCm: { type: ['number', 'null'], exclusiveMinimum: 0, maximum: 100_000 },
         view: { enum: CHARACTER_REFERENCE_VIEWS },
+        referenceId: referenceIdSchema,
+        ...referenceMetadataProperties,
+        fromAppearance: { type: 'boolean' },
+        remove: { type: 'boolean' },
         notes: { type: 'string', maxLength: 1000 },
         guides: { oneOf: [{ type: 'null' }, referenceGuidesSchema] },
         dataUrl: { type: 'string', pattern: '^data:image/png;base64,', maxLength: 7_100_000 },
@@ -845,7 +865,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `Install one complete canonical Character layer after inspect_character_contract and its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Install one complete canonical Character layer after inspect_character_contract with scope:appearance. ${CHARACTER_A_POSE_GUIDANCE} Follow its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },

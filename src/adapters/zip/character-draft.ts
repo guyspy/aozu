@@ -115,7 +115,9 @@ export async function readCharacterDraftZip(
     const archived = raw.modelSheet as CharacterModelSheet<unknown>
     validateModelSheet(archived)
     modelSheet = { ...archived, views: Object.fromEntries(await Promise.all(Object.entries(archived.views).map(async ([view, reference]) =>
-      [view, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${view}.png`, true) }]))), }
+      [view, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${view}.png`, true) }]))),
+      ...(archived.references ? { references: Object.fromEntries(await Promise.all(Object.entries(archived.references).map(async ([id, reference]) =>
+        [id, { ...reference, asset: await readAsset(reference.asset, `assets/reference-${id}.png`, true) }]))) } : {}), }
   }
   if (assetPaths.size) throw new Error(`Character Draft contains an unreferenced asset: ${[...assetPaths][0]}`)
 

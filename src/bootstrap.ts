@@ -9,13 +9,14 @@ import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/z
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
-import { CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
+import { CHARACTER_A_POSE_GUIDANCE, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
   CHARACTER_GENERATION_CANVAS,
   CHARACTER_REFERENCE_VIEWS,
   type CharacterReferenceView,
+  type CharacterReferenceMetadata,
   type CharacterReference,
   CHARACTER_RESIZE_MODES,
   CHARACTER_RIG,
@@ -49,7 +50,7 @@ import {
   updateCharacterProfile,
   saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
-import { updateCharacterModelSheet } from './core/application/character-model-sheet.ts'
+import { updateCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
 import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
@@ -71,18 +72,24 @@ const pngFromDataUrl = (dataUrl: string) => {
   if (!match || dataUrl.length > 7_100_000) throw new Error('Expected a PNG data URL under 5 MiB')
   return new Blob([Uint8Array.from(atob(match[1]), (character) => character.charCodeAt(0))], { type: 'image/png' })
 }
+const describeReference = ({ asset, ...reference }: CharacterReference) => ({
+  ...reference, filename: asset.filename, sha256: asset.inspection.sha256, width: asset.inspection.width, height: asset.inspection.height,
+})
+const modelSheetPath = (id: string, referenceId?: string) => `/characters/${encodeURIComponent(id)}/model-sheet${referenceId ? `/${encodeURIComponent(referenceId)}` : ''}`
 const describeModelSheet = (character: CharacterDraft) => ({
   heightCm: character.modelSheet?.heightCm ?? null,
-  views: Object.fromEntries(Object.entries(character.modelSheet?.views ?? {}).map(([view, { asset, ...reference }]) => [view, {
-    ...reference, filename: asset.filename, sha256: asset.inspection.sha256, width: asset.inspection.width, height: asset.inspection.height,
-  }])),
+  views: Object.fromEntries(Object.entries(character.modelSheet?.views ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
+  references: Object.fromEntries(Object.entries(character.modelSheet?.references ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
 })
 const MODEL_SHEET_POLICY = {
   tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
   input: { mediaType: 'image/png', maxBytes: 5 * 1024 * 1024, maxWidth: 4096, maxHeight: 4096, background: 'opaque or transparent', preserveOriginalCanvas: true },
-  instruction: 'One complete full-body reference per view, same outfit and relaxed standing pose. Preserve identity and proportions. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
+  instruction: 'Four full-body turnaround slots share one Appearance and pose. New Appearance starts in A-pose; capture front from the actual current Appearance and visually review it. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
 }
-interface ModelSheetInput {
+interface ModelSheetInput extends CharacterReferenceMetadata {
+  referenceId?: string
+  fromAppearance?: boolean
+  remove?: boolean
   characterId: string
   expectedRevision: number
   heightCm?: number | null
@@ -124,7 +131,7 @@ const CHARACTER_ASSET_POLICY = {
     },
   },
   layers: {
-    body: { content: 'complete-character-skin' },
+    body: { content: 'complete-character-skin', pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE },
     expression: { content: 'complete-whole-head-only', outsideHeadOwnership: 'transparent', referenceOverlap: 'required' },
     outfit: {
       content: 'complete-dressed-character-skin',
@@ -367,12 +374,12 @@ export function createApplication(document: Document) {
       if (!result.data.accepted) throw new Error('rejection' in result.data ? result.data.rejection?.message : 'Character asset was rejected')
       return result.data
     },
-    async replaceCharacterReference(characterId: string, view: CharacterReferenceView, blob: Blob) {
+    async replaceCharacterReference(characterId: string, referenceId: string, blob?: Blob, metadata: CharacterReferenceMetadata = {}) {
       await editor.open(characterId)
       const { character, revision } = activeCharacter()
-      return updateModelSheet({ characterId, expectedRevision: revision, view,
-        filename: blob instanceof File ? blob.name : `${view}.png`,
-        expectedAssetSha256: character.modelSheet?.views[view]?.asset.inspection.sha256 ?? null,
+      return updateModelSheet({ characterId, expectedRevision: revision, referenceId, ...metadata,
+        ...(blob ? { filename: blob instanceof File ? blob.name : `${referenceId}.png` } : { fromAppearance: true }),
+        expectedAssetSha256: modelSheetReferences(character.modelSheet)[referenceId]?.asset.inspection.sha256 ?? null,
       }, blob, 'user')
     },
     async deleteCharacter(characterId: string) {
@@ -467,7 +474,6 @@ export function createApplication(document: Document) {
     const character = current?.character ?? null
     const renderSnapshot = async () => {
       const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
-      if (view?.category === 'model-sheet') return unavailable('This page shows reference art. Read the visible model sheet and open a view for visual review; the appearance composite is a separate image.')
       if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
       if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
       const state = editor.store.getState()
@@ -475,6 +481,13 @@ export function createApplication(document: Document) {
       if (view?.characterId !== character.id || view.revision !== current.version || state.activeCharacterId !== character.id
         || state.persistedRevision !== current.version || view.category !== selectedRoute?.category || view.viewedVariantId !== selectedRoute?.variantId) {
         return unavailable('The rendered view and Character revision do not match. Let the page finish rendering, then inspect again.')
+      }
+      if (view.category === 'model-sheet') {
+        const referenceId = view.referenceView ?? selectedRoute?.variantId
+        const reference = referenceId ? modelSheetReferences(character.modelSheet)[referenceId] : undefined
+        if (!reference) return unavailable('Open a reference image or call inspect_character_contract with scope:model-sheet and images:[referenceId]. Request images:["appearance"] for the current Appearance separately.')
+        return { status: 'ready' as const, source: 'model-sheet-reference', characterId: character.id, revision: current.version, referenceId,
+          ...describeReference(reference), dataUrl: await readDataUrl(reference.asset.blob), instruction: MODEL_SHEET_REVIEW.instruction }
       }
       const preview = view.viewedVariantId ? character.variants.find((variant) =>
         variant.id === view.viewedVariantId && categoryFor(variant.group) === view.category && variant.group !== 'body'
@@ -545,12 +558,13 @@ export function createApplication(document: Document) {
         navigation,
         assetPolicy: view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
       },
-      nextActions: view?.category === 'model-sheet' ? [] : nextActions,
+      nextActions: view?.category === 'model-sheet' && character ? [{ tool: 'inspect_character_contract', required: false, reason: 'Inspect the reference task and explicitly request source images before generating art.', input: { characterId: character.id, scope: 'model-sheet', referenceId: view.referenceView ?? selectedRoute?.variantId ?? 'front' } }] : nextActions,
     }
   }
 
   async function navigateCharacter(rawInput: unknown) {
-    const { destination, characterId, variantId } = rawInput as {
+    const { destination, characterId, variantId, referenceId } = rawInput as {
+      referenceId?: string
       destination: 'characters' | 'character-expressions' | 'character-outfits' | 'character-props' | 'character-model-sheet'
       characterId?: string
       variantId?: string
@@ -561,7 +575,8 @@ export function createApplication(document: Document) {
     const character = characterId ? await editor.open(characterId) : null
     if (!character) throw new Error('A valid Character ID is required for this destination')
     if (destination === 'character-model-sheet') {
-      const path = `/characters/${encodeURIComponent(character.id)}/model-sheet`
+      if (referenceId && !modelSheetReferences(character.modelSheet)[referenceId]) throw new Error('Reference not found; inspect the model sheet first')
+      const path = modelSheetPath(character.id, referenceId)
       return { status: 'ok', data: { path }, effects: { navigation: { path, mode: 'push', reason: 'Open the Character model sheet.' } } }
     }
     const group = destination === 'character-expressions' ? 'expression' : destination === 'character-outfits' ? 'outfit' : 'prop'
@@ -696,7 +711,7 @@ export function createApplication(document: Document) {
       current: transform,
       axes: { x: 'right-positive', y: 'down-positive' },
       regenerateWhen: ['local deformation', 'wrong pose', 'identity drift', 'bad transparency'],
-    } : null
+    } : { requiredAfterMutation: true, path: reviewPath, instruction: CHARACTER_A_POSE_GUIDANCE, checks: ['View the actual PNG: A-pose, complete silhouette, neutral face, identity and proportions.', 'Check real alpha and edges on light and dark backgrounds.'] }
     const replacementAction = {
       tool: 'replace_character_asset',
       required: !current,
@@ -802,6 +817,7 @@ export function createApplication(document: Document) {
       },
       generationRecipe: {
         lineage,
+        ...(input.group === 'body' ? { pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE } : {}),
         method: 'reference-guided-generation',
         placementReference: placementLayers.length ? {
           layerCount: placementLayers.length,
@@ -851,7 +867,9 @@ export function createApplication(document: Document) {
   }
 
   async function inspectCharacterContract(rawInput: unknown) {
-      const { characterId, ...targetInput } = rawInput as { characterId: string }
+      const { characterId, scope = 'appearance', ...targetInput } = rawInput as { characterId: string; scope?: 'appearance' | 'model-sheet' }
+      if (scope === 'model-sheet') return inspectModelSheetContract(rawInput)
+      if (['referenceId', 'images', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].some((key) => key in targetInput)) throw new Error('Reference inputs require scope:model-sheet')
       const { character: draft, version } = await editor.view(characterId)
       const canonical = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body
       const target = await characterTarget(draft, version, targetInput)
@@ -890,7 +908,7 @@ export function createApplication(document: Document) {
           } : null,
           productionBrief: [
             'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
-            'The first body/base/body candidate establishes the canonical character and registration frame.',
+            CHARACTER_A_POSE_GUIDANCE,
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
             'An outfit replaces the character-skin slot: replace it with the complete dressed character, never a clothing-only overlay. Preserve pose, body center, head position, and foot line. Generate props against the returned current composite.',
             'Generate at 1024×1536. When the inspected target recommends exact-aspect-downscale, request it during submission; otherwise finalize externally at the exact 512×768 canvas. Never crop, reframe, or stretch.',
@@ -925,39 +943,87 @@ export function createApplication(document: Document) {
     normalization?: CharacterNormalization
   }
 
+  async function inspectModelSheetContract(rawInput: unknown) {
+    const { characterId, referenceId, images = [], scope: _scope, ...metadata } = rawInput as CharacterReferenceMetadata & { characterId: string; referenceId?: string; images?: string[]; scope: string }
+    if (['group', 'variantId', 'layer'].some((key) => key in metadata)) throw new Error('Model-sheet references do not use Appearance group/variant/layer targets')
+    if (referenceId) validateReferenceId(referenceId)
+    const { character: draft, version } = await editor.view(characterId)
+    const references = modelSheetReferences(draft.modelSheet)
+    const current = referenceId ? references[referenceId] : undefined
+    const sourceImages = await Promise.all(images.map(async (id) => {
+      const asset = id === 'canonical' ? draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body : references[id]?.asset
+      const blob = id === 'appearance' ? await application.exportCharacterPng(draft) : asset?.blob
+      if (!blob || (id === 'appearance' && !resolveCharacterDraftLayers(draft).length)) throw new Error(`Source image ${id} is missing; inspect the model sheet or create Appearance first`)
+      const inspection = asset?.inspection ?? await inspectCharacterImage(blob)
+      return { id, filename: asset?.filename ?? 'appearance.png', sha256: inspection.sha256, width: inspection.width, height: inspection.height,
+        ...(id === 'appearance' ? { selected: draft.selected } : {}), dataUrl: await readDataUrl(blob) }
+    }))
+    const submission = referenceId ? { characterId: draft.id, expectedRevision: version, referenceId, ...metadata,
+      expectedAssetSha256: current?.asset.inspection.sha256 ?? null } : undefined
+    const nextActions = submission ? [{ tool: 'update_character_model_sheet', required: false,
+      reason: 'After generating and visually checking art, add filename/dataUrl and the source image hash to this template. For metadata-only edits, add notes or guides.', input: submission },
+      ...(referenceId === 'front' ? [{ tool: 'update_character_model_sheet', required: false, reason: 'Capture the actual current Appearance into front without regenerating it; then visually review its pose.', input: { ...submission, fromAppearance: true } }] : [])] : []
+    return { status: 'ok', data: {
+      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, revision: version, selected: draft.selected },
+      collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
+      sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
+      productionBrief: [
+        'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
+        'Keep one consistent outfit and identity across the four turnaround views. Capture front from Appearance; do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
+        'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
+        'Generate PNG with white/opaque or transparent background and an appropriate original canvas, at most 4096 × 4096 and 5 MiB. No background removal or 512 × 768 normalization is needed for references. Do not fit a wide T-pose to the Appearance silhouette.',
+        'Supply sourceSha256 from the image used as the primary source. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',
+        'Landmark editing, automatic lineup and approval workflow are planned, not available tools. Do not add skeleton data or claim user approval in metadata.',
+      ], visualReview: { ...MODEL_SHEET_REVIEW, path: modelSheetPath(draft.id, current ? referenceId : undefined) },
+    }, nextActions }
+  }
+
   async function updateModelSheet(rawInput: unknown, providedBlob?: Blob, source: 'user' | 'agent' = 'agent') {
     const input = rawInput as ModelSheetInput
-    const { characterId, expectedRevision, view } = input
-    if (view !== undefined && !CHARACTER_REFERENCE_VIEWS.includes(view)) throw new Error('Unknown reference view')
-    if (input.heightCm === undefined && input.notes === undefined && input.guides === undefined && !input.dataUrl && !providedBlob) throw new Error('No model sheet changes supplied')
-    if (!view && (input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob)) throw new Error('Choose a reference view')
+    const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256 } = input
+    if (view !== undefined && (!isTurnaroundView(view) || (input.referenceId && input.referenceId !== view))) throw new Error('Use one referenceId; view is only an alias for a default turnaround slot')
+    if (referenceId) validateReferenceId(referenceId)
+    if (fromAppearance && (referenceId !== 'front' || input.dataUrl || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
+    if (remove && (input.dataUrl || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256)) throw new Error('Remove cannot be combined with reference edits')
+    const editsReference = input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256
+    if (!editsReference && input.heightCm === undefined) throw new Error('No model sheet changes supplied')
+    if (!referenceId && editsReference) throw new Error('Choose a referenceId')
+    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the model sheet')
     await editor.open(characterId)
     const { character, revision } = activeCharacter()
     if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
-    const previous = view ? character.modelSheet?.views[view] : undefined
-    const blob = providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
-    if (blob && (input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null) || !input.filename?.trim() || input.filename.length > 200)) throw new Error('Reference changed or filename is invalid; inspect it again')
-    const asset = blob ? await editor.stageAsset(blob, input.filename!, source, undefined, 'reference') : undefined
+    const references = modelSheetReferences(character.modelSheet)
+    const previous = referenceId ? references[referenceId] : undefined
+    if ((input.dataUrl || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
+    if (referenceId && !isTurnaroundView(referenceId) && !previous && (!label?.trim() || !kind)) throw new Error('New supplemental references require label and kind')
+    if (fromAppearance && !resolveCharacterDraftLayers(character).length) throw new Error('Create Appearance before capturing front')
+    const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
+    const filename = fromAppearance ? 'front-appearance.png' : input.filename
+    if (blob && (!filename?.trim() || filename.length > 200)) throw new Error('A valid filename is required')
+    if (sourceSha256 && !Object.values(references).some(({ asset }) => asset.inspection.sha256 === sourceSha256) &&
+      !character.variants.some(({ layers }) => Object.values(layers).some((asset) => asset?.inspection.sha256 === sourceSha256)) &&
+      (await inspectCharacterImage(await application.exportCharacterPng(character))).sha256 !== sourceSha256) throw new Error('Source image changed; inspect source images again')
+    const asset = blob ? await editor.stageAsset(blob, filename!, source, undefined, 'reference') : undefined
     await editor.dispatch((current) => {
       if (current.id !== character.id) throw new Error('Active Character changed; inspect it again')
-      const sheet = current.modelSheet ?? { views: {} }
-      const reference = view ? sheet.views[view] : undefined
-      if (view && !asset && !reference) throw new Error('Add reference art before setting its notes or guides')
-      return updateCharacterModelSheet(current, {
-        ...sheet,
-        ...(input.heightCm !== undefined ? { heightCm: input.heightCm ?? undefined } : {}),
-        views: view ? { ...sheet.views, [view]: {
-          ...reference,
-          ...(asset ? { asset, guides: undefined } : {}),
-          ...(input.notes !== undefined ? { notes: input.notes } : {}),
-          ...(input.guides !== undefined ? { guides: input.guides ?? undefined } : {}),
-        } as CharacterReference } : sheet.views,
-      })
+      let sheet = current.modelSheet ?? { views: {} }
+      const reference = referenceId ? modelSheetReferences(sheet)[referenceId] : undefined
+      if (referenceId && !asset && !reference) throw new Error('Add reference art before editing or removing it')
+      if (referenceId) sheet = setModelSheetReference(sheet, referenceId, remove ? undefined : {
+        ...reference, ...(asset ? { asset, guides: undefined, sourceSha256: undefined } : {}),
+        ...(label !== undefined ? { label } : {}), ...(kind !== undefined ? { kind } : {}),
+        ...(viewpoint !== undefined ? { viewpoint } : {}), ...(pose !== undefined ? { pose } : {}),
+        ...(sourceSha256 || fromAppearance ? { sourceSha256: fromAppearance ? asset!.inspection.sha256 : sourceSha256 } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        ...(input.guides !== undefined ? { guides: input.guides ?? undefined } : {}),
+      } as CharacterReference)
+      return updateCharacterModelSheet(current, { ...sheet, ...(input.heightCm !== undefined ? { heightCm: input.heightCm ?? undefined } : {}) })
     }, expectedRevision)
     const saved = activeCharacter().character
-    const path = `/characters/${encodeURIComponent(saved.id)}/model-sheet`
-    return { status: 'ok', data: { characterId: saved.id, revision: settledRevision('Model sheet'), modelSheet: describeModelSheet(saved) },
-      effects: { navigation: { path, mode: 'push', reason: 'Review the Character model sheet.' } } }
+    const path = modelSheetPath(saved.id, remove ? undefined : referenceId)
+    return { status: 'ok', data: { accepted: true, characterId: saved.id, revision: settledRevision('Model sheet'), modelSheet: describeModelSheet(saved), visualReview: { ...MODEL_SHEET_REVIEW, path } },
+      nextActions: [{ tool: 'inspect_workspace', required: true, reason: 'View the actual submitted reference and follow visualReview before continuing.', input: { includeSnapshot: true } }],
+      effects: { navigation: { path, mode: 'push', reason: 'Review the exact Character reference.' } } }
   }
 
   const replaceCharacterAssetTool = (rawInput: unknown) => mutateCharacterAsset('replace', rawInput as CharacterAssetMutationInput)

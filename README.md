@@ -108,6 +108,10 @@ References, notes, height, and guides use the existing save, undo, duplicate,
 single-character ZIP, and library backup flows. They do not become appearance
 layers or atlas frames. Cross-character scale lineups are a subsequent step.
 
+The page reserves the remaining sections without creating empty character data.
+See the [model sheet plan](docs/character-model-sheets.md) for the agreed scope,
+reference conventions, review workflow, and acceptance criteria.
+
 Run `/scripts/check-model-sheet.html?responsive` with `pnpm dev` for the
 memory-only browser check at 320, 390, 900, and 1280px.
 
@@ -197,3 +201,5 @@ Architecture decisions are recorded in [`docs/adr/`](./docs/adr/).
 ## License
 
 Licensed under the [Apache License 2.0](./LICENSE).
+
+Browser integration checks keep HTML limited to fixtures and mount points, with test logic in sibling `.browser.js` modules. This avoids stale Vite inline-module proxies and keeps stack traces tied to the source file.

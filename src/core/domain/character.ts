@@ -95,7 +95,16 @@ export interface CharacterAssetTarget {
 
 export const CHARACTER_REFERENCE_VIEWS = ['front', 'three-quarter', 'side', 'back'] as const
 export type CharacterReferenceView = typeof CHARACTER_REFERENCE_VIEWS[number]
-export interface CharacterReference<Asset = CharacterDraftAsset> {
+export const CHARACTER_REFERENCE_KINDS = ['full-body', 'head', 'structure', 'expression', 'detail', 'style'] as const
+export interface CharacterReferenceMetadata {
+  label?: string
+  kind?: typeof CHARACTER_REFERENCE_KINDS[number]
+  viewpoint?: string
+  pose?: string
+  /** Hash of the source image used to draw or capture this reference. */
+  sourceSha256?: string
+}
+export interface CharacterReference<Asset = CharacterDraftAsset> extends CharacterReferenceMetadata {
   asset: Asset
   notes?: string
   /** Fractions of the original image height, explicitly calibrated by the author. */
@@ -104,6 +113,7 @@ export interface CharacterReference<Asset = CharacterDraftAsset> {
 export interface CharacterModelSheet<Asset = CharacterDraftAsset> {
   heightCm?: number
   views: Partial<Record<CharacterReferenceView, CharacterReference<Asset>>>
+  references?: Record<string, CharacterReference<Asset>>
 }
 export interface CharacterAssetContent<Asset> {
   variants: Array<Omit<CharacterDraftVariant, 'layers'> & { layers: Partial<Record<CharacterVariantLayer, Asset>> }>

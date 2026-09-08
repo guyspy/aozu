@@ -1,10 +1,11 @@
 import type { CharacterAssetContent, CharacterModelSheet } from '../domain/character.ts'
+import { modelSheetReferences } from './character-model-sheet.ts'
 
 /** Shared by persistence and both ZIP formats so reference art follows the same asset lifecycle. */
 export function characterAssets<A>(content: CharacterAssetContent<A>): A[] {
   return [
     ...content.variants.flatMap(({ layers }) => Object.values(layers) as A[]),
-    ...Object.values(content.modelSheet?.views ?? {}).map(({ asset }) => asset),
+    ...Object.values(modelSheetReferences(content.modelSheet)).map(({ asset }) => asset),
   ].filter((asset) => asset !== undefined)
 }
 
@@ -19,6 +20,8 @@ export async function mapCharacterAssets<A, B>(content: CharacterAssetContent<A>
       ...content.modelSheet,
       views: Object.fromEntries(await Promise.all(Object.entries(content.modelSheet.views).map(async ([view, reference]) =>
         [view, { ...reference, asset: await map(reference.asset, `reference-${view}`) }]))),
+      ...(content.modelSheet.references ? { references: Object.fromEntries(await Promise.all(Object.entries(content.modelSheet.references).map(async ([id, reference]) =>
+        [id, { ...reference, asset: await map(reference.asset, `reference-${id}`) }]))) } : {}),
     } : undefined,
   }
 }

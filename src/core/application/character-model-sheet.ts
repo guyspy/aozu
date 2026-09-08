@@ -1,7 +1,19 @@
-import { CHARACTER_REFERENCE_VIEWS, type CharacterAssetInspection, type CharacterDraft, type CharacterModelSheet } from '../domain/character.ts'
+import { CHARACTER_REFERENCE_VIEWS, CHARACTER_REFERENCE_KINDS, type CharacterAssetInspection, type CharacterDraft, type CharacterModelSheet, type CharacterReference } from '../domain/character.ts'
 
 export const MAX_REFERENCE_DIMENSION = 4096
 export const MAX_REFERENCE_BYTES = 5 * 1024 * 1024
+export const isTurnaroundView = (id: string): id is typeof CHARACTER_REFERENCE_VIEWS[number] => (CHARACTER_REFERENCE_VIEWS as readonly string[]).includes(id)
+export const modelSheetReferences = <A>(sheet?: CharacterModelSheet<A>): Record<string, CharacterReference<A>> => ({ ...sheet?.views, ...sheet?.references })
+export function setModelSheetReference<A>(sheet: CharacterModelSheet<A>, id: string, reference?: CharacterReference<A>): CharacterModelSheet<A> {
+  const key = isTurnaroundView(id) ? 'views' : 'references'
+  const entries: Record<string, CharacterReference<A>> = { ...sheet[key] }
+  if (reference) entries[id] = reference
+  else delete entries[id]
+  return { ...sheet, [key]: entries }
+}
+export function validateReferenceId(id: string) {
+  if (!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(id) || ['appearance', 'canonical', 'constructor', 'prototype'].includes(id)) throw new Error('Invalid reference ID')
+}
 
 export function validateReferenceInspection(image: CharacterAssetInspection) {
   if (!image || !Number.isInteger(image.width) || !Number.isInteger(image.height) ||
@@ -25,11 +37,17 @@ export async function validateReferencePng(blob: Blob) {
 
 export function validateModelSheet(sheet: CharacterModelSheet<unknown>) {
   if (!sheet || typeof sheet !== 'object' || Array.isArray(sheet) || !sheet.views || typeof sheet.views !== 'object' || Array.isArray(sheet.views) ||
-    Object.keys(sheet).some((key) => !['heightCm', 'views'].includes(key)) ||
+    Object.keys(sheet).some((key) => !['heightCm', 'views', 'references'].includes(key)) ||
     (sheet.heightCm !== undefined && (!Number.isFinite(sheet.heightCm) || sheet.heightCm <= 0 || sheet.heightCm > 100_000))) throw new Error('Invalid model sheet or height')
-  for (const [view, reference] of Object.entries(sheet.views)) {
-    if (!(CHARACTER_REFERENCE_VIEWS as readonly string[]).includes(view) || !reference || typeof reference !== 'object' || Array.isArray(reference) || !reference.asset ||
-      Object.keys(reference).some((key) => !['asset', 'notes', 'guides'].includes(key)) ||
+  if (Object.keys(sheet.views).some((id) => !isTurnaroundView(id)) || (sheet.references !== undefined &&
+    (!sheet.references || typeof sheet.references !== 'object' || Array.isArray(sheet.references) || Object.keys(sheet.references).length > 100 || Object.keys(sheet.references).some(isTurnaroundView)))) throw new Error('Invalid supplemental references')
+  for (const [id, reference] of Object.entries(modelSheetReferences(sheet))) {
+    validateReferenceId(id)
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference) || !reference.asset ||
+      Object.keys(reference).some((key) => !['asset', 'notes', 'guides', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].includes(key)) ||
+      ['label', 'viewpoint', 'pose'].some((key) => { const value = reference[key as 'label']; return value !== undefined && (typeof value !== 'string' || !value.trim() || value.length > 80) }) ||
+      (reference.kind !== undefined && !CHARACTER_REFERENCE_KINDS.includes(reference.kind)) ||
+      (reference.sourceSha256 !== undefined && !/^[0-9a-f]{64}$/.test(reference.sourceSha256)) ||
       (reference.notes !== undefined && (typeof reference.notes !== 'string' || reference.notes.length > 1000))) throw new Error('Invalid model sheet view')
     const guides = reference.guides
     if (guides !== undefined && (!guides || typeof guides !== 'object' || Array.isArray(guides) ||
@@ -42,6 +60,6 @@ export function validateModelSheet(sheet: CharacterModelSheet<unknown>) {
 
 export function updateCharacterModelSheet(draft: CharacterDraft, modelSheet: CharacterModelSheet): CharacterDraft {
   validateModelSheet(modelSheet)
-  for (const { asset } of Object.values(modelSheet.views)) validateReferenceInspection(asset.inspection)
+  for (const { asset } of Object.values(modelSheetReferences(modelSheet))) validateReferenceInspection(asset.inspection)
   return JSON.stringify(draft.modelSheet ?? { views: {} }) === JSON.stringify(modelSheet) ? draft : { ...draft, modelSheet }
 }

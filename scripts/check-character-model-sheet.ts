@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import { bootMantleRuntime } from '@aotter/mantle-runtime'
 import { createCharacterDraft, resolveCharacterDraftAtlasSources, validateCharacterAssetInspection } from '../src/core/application/character-creation.ts'
 import { characterAssets, mapCharacterAssets } from '../src/core/application/character-assets.ts'
-import { updateCharacterModelSheet, validateModelSheet, validateReferenceInspection, validateReferencePng } from '../src/core/application/character-model-sheet.ts'
+import { setModelSheetReference, updateCharacterModelSheet, validateModelSheet, validateReferenceInspection, validateReferencePng } from '../src/core/application/character-model-sheet.ts'
 import { createCharacterEditor } from '../src/core/application/character-editor.ts'
 import { createCharacterWorkspaceRepository } from '../src/adapters/indexeddb/character-workspace-repository.ts'
 import { createIndexedDbAssetRepository } from '../src/adapters/indexeddb/asset-repository.ts'
@@ -39,7 +39,13 @@ validateModelSheet({ views: { front: { asset, guides: { head: 0.28, feet: 0.29 }
 const draft = updateCharacterModelSheet(createCharacterDraft('model-sheet-test'), { heightCm: 185, views: {
   front: { asset, notes: 'Coat ends at the hip.', guides: { head: 0.12, feet: 0.88 } },
   back: { asset: { ...asset, filename: 'back.png' } },
+}, references: {
+  't-pose': { asset: { ...asset, filename: 't-pose.png' }, label: 'T-pose', kind: 'structure', viewpoint: 'front', pose: 't-pose', sourceSha256: asset.inspection.sha256 },
+  'head-angles': { asset, label: 'Head angles', kind: 'head', notes: 'Proposed back-of-head design.' },
 } })
+assert.throws(() => validateModelSheet({ views: {}, references: { front: { asset } } }), /supplemental/)
+assert.throws(() => validateModelSheet({ views: {}, references: { '../file': { asset } } }), /ID/)
+assert.equal(setModelSheetReference(draft.modelSheet!, 't-pose').references?.['t-pose'], undefined)
 assert.equal(updateCharacterModelSheet(draft, draft.modelSheet!), draft, 'unchanged sheet is a no-op')
 assert.equal(resolveCharacterDraftAtlasSources(draft).length, 0, 'references never become appearance layers')
 const plan = compileAuthoringBackbone()
@@ -70,7 +76,7 @@ const snapshot: CharacterLibrarySnapshot = { entries: [{ bundleId: AUTHORING_NAM
 const library = await readCharacterLibraryZip(await exportCharacterLibraryZip(snapshot, inspect), inspect)
 assert.deepEqual(library.entries, snapshot.entries)
 assert.deepEqual(library.legacyDrafts[0].modelSheet, draft.modelSheet)
-assert.equal(characterAssets(library.legacyDrafts[0]).length, 2)
+assert.equal(characterAssets(library.legacyDrafts[0]).length, 4)
 await assert.rejects(inspectCharacterLibrarySnapshot({ ...snapshot, assets: [] }, inspect), /missing or inconsistent/)
 await repository.delete(saved.character.id)
 await repository.delete(copy.character.id)

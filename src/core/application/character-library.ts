@@ -2,7 +2,7 @@ import { EntryDataValidator, type Entry } from '@aotter/mantle-spec'
 
 import { AUTHORING_NAMESPACE } from './authoring.ts'
 import { characterAssets } from './character-assets.ts'
-import { validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
+import { modelSheetReferences, validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
 import { validateCharacterAssetInspection } from './character-creation.ts'
 import { CHARACTER_COLLECTIONS } from '../domain/character-collection.ts'
 import { compileAuthoringBackbone } from '../mantle/backbone.ts'
@@ -74,7 +74,7 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
   }
   if (draft.modelSheet !== undefined) {
     validateModelSheet(draft.modelSheet)
-    for (const { asset } of Object.values(draft.modelSheet.views)) validateAsset(asset, true)
+    for (const { asset } of Object.values(modelSheetReferences<CharacterDraftAsset | StoredCharacterAsset>(draft.modelSheet))) validateAsset(asset, true)
   }
   const variants = new Set<string>()
   for (const variant of draft.variants) {
@@ -148,7 +148,10 @@ export function validateCharacterLibrarySnapshot(snapshot: CharacterLibrarySnaps
     const descriptorFor = ({ blob: _blob, ...asset }: CharacterDraftAsset) => ({ ...asset, blobId: asset.inspection.sha256 })
     validateAuthoringData('character-workspaces', {
       ...data,
-      ...(modelSheet ? { modelSheet: { ...modelSheet, views: Object.fromEntries(Object.entries(modelSheet.views).map(([view, reference]) => [view, { ...reference, asset: descriptorFor(reference.asset) }])) } } : {}),
+      ...(modelSheet ? { modelSheet: { ...modelSheet,
+        views: Object.fromEntries(Object.entries(modelSheet.views).map(([view, reference]) => [view, { ...reference, asset: descriptorFor(reference.asset) }])),
+        ...(modelSheet.references ? { references: Object.fromEntries(Object.entries(modelSheet.references).map(([id, reference]) => [id, { ...reference, asset: descriptorFor(reference.asset) }])) } : {}),
+      } } : {}),
       variants: variants.map(({ layers, ...variant }) => ({ ...variant, layers: Object.fromEntries(Object.entries(layers).map(([layer, asset]) => {
         return [layer, descriptorFor(asset!)]
       })) })),

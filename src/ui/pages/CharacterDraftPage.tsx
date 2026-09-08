@@ -7,7 +7,7 @@ import { useStore } from 'zustand'
 import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
-import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceView } from '@/core/domain/character.ts'
+import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
@@ -84,7 +84,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
-  replaceReference(view: CharacterReferenceView, blob: Blob): Promise<unknown>
+  replaceReference(referenceId: string, blob?: Blob, metadata?: CharacterReferenceMetadata): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
   deleteCharacter(): Promise<void>
 }) {
@@ -204,7 +204,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const hasBase = Boolean(baseVariant && isCharacterDraftAssetCurrent(draft, baseVariant, 'body'))
   const visibleVariants = category ? draft.variants.filter(({ group }) => category.group === group) : []
   const selectedVariant = visibleVariants.find((variant) => variant.id === variantId)
-  if (variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
+  if (!isModelSheet && variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
   const previewLayers = resolveCharacterDraftLayers(draft, selectedVariant)
   const referenceLayers = selectedVariant ? resolveCharacterDraftReferenceLayers(draft, selectedVariant) : []
   const registration = characterRegistrationFrame(draft)
@@ -481,7 +481,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
     <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : category.id}
-      data-variant-id={selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
+      data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={profileOpen ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
       <aside className="character-spell-guide" aria-labelledby="character-spell-title">
@@ -498,8 +498,9 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       </nav>
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
-          upload={(view, file) => void runBusy('reference', async () => { await replaceReference(view, file); revert() })}
-          useCurrent={previewLayers.length ? () => void runBusy('reference', async () => { await replaceReference('front', await exportCharacterPng(draft)); revert() }) : undefined} />
+          referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
+          upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })}
+          useCurrent={previewLayers.length ? () => void runBusy('reference', async () => { await replaceReference('front'); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/front`) }) : undefined} />
         {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         {actions}
       </> :
