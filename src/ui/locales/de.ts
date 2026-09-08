@@ -2,7 +2,7 @@ import { en, type Messages } from './en'
 
 export const de: Messages = {
   common: { close: 'Schließen', productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
-  navigation: { primary: 'Hauptnavigation' },
+  navigation: { ...en.navigation, primary: 'Hauptnavigation' },
   startup: {
     loading: 'Lokale Daten werden geladen…',
     error: 'Lokale Daten konnten nicht geladen werden. Seite neu laden und erneut versuchen.',

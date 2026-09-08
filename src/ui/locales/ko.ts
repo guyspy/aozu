@@ -2,7 +2,7 @@ import { en, type Messages } from './en'
 
 export const ko: Messages = {
   common: { close: '닫기', productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
-  navigation: { primary: '주 탐색' },
+  navigation: { ...en.navigation, primary: '주 탐색' },
   startup: {
     loading: '로컬 데이터를 불러오는 중…',
     error: '로컬 데이터를 불러올 수 없습니다. 새로 고침 후 다시 시도해 주세요.',

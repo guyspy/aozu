@@ -2,7 +2,7 @@ import { en, type Messages } from './en'
 
 export const ja: Messages = {
   common: { close: '閉じる', productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
-  navigation: { primary: 'メインナビゲーション' },
+  navigation: { ...en.navigation, primary: 'メインナビゲーション' },
   startup: {
     loading: 'ローカルデータを読み込んでいます…',
     error: 'ローカルデータを読み込めませんでした。ページを再読み込みしてもう一度お試しください。',

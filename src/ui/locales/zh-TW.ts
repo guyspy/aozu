@@ -2,18 +2,18 @@ import { en, type Messages } from './en'
 
 export const zhTW: Messages = {
   common: { close: '關閉', productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
-  navigation: { primary: '主要導覽' },
+  navigation: { primary: '主要導覽', home: '首頁', notFound: '找不到這個頁面' },
   startup: {
     loading: '正在載入本機資料…',
     error: '無法載入本機資料，請重新整理後再試一次。',
   },
   draft: { name: '角色名稱', download: '匯出角色' },
-  books: { ...en.books, default: '我的角色', shelf: '我的卡片書', all: '所有卡片書', switch: '切換卡片書',
-    create: '新增卡片書', name: '書名', description: '簡介', profile: '卡片書資料', world: '共用世界觀', editWorld: '編輯世界觀', save: '儲存卡片書',
-    worldHint: '這本書中角色共用的背景、歷史與世界規則。ChatGPT 可以搭配每個角色自己的背景故事使用。',
-    createHint: '先把角色移進這本書，再從「卡片書資料」加入共用世界觀。', actions: '卡片書與備份選單', characterActions: '「{{name}}」的操作', move: '移至卡片書',
-    characterCount: '{{count}} 個角色', bookCount: '{{count}} 本卡片書', empty: '準備收進你的角色', emptyDefault: '建立第一個角色，或從上方選單匯入角色。', emptyCustom: '在「我的角色」找到角色，從角色選單把它移進來。', browseDefault: '瀏覽我的角色',
-    delete: '刪除卡片書', deleteHint: '要刪除「{{name}}」嗎？書裡的角色會回到「我的角色」。', importHint: '匯入的角色會放進「我的角色」。', unsaved: '尚未儲存' },
+  books: { ...en.books, default: '我的角色', shelf: '我的收藏', all: '所有角色集', switch: '切換角色集',
+    create: '建立角色集', name: '角色集名稱', description: '簡介', profile: '角色集資料', world: '世界觀', editWorld: '編輯世界觀', save: '儲存角色集',
+    worldHint: '這個角色集中角色共用的背景、歷史與世界規則。ChatGPT 可以搭配每個角色自己的背景故事使用。',
+    createHint: '先把角色移進這個角色集，再從「角色集資料」加入世界觀。', actions: '角色集與備份選單', characterActions: '「{{name}}」的操作', move: '移至角色集',
+    characterCount: '{{count}} 個角色', bookCount: '{{count}} 個角色集', empty: '準備收進你的角色', emptyDefault: '建立第一個角色，或從上方選單匯入角色。', emptyCustom: '在「我的角色」找到角色，從角色選單把它移進來。', browseDefault: '瀏覽我的角色',
+    delete: '刪除角色集', deleteHint: '要刪除「{{name}}」嗎？角色集裡的角色會回到「我的角色」。', importHint: '匯入的角色會放進「我的角色」。', unsaved: '尚未儲存' },
   library: en.library,
   characters: {
     kicker: 'AOZU 角色典藏',

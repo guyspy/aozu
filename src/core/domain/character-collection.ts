@@ -1,4 +1,4 @@
-/** A card book groups Characters and provides shared world context, without changing their own profiles. */
+/** A collection groups Characters and provides shared world context, without changing their own profiles. */
 export const CHARACTER_COLLECTIONS = 'character-collections'
 export const DEFAULT_CHARACTER_COLLECTION = 'default'
 

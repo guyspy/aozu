@@ -401,7 +401,7 @@ export function createApplication(document: Document) {
     const { collectionId, expectedRevision, ...patch } = rawInput as { collectionId: string; expectedRevision: number } & Partial<CharacterCollectionProfile>
     const book = (await collections.list()).find(({ id }) => id === collectionId)
     if (!book) throw new Error('Collection not found')
-    if (collectionId === DEFAULT_CHARACTER_COLLECTION && patch.name !== undefined && patch.name !== book.name) throw new Error('The default book name is fixed')
+    if (collectionId === DEFAULT_CHARACTER_COLLECTION && patch.name !== undefined && patch.name !== book.name) throw new Error('The default collection name is fixed')
     await collections.update(collectionId, { name: book.name, description: book.description, backstory: book.backstory, ...patch }, expectedRevision)
     characterChanges.publish({ characterId: collectionId, revision: null })
     return { status: 'ok', data: { collection: (await collections.list()).find(({ id }) => id === collectionId) }, nextActions: [] }
@@ -460,13 +460,13 @@ export function createApplication(document: Document) {
     }
     const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
-    const navigation = [{ destination: 'characters', path: '/characters' }, ...(character ? [
+    const navigation = [{ destination: 'characters', path: '/collections' }, ...(character ? [
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
       { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
     ] : [])]
     const nextActions = character ? characterNextActions(character) : [{
-      tool: 'navigate_character', required: false, reason: records.length ? 'Open a Character before editing its assets.' : 'Open the Character library so the user can create a blank or starter Character.', input: { destination: 'characters' },
+      tool: 'navigate_character', required: false, reason: records.length ? 'Open a Character before editing its assets.' : 'Open a new Character workshop.', input: records.length ? { destination: 'characters' } : { destination: 'character-expressions', characterId: 'new' },
     }]
     return {
       status: 'ok',
@@ -511,7 +511,7 @@ export function createApplication(document: Document) {
       variantId?: string
     }
     if (destination === 'characters') {
-      return { status: 'ok', data: { destination, path: '/characters' }, nextActions: [], effects: { navigation: { path: '/characters', mode: 'push', reason: 'Open the Character library.' } } }
+      return { status: 'ok', data: { destination, path: '/collections' }, nextActions: [], effects: { navigation: { path: '/collections', mode: 'push', reason: 'Open the Character library.' } } }
     }
     const character = characterId ? await editor.open(characterId) : null
     if (!character) throw new Error('A valid Character ID is required for this destination')

@@ -14,7 +14,7 @@ import { StatusPage } from '@/ui/pages/StatusPage'
 function CharacterEditor({ application, refresh, savedRevision }: { application: Application; refresh(): Promise<void>; savedRevision?: number }) {
   const navigate = useNavigate()
   const { characterId, step } = useParams()
-  if (!characterId) return <Navigate to="/characters" replace />
+  if (!characterId) return <Navigate to="/" replace />
   return <CharacterDraftPage
     key={characterId}
     editor={application.editor}
@@ -127,13 +127,12 @@ export function AppRoutes({ application }: { application: Application }) {
     />
     <Routes>
       <Route index element={<Navigate to={home} replace />} />
-      <Route path="/characters" element={<Navigate to={home} replace />} />
       <Route path="/collections" element={libraryPage} />
       <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />
       <Route path="/characters/:characterId/:step" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
       <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<StatusPage>404 · {t('navigation.notFound')}</StatusPage>} />
     </Routes>
   </>
 }

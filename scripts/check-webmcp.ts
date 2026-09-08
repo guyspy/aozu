@@ -43,7 +43,7 @@ assert.equal(await bindMantleWebMcpTools({} as Document, plan, async () => ({ ok
 const registered = new Map<string, WebMcpTool>()
 let registrationSignal: AbortSignal | undefined
 const view = {
-  location: { pathname: '/characters' },
+  location: { pathname: '/collections' },
   addEventListener() {},
   removeEventListener() {},
 }
@@ -62,7 +62,7 @@ let navigated: string | undefined
 const invoke = async (trigger: string, input: unknown) => ({
   ok: true as const,
   data: trigger === 'navigate-character'
-    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } } }
+    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: (input as { destination: string }).destination === 'characters' ? '/collections' : '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } } }
     : { status: 'ok', data: { trigger, input } },
 })
 const controller = createWebMcpController(document, plan, [...triggers], invoke)
@@ -110,6 +110,8 @@ controller.setNavigate((path) => { navigated = path; view.location.pathname = pa
 assert.equal(navigated, '/characters/id/outfits/raincoat')
 await registered.get('navigate_character')!.execute(navigation, {})
 assert.equal(navigationCount, 1, 'The website must not push the same route twice')
+await registered.get('navigate_character')!.execute({ destination: 'characters' }, {})
+assert.equal(navigated, '/collections')
 const boundSignal = registrationSignal
 controller.dispose()
 assert.equal(boundSignal?.aborted, true)

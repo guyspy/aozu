@@ -33,7 +33,7 @@ const navigationEffect = (value: unknown) => {
   const navigation = (value as { effects?: { navigation?: unknown } }).effects?.navigation
   if (!navigation || typeof navigation !== 'object') return null
   const { path, mode } = navigation as { path?: unknown; mode?: unknown }
-  return typeof path === 'string' && path.startsWith('/characters') && mode === 'push' ? path : null
+  return typeof path === 'string' && /^\/(?:characters|collections)(?:\/|$)/.test(path) && mode === 'push' ? path : null
 }
 
 export function createWebMcpController(

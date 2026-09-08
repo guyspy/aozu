@@ -2,7 +2,7 @@ import { en, type Messages } from './en'
 
 export const fr: Messages = {
   common: { close: 'Fermer', productName: 'AOZU', back: 'Retour', cancel: 'Annuler', language: 'Langue' },
-  navigation: { primary: 'Navigation principale' },
+  navigation: { ...en.navigation, primary: 'Navigation principale' },
   startup: {
     loading: 'Chargement des données locales…',
     error: 'Impossible de charger les données locales. Actualisez la page et réessayez.',
