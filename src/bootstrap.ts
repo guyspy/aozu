@@ -101,7 +101,6 @@ interface ModelSheetInput extends CharacterReferenceMetadata {
   remove?: boolean
   characterId: string
   expectedRevision: number
-  heightCm?: number | null
   view?: CharacterReferenceView
   notes?: string
   guides?: CharacterReference['guides'] | null
@@ -560,6 +559,7 @@ export function createApplication(document: Document) {
           description: character.description ?? '',
           backstory: character.backstory ?? '',
           attributes: character.attributes ?? {},
+          heightCm: character.modelSheet?.heightCm ?? null,
           modelSheet: describeModelSheet(character),
           collection: await collectionFor(character.id),
           revision: current.version,
@@ -623,6 +623,7 @@ export function createApplication(document: Document) {
           description: character.description ?? '',
           backstory: character.backstory ?? '',
           attributes: character.attributes ?? {},
+          heightCm: character.modelSheet?.heightCm ?? null,
         },
         revision,
         changed,
@@ -967,6 +968,7 @@ export function createApplication(document: Document) {
             description: draft.description ?? '',
             backstory: draft.backstory ?? '',
             attributes: draft.attributes ?? {},
+            heightCm: draft.modelSheet?.heightCm ?? null,
             selected: draft.selected,
             ...describeAppearances(draft),
             revision: version,
@@ -1037,7 +1039,7 @@ export function createApplication(document: Document) {
       reason: 'After generating and visually checking art, add filename/dataUrl and the source image hash to this template. For metadata-only edits, add notes or guides.', input: submission },
       ...(referenceId === 'front' ? [{ tool: 'update_character_model_sheet', required: false, reason: 'Capture the actual current Appearance into front without regenerating it; then visually review its pose.', input: { ...submission, fromAppearance: true } }] : [])] : []
     return { status: 'ok', data: {
-      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, revision: version, selected: draft.selected, ...describeAppearances(draft) },
+      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
@@ -1046,7 +1048,7 @@ export function createApplication(document: Document) {
         'Keep one consistent outfit and identity across the four turnaround views. Save as captures the new look’s front; use fromAppearance to explicitly fill or replace one. Add new leaves references empty until you add them or edit the composition. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
         'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
         'Generate PNG with white/opaque or transparent background and an appropriate original canvas, at most 4096 × 4096 and 5 MiB. No background removal or 512 × 768 normalization is needed for references. Do not fit a wide T-pose to the Appearance silhouette.',
-        'Supply sourceSha256 from the image used as the primary source. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',
+        'Supply sourceSha256 from the image used as the primary source. Set optional heightCm through update_character_profile (null clears it); never put it in custom attributes. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',
         'Landmark editing, automatic lineup and approval workflow are planned, not available tools. Do not add skeleton data or claim user approval in metadata.',
       ], visualReview: { ...MODEL_SHEET_REVIEW, path: modelSheetPath(draft.id, current ? referenceId : undefined) },
     }, nextActions }
@@ -1060,7 +1062,7 @@ export function createApplication(document: Document) {
     if (fromAppearance && (referenceId !== 'front' || input.dataUrl || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
     if (remove && (input.dataUrl || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
     const editsReference = input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
-    if (!editsReference && input.heightCm === undefined) throw new Error('No model sheet changes supplied')
+    if (!editsReference) throw new Error('No model sheet changes supplied')
     if (!referenceId && editsReference) throw new Error('Choose a referenceId')
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the model sheet')
     await editor.open(characterId)
@@ -1092,7 +1094,7 @@ export function createApplication(document: Document) {
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(input.guides !== undefined ? { guides: input.guides ?? undefined } : {}),
       } as CharacterReference)
-      return updateCharacterModelSheet(current, { ...sheet, ...(input.heightCm !== undefined ? { heightCm: input.heightCm ?? undefined } : {}) })
+      return updateCharacterModelSheet(current, sheet)
     }, expectedRevision)
     const saved = activeCharacter().character
     const path = modelSheetPath(saved.id, remove ? undefined : referenceId)

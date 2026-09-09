@@ -47,9 +47,9 @@ AOZU exposes these public tools on every page:
 | `inspect_workspace` | Discover saved characters, the current route and revision, missing required artwork, and valid next actions |
 | `navigate_character` | Open the character library or an exact character category or variant without guessing a route |
 | `inspect_character_contract` | Obtain allowed operations, exact hashes, placement/alignment references, ownership, dimensions, and diagnostics for one target |
-| `update_character_profile` | Update a character's name, description, multiline backstory, or scalar attributes against its exact revision |
+| `update_character_profile` | Update a character's name, description, multiline backstory, optional height, or scalar attributes against its exact revision |
 | `update_collection_profile` | Update a collection's name, description, or shared world backstory against its exact revision |
-| `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides, and set or clear character height against its exact revision |
+| `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
 | `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or create/save-as/select/rename/delete a look against its exact revision |
@@ -104,6 +104,9 @@ keep their original canvas, may be opaque, and can be up to 4096 × 4096 and 5 M
 Height in cm is optional. Open a reference to add notes and position its head and
 feet guides; these measure the character independently of image margins, hats,
 and props. Replacing a reference clears its calibration and retains its notes.
+Height is an optional default attribute in Character profile; all Appearances share it.
+The existing height storage is retained for archive compatibility. Use `update_character_profile`
+with `heightCm` (null to clear), never a custom attribute or model-sheet edit.
 References, notes, height, and guides use the existing autosave, duplicate,
 single-character ZIP, and library backup flows. Appearance Undo includes reference
 edits while preserving shared character height and profile. They do not become appearance

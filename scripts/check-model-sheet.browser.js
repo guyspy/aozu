@@ -15,6 +15,7 @@ const check = (condition, message) => { if (!condition) throw new Error(message)
 const wait = () => new Promise((resolve) => setTimeout(resolve, 30))
 const ready = async (predicate) => { for (let i = 0; i < 400; i++) { if (await predicate()) return; await wait() } throw new Error(`Timed out: ${predicate}`) }
 const result = document.querySelector('#result')
+const buttons = (text) => [...document.querySelectorAll('button')].find((button) => button.textContent === text || button.getAttribute('aria-label') === text)
 if (new URLSearchParams(location.search).has('responsive')) {
   try {
     for (const width of [320, 390, 900, 1280]) {
@@ -50,8 +51,6 @@ if (new URLSearchParams(location.search).has('responsive')) {
     element.dispatchEvent(new Event('change', { bubbles: true }))
     await wait()
   }
-  // Background iframes can suppress native blur events; exercise React's commit event explicitly.
-  const blur = (element) => element.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
   const image = async (color, width = 800, height = 1200) => {
     const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height
     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height)
@@ -70,13 +69,22 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await ready(() => !route.pathname.includes('/new/') && document.querySelector('[aria-label="Open Front reference"]'))
     check(!state().character.variants[0].layers.body, 'Reference changed base art')
     const id = state().activeCharacterId
-    const height = document.querySelector('.model-sheet-height input')
-    await fill(height, '185'); blur(height); await settled()
-    check(sheet().heightCm === 185, 'Height did not persist')
-    await fill(height, ''); blur(height); await settled()
-    check(sheet().heightCm === undefined, 'Empty height became zero')
-    await fill(height, '185'); blur(height); await settled()
-    check(sheet().heightCm === 185, 'Shared height did not persist')
+    check(!document.querySelector('.model-sheet input[type="number"]'), 'Height still appears in model sheet')
+    await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, heightCm: 185 })
+    check(sheet().heightCm === 185, 'Profile tool did not persist shared height')
+    await ready(() => document.querySelector('#character-profile'))
+    for (const value of ['', '185']) {
+      buttons('Edit character profile').click()
+      await ready(() => document.querySelector('#character-profile input[aria-label="Height (cm)"]'))
+      await fill(document.querySelector('#character-profile input[aria-label="Height (cm)"]'), value)
+      buttons('Update profile').click(); await settled()
+      check(sheet().heightCm === (value ? 185 : undefined), 'Optional profile height did not save or clear')
+    }
+    await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, heightCm: null })
+    check(sheet().heightCm === undefined, 'Profile tool did not clear height')
+    await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, heightCm: 185 })
+    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await ready(() => document.querySelector('[aria-label="Open Front reference"]'))
     document.querySelector('[aria-label="Open Front reference"]').click()
     await ready(() => document.querySelector('.model-sheet-detail'))
     const dialog = document.querySelector('.model-sheet-detail')
@@ -131,7 +139,6 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(document.querySelector('.model-sheet').scrollWidth <= document.querySelector('.model-sheet').clientWidth + 1, 'Reference layout overflows')
     document.querySelector('.model-sheet-detail [data-slot=sheet-close]')?.click()
     await ready(() => !document.querySelector('.model-sheet-detail'))
-    const buttons = (text) => [...document.querySelectorAll('button')].find((button) => button.textContent === text || button.getAttribute('aria-label') === text)
     const appearanceMenu = async (label) => {
       await ready(() => buttons('Saved Appearance') && !buttons('Saved Appearance').disabled)
       buttons('Saved Appearance').focus()

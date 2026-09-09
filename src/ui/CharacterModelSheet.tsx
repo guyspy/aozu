@@ -1,4 +1,4 @@
-import { ImagePlusIcon, RulerIcon } from 'lucide-react'
+import { ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +7,6 @@ import { CHARACTER_REFERENCE_VIEWS, CHARACTER_REFERENCE_KINDS, type CharacterDra
 import { DataControls } from '@/ui/DataControls'
 import { BlobImage } from '@/ui/BlobImage'
 import { Button } from '@/ui/components/ui/button'
-import { Input } from '@/ui/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
 
 export function CharacterModelSheet({ draft, edit, commit, revert, upload, appearanceSelector, busy, error, saveFeedback, referenceId: view, openReference }: {
@@ -55,17 +54,6 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
   return <section className="model-sheet mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border bg-background sm:mt-3" aria-label={t('modelSheet.title')} data-reference-view={view}>
     <div className="model-sheet-toolbar draft-workshop-grid shrink-0">
       <div className="min-w-0">{appearanceSelector}</div>
-      <label className="model-sheet-height"><span><RulerIcon className="size-4" />{t('modelSheet.height')}</span>
-        <Input type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')}
-          value={sheet.heightCm ?? ''} onChange={(event) => {
-            const heightCm = event.currentTarget.value === '' ? undefined : event.currentTarget.valueAsNumber
-            if (heightCm === undefined || Number.isFinite(heightCm)) edit(withCharacterModelSheet(draft, { ...sheet, heightCm }))
-          }} onBlur={(event) => {
-            if (!event.currentTarget.checkValidity()) { event.currentTarget.reportValidity(); return }
-            const heightCm = event.currentTarget.value === '' ? undefined : event.currentTarget.valueAsNumber
-            commit((current) => updateCharacterModelSheet(current, { ...characterModelSheet(current), heightCm }))
-          }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') revert() }} />
-      </label>
     </div>
     <div className="model-sheet-content mt-3 min-h-0 flex-1 overflow-auto">
     <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">

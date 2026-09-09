@@ -80,6 +80,7 @@ export interface CharacterDraftVariant {
 export type CharacterAttributeValue = string | number | boolean
 
 export interface CharacterProfilePatch {
+  heightCm?: number | null
   name?: string
   description?: string
   backstory?: string

@@ -1012,9 +1012,6 @@ body::before {
 
 /* Reference sheets share the workshop shell and the collection's parchment cards. */
 .model-sheet-toolbar { align-items: start; }
-.model-sheet-height { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; font-size: 0.875rem; }
-.model-sheet-height > span { display: flex; align-items: center; gap: 0.4rem; }
-.model-sheet-height input { width: 7rem; }
 .model-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 0.85rem; }
 .model-sheet-card { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 0.7rem; border: 1px solid #b58b58; border-radius: 0.85rem; background: #fff0c933; }
 .model-sheet-card h3 { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }

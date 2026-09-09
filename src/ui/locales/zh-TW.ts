@@ -19,7 +19,7 @@ export const zhTW: Messages = {
     add: '加入參考圖', uploadView: '上傳{{view}}參考圖', openView: '開啟{{view}}參考圖',
     needsReview: '需與目前造型重新核對',
     missing: '待補圖', uncalibrated: '身高基準尚未校正', calibrated: '身高基準已校正',
-    scaleNote: '身高屬於角色本身。每張圖可校正頭頂與腳底，讓圖片留白、帽子與道具不影響比例。PNG · 最大 4096 × 4096 · 5 MiB。',
+    scaleNote: '身高可在人物誌選填。每張圖可校正頭頂與腳底，讓圖片留白、帽子與道具不影響比例。PNG · 最大 4096 × 4096 · 5 MiB。',
     calibrateHelp: '將兩條線移到頭頂與腳底；帽子和手持道具不計入身高。',
     head: '頭頂', feet: '腳底', notes: '視角註記', replace: '替換 PNG', saveReference: '儲存註記與基準',
     label: '參考圖名稱', kind: '用途', viewpoint: '角度', pose: '姿勢', download: '下載原圖', remove: '移除參考圖',

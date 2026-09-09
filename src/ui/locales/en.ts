@@ -172,7 +172,7 @@ export const en = {
     add: 'Add reference', uploadView: 'Upload {{view}} reference', openView: 'Open {{view}} reference',
     needsReview: 'Check against current Appearance',
     missing: 'Missing view', uncalibrated: 'Height guides not set', calibrated: 'Height guides set',
-    scaleNote: 'Height belongs to the character. Set head and feet guides on each image so margins, hats and props do not change the scale. PNG · up to 4096 × 4096 · 5 MiB.',
+    scaleNote: 'Optional height is set in Character profile. Set head and feet guides on each image so margins, hats and props do not change the scale. PNG · up to 4096 × 4096 · 5 MiB.',
     calibrateHelp: 'Place the two lines at the top of the head and the soles. Keep hats and held props outside the height measurement.',
     head: 'Head', feet: 'Feet', notes: 'View notes', replace: 'Replace PNG', saveReference: 'Save notes & guides',
     label: 'Reference name', kind: 'Purpose', viewpoint: 'Viewpoint', pose: 'Pose', download: 'Download original', remove: 'Remove reference',

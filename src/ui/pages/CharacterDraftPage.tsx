@@ -1,3 +1,4 @@
+import { Input } from '@/ui/components/ui/input'
 import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,8 +73,9 @@ const isTextEntry = (target: EventTarget | null) => target instanceof HTMLElemen
   && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
 
 type ProfileAttributeForm = { key: string; type: 'string' | 'number' | 'boolean'; value: string }
-type ProfileForm = { name: string; description: string; backstory: string; attributes: ProfileAttributeForm[] }
+type ProfileForm = { heightCm: string; name: string; description: string; backstory: string; attributes: ProfileAttributeForm[] }
 const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
+  heightCm: draft.modelSheet?.heightCm?.toString() ?? '',
   name: draft.name,
   description: draft.description ?? '',
   backstory: draft.backstory ?? '',
@@ -317,7 +319,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       key.trim(),
       type === 'number' ? value.trim() ? Number(value) : Number.NaN : type === 'boolean' ? value === 'true' : value,
     ]))
-    const patch = { name: profileForm.name, description: profileForm.description, backstory: profileForm.backstory, attributes }
+    const patch = { heightCm: profileForm.heightCm.trim() ? Number(profileForm.heightCm) : null, name: profileForm.name, description: profileForm.description, backstory: profileForm.backstory, attributes }
     try { updateCharacterProfile(draft, patch) }
     catch (caught) { setError(describe(caught)); return }
     commit((current) => updateCharacterProfile(current, patch))
@@ -556,6 +558,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <label className="min-h-0"><span>{t('characterDraft.profile.backstory')}</span><textarea className="min-h-28 flex-1" maxLength={8000} value={profileForm.backstory} onChange={(event) => setProfileForm({ ...profileForm, backstory: event.target.value })} /></label>
             <div className="character-attributes-editor">
               <div className="character-profile-heading"><span>{t('characterDraft.profile.attributes')}</span><Button type="button" size="sm" variant="ghost" disabled={profileForm.attributes.length >= 32} onClick={() => setProfileForm({ ...profileForm, attributes: [...profileForm.attributes, { key: '', type: 'string', value: '' }] })}><PlusIcon /> {t('characterDraft.profile.add')}</Button></div>
+              <label className="grid gap-1"><span>{t('modelSheet.height')}</span><Input aria-label={t('modelSheet.height')} type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')} value={profileForm.heightCm} onChange={(event) => setProfileForm({ ...profileForm, heightCm: event.currentTarget.value })} /></label>
               {profileForm.attributes.map((attribute, index) => <div className="character-attribute-row" key={index}>
                 <input aria-label={t('characterDraft.profile.attributeName', { index: index + 1 })} placeholder={t('characterDraft.profile.name')} maxLength={40} value={attribute.key} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row) })} />
                 <select aria-label={t('characterDraft.profile.attributeType', { index: index + 1 })} value={attribute.type} onChange={(event) => {
@@ -571,7 +574,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
             <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
             <p className="character-profile-description">{draft.description || t('characterDraft.profile.noDescription')}</p>
             <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
-            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3>{Object.keys(draft.attributes ?? {}).length ? <dl>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl> : <p className="text-muted-foreground">{t('characterDraft.profile.noAttributes')}</p>}</div>
+            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3><dl><div><dt>{t('modelSheet.height')}</dt><dd>{draft.modelSheet?.heightCm === undefined ? t('modelSheet.unknownHeight') : `${draft.modelSheet.heightCm} cm`}</dd></div>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl></div>
           </>}
         </section>}
       {!isProfile && (narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>

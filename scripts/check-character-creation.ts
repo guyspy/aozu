@@ -98,6 +98,13 @@ const profiled = updateCharacterProfile(draft, { name: '  Profiled  ', descripti
 assert.deepEqual({ name: profiled.name, description: profiled.description, backstory: profiled.backstory, attributes: profiled.attributes }, {
   name: 'Profiled', description: 'Summary', backstory: 'Line one.\n\nLine two.', attributes: { courage: 9, species: 'boar' },
 })
+const withHeight = updateCharacterProfile(profiled, { heightCm: 230 })
+assert.equal(withHeight.modelSheet?.heightCm, 230)
+assert.equal(updateCharacterProfile(withHeight, { heightCm: 230 }), withHeight)
+assert.equal(updateCharacterProfile(withHeight, { description: 'Changed' }).modelSheet?.heightCm, 230)
+assert.equal(updateCharacterProfile(withHeight, { heightCm: null }).modelSheet?.heightCm, undefined)
+assert.deepEqual(withHeight.attributes, profiled.attributes)
+for (const heightCm of [0, -1, NaN, Infinity, 100001]) assert.throws(() => updateCharacterProfile(withHeight, { heightCm }), /height/)
 assert.equal(updateCharacterProfile(profiled, { name: 'Profiled' }), profiled)
 assert.throws(() => updateCharacterProfile(profiled, { attributes: { mood: 'calm', ' mood ': 'bold' } }), /must be unique/)
 const migratedPublishedCharacter = migrateCharacterDraft({

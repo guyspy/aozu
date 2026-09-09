@@ -114,18 +114,21 @@ const normalizedAttributes = (attributes: Record<string, CharacterAttributeValue
 
 /** One profile command shared by the UI and WebMCP; omitted fields stay unchanged. */
 export function updateCharacterProfile(draft: CharacterDraft, patch: CharacterProfilePatch): CharacterDraft {
+  const heightCm = patch.heightCm === undefined ? draft.modelSheet?.heightCm : patch.heightCm ?? undefined
+  if (heightCm !== undefined && (!Number.isFinite(heightCm) || heightCm <= 0 || heightCm > 100_000)) throw new Error('Invalid character height')
   const name = patch.name === undefined ? draft.name : patch.name.trim()
   if (!name || name.length > 80) throw new Error('Character name must be 1–80 characters')
   const description = patch.description === undefined ? draft.description : optionalProfileText(patch.description, 500, 'Character description')
   const backstory = patch.backstory === undefined ? draft.backstory : optionalProfileText(patch.backstory, 8_000, 'Character backstory')
   const attributes = patch.attributes === undefined ? draft.attributes : normalizedAttributes(patch.attributes)
   if (
-    name === draft.name && description === draft.description && backstory === draft.backstory &&
+    heightCm === draft.modelSheet?.heightCm && name === draft.name && description === draft.description && backstory === draft.backstory &&
     JSON.stringify(attributes ?? {}) === JSON.stringify(draft.attributes ?? {})
   ) return draft
   const { description: _description, backstory: _backstory, attributes: _attributes, ...rest } = draft
   return {
     ...rest,
+    ...(heightCm !== draft.modelSheet?.heightCm ? { modelSheet: { ...draft.modelSheet, views: draft.modelSheet?.views ?? {}, heightCm } } : {}),
     name,
     ...(description ? { description } : {}),
     ...(backstory ? { backstory } : {}),
