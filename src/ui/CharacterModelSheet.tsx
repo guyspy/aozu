@@ -54,8 +54,6 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       {item ? <Button type="button" variant="ghost" className="model-sheet-art h-auto p-0" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
       </Button> : <Label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</Label>}
-      {isTurnaroundView(id) && <p className="model-sheet-state">{t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>}
-      {item?.needsReview && <p className="text-sm font-medium text-amber-900">{t('modelSheet.needsReview')}</p>}
       {item?.notes && <p className="line-clamp-2 wrap-anywhere text-sm text-muted-foreground">{item.notes}</p>}
     </Card>
   }
@@ -65,18 +63,15 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       <div className="min-w-0">{appearanceSelector}</div>
     </div>
     <div className="model-sheet-content mt-3 min-h-0 flex-1 overflow-auto">
-    <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 className="font-heading text-xl font-semibold">{t('modelSheet.fullBody')}</h2>
       <p className="text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p>
     </div>
-    <p className="mb-4 text-sm text-muted-foreground">{t('modelSheet.brief')}</p>
     <div className="model-sheet-grid">{CHARACTER_REFERENCE_VIEWS.map(card)}</div>
-    <p className="mt-4 text-xs leading-5 text-muted-foreground">{t('modelSheet.scaleNote')}</p>
-    <section className="mt-8 border-t pt-6" aria-labelledby="model-sheet-more-title">
-      <h2 id="model-sheet-more-title" className="font-heading text-xl font-semibold">{t('modelSheet.planned.title')}</h2>
-      <p className="mb-4 mt-2 text-sm text-muted-foreground">{t('modelSheet.moreHelp')}</p>
-      <div className="model-sheet-grid">{Object.keys(sheet.references ?? {}).map(card)}</div>
-      <Collapsible className="my-4 rounded-lg border p-3">
+    <section className="mt-12" aria-labelledby="model-sheet-more-title">
+      <h2 id="model-sheet-more-title" className="mb-6 font-heading text-xl font-semibold">{t('modelSheet.planned.title')}</h2>
+      <div className="model-sheet-grid">{Object.keys(sheet.references ?? {}).map((id, index) => card(id, CHARACTER_REFERENCE_VIEWS.length + index))}</div>
+      <Collapsible className="my-8">
         <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="w-full justify-between">{t('modelSheet.add')}<ChevronDownIcon /></Button></CollapsibleTrigger>
         <CollapsibleContent>
         <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => {
@@ -102,7 +97,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       </Collapsible>
       <div className="mt-6 flex flex-wrap items-center gap-3"><Badge variant="outline">{t('modelSheet.planned.status')}</Badge></div>
       <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-        {(['landmarks', 'lineup'] as const).map((section) => <li key={section}><Card className="h-full gap-1 border border-dashed bg-transparent p-4 ring-0">
+        {(['landmarks', 'lineup'] as const).map((section) => <li key={section}><Card className="h-full gap-1 bg-transparent p-0 ring-0">
           <h3 className="font-semibold">{t(`modelSheet.planned.sections.${section}.title`)}</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">{t(`modelSheet.planned.sections.${section}.description`)}</p>
         </Card></li>)}
@@ -115,6 +110,9 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
           <SheetTitle>{draft.name} · {label(view)}</SheetTitle>
           {reference.kind && <p className="model-sheet-state">{t(`modelSheet.kinds.${reference.kind}`)}</p>}
           <SheetDescription>{t(calibratable ? 'modelSheet.calibrateHelp' : 'modelSheet.moreHelp')}</SheetDescription>
+          <p className="text-sm text-muted-foreground">{t('modelSheet.brief')}</p>
+          <p className="text-xs text-muted-foreground">{t('modelSheet.scaleNote')}</p>
+          {calibratable && <p className="model-sheet-state">{t(reference.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated')}</p>}
           <div className="model-sheet-calibration" style={{ aspectRatio: `${reference.asset.inspection.width} / ${reference.asset.inspection.height}`, width: `min(100%, ${55 * reference.asset.inspection.width / reference.asset.inspection.height}svh)` }}>
             <BlobImage blob={reference.asset.blob} alt={label(view)} className="size-full object-contain" />
             {calibratable && (['head', 'feet'] as const).map((line) => <div key={line} className={`model-sheet-guide is-${line}`} style={{ top: `${guides[line] * 100}%` }}><span>{t(`modelSheet.${line}`)}</span></div>)}
