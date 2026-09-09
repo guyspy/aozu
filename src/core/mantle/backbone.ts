@@ -1,3 +1,4 @@
+import { STORYBOARD_UPDATE_SCHEMA } from '../domain/storyboard.ts'
 import type { JsonSchema, ManifestSource } from "@aotter/mantle-spec"
 import type { RuntimePlan } from "@aotter/mantle-runtime"
 import {
@@ -54,7 +55,7 @@ const nextActionSchema = objectSchema({
 
 const toolEffectsSchema = objectSchema({
   navigation: objectSchema({
-    path: { type: 'string', pattern: '^/(?:characters|collections)(?:/|$)' },
+    path: { type: 'string', pattern: '^/(?:characters|collections|storyboards)(?:/|$)' },
     mode: { const: 'push' },
     reason: { type: 'string', minLength: 1 },
   }, ['path', 'mode', 'reason']),
@@ -312,6 +313,14 @@ const characterWorkspaceRequired = ['schemaVersion', 'packId', 'rigProfile', 'na
 export const FIXED_BACKBONE_VERSION = "6"
 
 const ALL_BACKBONE_SOURCES = [
+  ...[
+    { name: 'inspect-storyboard', title: 'Inspect Storyboard', description: 'List standalone storyboards or read one exact revision, selected candidates, pinned reference standards and source changes. Boards may mix collections and external PNGs. Image bytes are opt-in, at most five image IDs. Actually view images before visual feedback. Stored, selected and human-confirmed are distinct. UI context is exposed through inspect_workspace. No navigation or mutation.', input: { ...objectSchema({ boardId: { type: 'string', minLength: 1 }, images: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', minLength: 1 } } }), readOnly: true } },
+    { name: 'update-storyboard', title: 'Update Storyboard', description: 'Create a standalone board or mutate it using its exact expectedRevision. Actions: rename (name/notes), add-frame (title/notes), edit-frame (frameId/title/notes/review/transition/duration), remove-frame, reorder (all frame IDs exactly once), add-candidate (frameId/filename/PNG dataUrl/source), select (frameId/imageId), reference (frameId/imageId/purpose or remove:true), undo, redo. Uploaded candidates NEVER automatically replace selections. Confirmed review requires explicit human approval, never merely successful upload. Reference pins exact image ID/hash; changes to source selection do not rewrite it. Same operations and persisted undo/redo as UI. PNG originals up to 4096×4096 and 5 MiB, at most 100 frames/500 images/128 MiB per board. Source text is provenance only. Returns navigation to affected board for visual review. No same-collection requirement.', input: STORYBOARD_UPDATE_SCHEMA },
+    { name: 'export-storyboard', title: 'Export Storyboard', description: 'Build and download a portable ZIP of one exact storyboard revision: all original candidate/reference PNGs, ordered selected PNGs, manifest, HTML overview and transition notes. Reimport creates an independent board. Export is not approval or video generation. Returns filename and size, not a huge base64 payload.', input: { ...objectSchema({ boardId: { type: 'string', minLength: 1 }, expectedRevision: { type: 'integer', minimum: 1 } }, ['boardId', 'expectedRevision']), readOnly: true } },
+  ].flatMap(({ name, title, description, input }) => [
+    source(`authoring/${name}.yaml`, envelope('Procedure', name, { title, description, input, output: toolResultSchema, handler: { kind: 'ref', ref: `companion.${name}` } })),
+    source(`authoring/${name}-mcp.yaml`, envelope('Trigger', name, { source: { kind: 'mcp', surface: 'public' }, target: { procedure: name } })),
+  ]),
   source(
     "fixed/item-definition.yaml",
     envelope(
@@ -621,7 +630,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-workspace.yaml',
     envelope('Procedure', 'inspect-workspace', {
       title: 'Inspect Workspace',
-      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. Returns the current route, Character/Collection, applied selections, viewed variant or model-sheet reference, save/history state, open panel and uncommitted-input flag. includeSnapshot:true returns the clean current Appearance composite or the original image of an open model-sheet reference. Actually view snapshot.dataUrl before visual feedback; if unavailable, follow its reason. A snapshot never navigates, saves or changes selections. Follow nextActions to inspect the task-specific character contract before producing art. Model-sheet references can be opaque and retain their original dimensions; Appearance layers have separate alpha and fixed-canvas rules. A request for an opinion does not request changes.`,
+      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. Returns the current route, Storyboard/frame/candidate and board revision, Character/Collection, applied selections, viewed variant or model-sheet reference, save/history state, open panel and uncommitted-input flag. For storyboards use inspect_storyboard with explicit image IDs for original PNGs. includeSnapshot:true returns the clean current Appearance composite or the original image of an open model-sheet reference. Actually view snapshot.dataUrl before visual feedback; if unavailable, follow its reason. A snapshot never navigates, saves or changes selections. Follow nextActions to inspect the task-specific character contract before producing art. Model-sheet references can be opaque and retain their original dimensions; Appearance layers have separate alpha and fixed-canvas rules. A request for an opinion does not request changes.`,
       input: {
         ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include the current Appearance preview or open model-sheet reference PNG for visual feedback. Omit for lightweight metadata only.' } }),
         readOnly: true,

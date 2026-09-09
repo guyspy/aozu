@@ -13,6 +13,11 @@ export function readWorkspaceView(document: Document) {
   const referenceView = page.querySelector<HTMLElement>('[data-reference-view]')?.dataset.referenceView
   return {
     surface: view.workspaceView,
+    boardId: view.boardId ?? null,
+    frameId: view.frameId ?? null,
+    candidateId: view.candidateId ?? null,
+    comparedImageIds: view.comparedImageIds?.split(',').filter(Boolean) ?? [],
+    boardRevision: view.boardRevision ? Number(view.boardRevision) : null,
     characterId: view.characterId ?? null,
     revision: view.characterRevision ? Number(view.characterRevision) : null,
     collectionId: view.collectionId ?? null,
@@ -35,7 +40,7 @@ const navigationEffect = (value: unknown) => {
   const navigation = (value as { effects?: { navigation?: unknown } }).effects?.navigation
   if (!navigation || typeof navigation !== 'object') return null
   const { path, mode } = navigation as { path?: unknown; mode?: unknown }
-  return typeof path === 'string' && /^\/(?:characters|collections)(?:\/|$)/.test(path) && mode === 'push' ? path : null
+  return typeof path === 'string' && /^\/(?:characters|collections|storyboards)(?:\/|$)/.test(path) && mode === 'push' ? path : null
 }
 
 export function createWebMcpController(

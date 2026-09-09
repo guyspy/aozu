@@ -1,3 +1,4 @@
+import { storyboardEn, storyboardZh } from './locales/storyboard'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -47,7 +48,7 @@ const storedLanguage = (): LanguageCode | undefined => {
 }
 
 void i18n.use(initReactI18next).init({
-  resources,
+  resources: Object.fromEntries(Object.entries(resources).map(([language, value]) => [language, { translation: { ...value.translation, storyboard: language === 'zh-TW' ? storyboardZh : storyboardEn } }])),
   lng: storedLanguage() ?? 'en',
   fallbackLng: 'en',
   supportedLngs: LANGUAGES.map(({ code }) => code),

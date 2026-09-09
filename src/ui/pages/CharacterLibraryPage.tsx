@@ -109,6 +109,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
   return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
     data-workspace-view={book ? 'collection' : 'collections'} data-collection-id={book?.id}
     data-panel={panel} data-has-uncommitted-input={panel === 'profile' || panel === 'create'}>
+    {!book && <Link to="/storyboards" className="story-home-tool"><span>▤</span><div><h2>{t('storyboard.title')}</h2><p>{t('storyboard.toolHint')}</p></div><strong>{t('storyboard.open')}</strong></Link>}
     <div className="book-toolbar">
       <div className="min-w-0">
         {book ? <DropdownMenu.Root><DropdownMenu.Trigger asChild>
