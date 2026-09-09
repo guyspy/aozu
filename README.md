@@ -132,6 +132,14 @@ reference conventions, review workflow, and acceptance criteria.
 Run `/scripts/check-model-sheet.html?responsive` with `pnpm dev` for the
 memory-only browser check at 320, 390, 900, and 1280px.
 
+## Storyboards
+
+Open **Storyboards** from the home shelf. Import PNG keyframes from any collection or external source, then explicitly select each shot's image. Cards wrap to the screen width; drag or use the arrow buttons to reorder. Click a card for the model-sheet-style detail drawer, candidate comparison, review state, fixed reference standards, and outgoing camera/action notes.
+
+`inspect_storyboard`, `update_storyboard`, and `export_storyboard` share the UI's revision-checked operations. `inspect_workspace` reports the open board, frame, candidate and unsaved-input state. Uploading never selects or approves an image; reference pins retain exact image versions even after the source selection changes. Request original image bytes explicitly when inspecting.
+
+Export ZIP includes the ordered selected PNGs, all source images, a responsive HTML overview, transition notes, and the board manifest. Reimport creates an independent copy and verifies image hashes. Original PNGs keep their dimensions (up to 4096 × 4096 / 5 MiB); each board allows 100 frames, 500 retained images and 128 MiB of images. The last 30 edits support persisted Undo/Redo. Removed/undone images remain available to references. Storage is local to this browser; storyboard ZIPs are separate from Character library backups. Video generation remains in the downstream tool.
+
 ## Collections, library backups, and PNGs
 
 On **Your characters**, create a **Collection**, expand **Organize characters**,

@@ -8,6 +8,7 @@ import { createIndexedDbCharacterLibraryRepository } from './adapters/indexeddb/
 import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/zip/character-library.ts'
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
+import { createStoryboardService } from './core/application/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
 import { CHARACTER_A_POSE_GUIDANCE, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
@@ -180,6 +181,9 @@ const characterNormalizationContract = (alignAvailable: boolean) => ({
 
 const CHARACTER_WEBMCP_TRIGGERS = [
   'inspect-workspace',
+  'inspect-storyboard',
+  'update-storyboard',
+  'export-storyboard',
   'update-collection-profile',
   'navigate-character',
   'inspect-character-contract',
@@ -194,6 +198,7 @@ const CHARACTER_WEBMCP_TRIGGERS = [
 ] as const
 
 export function createApplication(document: Document) {
+  const storyboards = createStoryboardService()
   const legacyCharacterDrafts = createIndexedDbCharacterDraftRepository()
   const browser = document.defaultView
   // Legacy migration spans asset staging, Mantle creation and legacy cleanup. Serialize it with
@@ -215,6 +220,23 @@ export function createApplication(document: Document) {
     storage: createIndexedDbMantleStorageAdapter(AUTHORING_NAMESPACE),
     handlers: {
       'companion.inspect-workspace': inspectWorkspace,
+      'companion.inspect-storyboard': async (input) => {
+        const { boardId, images } = input as { boardId?: string; images?: string[] }
+        return { status: 'ok', data: await storyboards.inspect(boardId, images) }
+      },
+      'companion.update-storyboard': async (input) => {
+        if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or discard local unsaved input before changing the storyboard')
+        const board = await storyboards.update(input)
+        return { status: 'ok', data: { boardId: board.id, revision: board.revision, frames: board.frames }, effects: { navigation: { path: `/storyboards/${board.id}`, mode: 'push', reason: 'Review the changed storyboard.' } } }
+      },
+      'companion.export-storyboard': async (input) => {
+        const { boardId, expectedRevision } = input as { boardId: string; expectedRevision: number }
+        const blob = await storyboards.export(boardId, expectedRevision)
+        const url = URL.createObjectURL(blob), link = document.createElement('a')
+        link.href = url; link.download = `storyboard-${boardId}.zip`; link.click()
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+        return { status: 'ok', data: { filename: link.download, bytes: blob.size, revision: expectedRevision, downloadStarted: true } }
+      },
       'companion.update-collection-profile': updateCollectionProfile,
       'companion.navigate-character': navigateCharacter,
       'companion.update-character-profile': updateProfile,
@@ -292,6 +314,7 @@ export function createApplication(document: Document) {
   }
 
   const application = {
+    storyboards,
     webmcp,
     editor,
     changeCharacterAppearance: applyCharacterAppearance,
@@ -486,6 +509,7 @@ export function createApplication(document: Document) {
     const character = current?.character ?? null
     const renderSnapshot = async () => {
       const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
+      if (view?.boardId) return unavailable('Use inspect_storyboard with boardId and explicit image IDs to view the original storyboard images.')
       if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
       if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
       const state = editor.store.getState()
@@ -528,7 +552,7 @@ export function createApplication(document: Document) {
     }
     const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
-    const navigation = [{ destination: 'characters', path: '/collections' }, ...(character ? [
+    const navigation = [{ destination: 'storyboards', path: '/storyboards' }, { destination: 'characters', path: '/collections' }, ...(character ? [
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
       { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
@@ -544,6 +568,8 @@ export function createApplication(document: Document) {
         route: { path: route, ...selectedRoute },
         view,
         contextFreshness: 'Snapshot at tool invocation, not a live subscription. Re-inspect after user navigation, panel/preview changes, and tool mutations. viewedVariantId is the variant being previewed; currentCharacter.selected is the applied composition. Uncommitted form, numeric, and drag inputs are not included in the Character contract; inspect the visible UI and let those edits settle before mutating.',
+        storyboards: (await storyboards.inspect()).boards,
+        currentStoryboard: view?.boardId ? await storyboards.inspect(view.boardId) : null,
         currentCollection: books.find(({ id }) => id === view?.collectionId) ?? null,
         collections: books,
         characters: records.map(({ character: draft, version }) => ({
@@ -571,9 +597,9 @@ export function createApplication(document: Document) {
         ...(includeSnapshot ? { snapshot: await renderSnapshot() } : {}),
         history: historyStatus(),
         navigation,
-        assetPolicy: view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
+        assetPolicy: view?.surface?.startsWith('storyboard') ? 'Storyboard PNG originals retain their dimensions and opacity. Use inspect_storyboard for exact selections, pinned references and source images.' : view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
       },
-      nextActions: view?.category === 'model-sheet' && character ? [{ tool: 'inspect_character_contract', required: false, reason: 'Inspect the reference task and explicitly request source images before generating art.', input: { characterId: character.id, scope: 'model-sheet', referenceId: view.referenceView ?? selectedRoute?.variantId ?? 'front' } }] : nextActions,
+      nextActions: view?.surface?.startsWith('storyboard') ? [{ tool: 'inspect_storyboard', required: false, reason: 'Inspect the storyboard and request exact image IDs before visual feedback.', input: view.boardId ? { boardId: view.boardId } : {} }] : view?.category === 'model-sheet' && character ? [{ tool: 'inspect_character_contract', required: false, reason: 'Inspect the reference task and explicitly request source images before generating art.', input: { characterId: character.id, scope: 'model-sheet', referenceId: view.referenceView ?? selectedRoute?.variantId ?? 'front' } }] : nextActions,
     }
   }
 

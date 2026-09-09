@@ -28,6 +28,7 @@ import "./check-character-library.ts"
 await import('./check-character-collections.ts')
 await import('./check-character-library-concurrency.ts')
 await import('./check-character-model-sheet.ts')
+await import('./check-storyboard.ts')
 
 // Isolate module mocks and browser globals from the other checks.
 const { execFileSync } = await import('node:child_process')

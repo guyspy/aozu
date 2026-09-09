@@ -9,6 +9,7 @@ import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
 import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
+import { StoryboardPage } from '@/ui/pages/StoryboardPage'
 import { StatusPage } from '@/ui/pages/StatusPage'
 
 function CharacterEditor({ application, refresh, savedRevision, webmcpReady }: { webmcpReady: boolean; application: Application; refresh(): Promise<void>; savedRevision?: number }) {
@@ -48,14 +49,6 @@ export function AppRoutes({ application }: { application: Application }) {
   const [webmcp, setWebmcp] = useState(application.webmcp.getState())
   const [library, setLibrary] = useState<Awaited<ReturnType<Application['loadCharacterLibrary']>>>()
   const [loadError, setLoadError] = useState(false)
-  const lastBook = (() => {
-    try { return localStorage.getItem('aozu-last-collection') ?? DEFAULT_CHARACTER_COLLECTION } catch { return DEFAULT_CHARACTER_COLLECTION }
-  })()
-  useEffect(() => {
-    const id = /^\/collections\/([^/]+)$/.exec(location.pathname)?.[1]
-    if (!id || !library?.collections.some((book) => book.id === id)) return
-    try { localStorage.setItem('aozu-last-collection', id) } catch { /* Browsing still works without preference storage. */ }
-  }, [location.pathname, library])
   useLayoutEffect(() => { document.getElementById('root')?.scrollTo(0, 0) }, [location.pathname])
   const refresh = useCallback(async () => {
     try {
@@ -102,7 +95,7 @@ export function AppRoutes({ application }: { application: Application }) {
   const characterId = editing ? decodeURIComponent(location.pathname.split('/')[2] ?? '') : undefined
   const character = library.characters.find(({ id }) => id === characterId)
   const characterBook = library.collections.find(({ characterIds }) => characterId && characterIds.includes(characterId))?.id ?? DEFAULT_CHARACTER_COLLECTION
-  const home = library.characters.length ? `/collections/${library.collections.some(({ id }) => id === lastBook) ? lastBook : DEFAULT_CHARACTER_COLLECTION}` : '/characters/new/expressions'
+
   const libraryPage = <CharacterLibraryPage
     characters={library.characters}
     loadThumbnail={application.loadCharacterThumbnail}
@@ -129,7 +122,9 @@ export function AppRoutes({ application }: { application: Application }) {
       onBack={editing ? () => navigate(`/collections/${characterBook}`) : undefined}
     />
     <Routes>
-      <Route index element={<Navigate to={home} replace />} />
+      <Route index element={<Navigate to="/collections" replace />} />
+      <Route path="/storyboards" element={<StoryboardPage service={application.storyboards} />} />
+      <Route path="/storyboards/:boardId" element={<StoryboardPage key={location.pathname} service={application.storyboards} />} />
       <Route path="/collections" element={libraryPage} />
       <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />
