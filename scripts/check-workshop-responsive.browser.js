@@ -69,6 +69,17 @@ try {
     matches()
     button('Cancel').click()
     await ready(() => !find('#character-profile input'))
+    if (width < 900) {
+      assert(find('[role="dialog"] #character-profile'), 'Mobile profile must use the shared drawer')
+      find('[data-slot="sheet-close"]').click()
+      await ready(() => !find('[role="dialog"]'))
+      const trigger = find('.character-stage-preview button[aria-label="Character profile"]')
+      await ready(() => doc.activeElement === trigger)
+      trigger.click()
+      await ready(() => find('[role="dialog"] #character-profile'))
+      find('[data-slot="sheet-close"]').click()
+      await ready(() => !find('[role="dialog"]'))
+    }
     button('Model sheet').click()
     await ready(() => find('.model-sheet-content'))
     const sheet = find('.model-sheet').getBoundingClientRect()

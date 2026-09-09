@@ -918,7 +918,7 @@ body::before {
   max-width: none;
 }
 
-.character-workbench-drawer > .doll-workbench {
+.character-workbench-drawer > :is(.doll-workbench, .character-profile-panel) {
   flex: 1;
   padding: 3.25rem 1rem 1rem;
   border: 0;
@@ -929,12 +929,6 @@ body::before {
   .draft-workshop-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .is-profile-open {
-    grid-template-rows: 100% auto;
-    overflow-y: auto;
-  }
-  .is-profile-open .character-profile-panel { min-height: 20rem; }
 
   .workbench-tabs {
     height: 3.5rem;

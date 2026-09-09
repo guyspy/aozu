@@ -117,7 +117,13 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const [fit, setFit] = useState<{ key: string; value: CharacterFitSuggestion }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 899px)').matches)
-  const [workbenchOpen, setWorkbenchOpen] = useState(false)
+  const [workbenchOpen, setWorkbenchOpen] = useState(narrow && isProfile)
+  const panelContext = `${characterId}:${activeMode}:${narrow}`
+  const [previousPanelContext, setPreviousPanelContext] = useState(panelContext)
+  if (panelContext !== previousPanelContext) {
+    setPreviousPanelContext(panelContext)
+    setWorkbenchOpen(narrow && isProfile)
+  }
   const [profileForm, setProfileForm] = useState<ProfileForm>()
   const [alignmentMode, setAlignmentMode] = useState<'composite' | 'overlay' | 'difference' | 'diagnostic'>('overlay')
   const drag = useRef<{
@@ -136,7 +142,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
-    const update = () => { setNarrow(media.matches); setWorkbenchOpen(false) }
+    const update = () => { setNarrow(media.matches) }
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
@@ -482,6 +488,36 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </div>
       </section>
 
+  const profile = <section id="character-profile" className="character-profile-panel rounded-2xl border bg-background">
+          {narrow && <SheetTitle className="sr-only">{t('characterDraft.profile.title')}</SheetTitle>}
+          {error && narrow && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          {profileForm ? <>
+            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
+            <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
+            <label><span>{t('characterDraft.profile.description')}</span><textarea maxLength={500} rows={3} value={profileForm.description} onChange={(event) => setProfileForm({ ...profileForm, description: event.target.value })} /></label>
+            <label className="min-h-0"><span>{t('characterDraft.profile.backstory')}</span><textarea className="min-h-28 flex-1" maxLength={8000} value={profileForm.backstory} onChange={(event) => setProfileForm({ ...profileForm, backstory: event.target.value })} /></label>
+            <div className="character-attributes-editor">
+              <div className="character-profile-heading"><span>{t('characterDraft.profile.attributes')}</span><Button type="button" size="sm" variant="ghost" disabled={profileForm.attributes.length >= 32} onClick={() => setProfileForm({ ...profileForm, attributes: [...profileForm.attributes, { key: '', type: 'string', value: '' }] })}><PlusIcon /> {t('characterDraft.profile.add')}</Button></div>
+              <label className="grid gap-1"><span>{t('modelSheet.height')}</span><Input aria-label={t('modelSheet.height')} type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')} value={profileForm.heightCm} onChange={(event) => setProfileForm({ ...profileForm, heightCm: event.currentTarget.value })} /></label>
+              {profileForm.attributes.map((attribute, index) => <div className="character-attribute-row" key={index}>
+                <input aria-label={t('characterDraft.profile.attributeName', { index: index + 1 })} placeholder={t('characterDraft.profile.name')} maxLength={40} value={attribute.key} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row) })} />
+                <select aria-label={t('characterDraft.profile.attributeType', { index: index + 1 })} value={attribute.type} onChange={(event) => {
+                  const type = event.target.value as ProfileAttributeForm['type']
+                  setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, type, value: type === 'boolean' ? 'true' : type === 'number' ? '0' : row.value } : row) })
+                }}><option value="string">{t('characterDraft.profile.text')}</option><option value="number">{t('characterDraft.profile.number')}</option><option value="boolean">{t('characterDraft.profile.boolean')}</option></select>
+                {attribute.type === 'boolean' ? <select aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })}><option value="true">{t('characterDraft.profile.yes')}</option><option value="false">{t('characterDraft.profile.no')}</option></select> : <input aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} type={attribute.type === 'number' ? 'number' : 'text'} maxLength={attribute.type === 'string' ? 200 : undefined} placeholder={t('characterDraft.profile.value')} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })} />}
+                <Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.removeAttribute', { index: index + 1 })} onClick={() => setProfileForm({ ...profileForm, attributes: profileForm.attributes.filter((_, rowIndex) => rowIndex !== index) })}><Trash2Icon /></Button>
+              </div>)}
+            </div>
+            <div className="mt-auto flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setProfileForm(undefined)}>{t('common.cancel')}</Button><Button type="button" onClick={saveProfile}>{t('characterDraft.profile.update')}</Button></div>
+          </> : <>
+            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
+            <p className="character-profile-description">{draft.description || t('characterDraft.profile.noDescription')}</p>
+            <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
+            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3><dl><div><dt>{t('modelSheet.height')}</dt><dd>{draft.modelSheet?.heightCm === undefined ? t('modelSheet.unknownHeight') : `${draft.modelSheet.heightCm} cm`}</dd></div>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl></div>
+          </>}
+        </section>
+
   const appearanceControls = <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft}
     manage={!isModelSheet && !isProfile && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
     change={(command) => void runBusy('appearance', async () => {
@@ -513,11 +549,11 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
           referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
           upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })} />
       </> :
-      <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${isProfile ? 'is-profile-open' : ''}`}>
+      <div className="draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3">
       <section className="character-stage-panel rounded-2xl border bg-background">
         <div className="character-stage-preview">
         <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
-          {narrow && (isProfile ? <span className="size-8 shrink-0" aria-hidden="true" /> : <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>)}
+          {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')} title={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
         </div>
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
@@ -550,36 +586,10 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         </div>}
         </div>
       </section>
-        {isProfile && <section id="character-profile" className="character-profile-panel rounded-2xl border bg-background">
-          {profileForm ? <>
-            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
-            <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
-            <label><span>{t('characterDraft.profile.description')}</span><textarea maxLength={500} rows={3} value={profileForm.description} onChange={(event) => setProfileForm({ ...profileForm, description: event.target.value })} /></label>
-            <label className="min-h-0"><span>{t('characterDraft.profile.backstory')}</span><textarea className="min-h-28 flex-1" maxLength={8000} value={profileForm.backstory} onChange={(event) => setProfileForm({ ...profileForm, backstory: event.target.value })} /></label>
-            <div className="character-attributes-editor">
-              <div className="character-profile-heading"><span>{t('characterDraft.profile.attributes')}</span><Button type="button" size="sm" variant="ghost" disabled={profileForm.attributes.length >= 32} onClick={() => setProfileForm({ ...profileForm, attributes: [...profileForm.attributes, { key: '', type: 'string', value: '' }] })}><PlusIcon /> {t('characterDraft.profile.add')}</Button></div>
-              <label className="grid gap-1"><span>{t('modelSheet.height')}</span><Input aria-label={t('modelSheet.height')} type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')} value={profileForm.heightCm} onChange={(event) => setProfileForm({ ...profileForm, heightCm: event.currentTarget.value })} /></label>
-              {profileForm.attributes.map((attribute, index) => <div className="character-attribute-row" key={index}>
-                <input aria-label={t('characterDraft.profile.attributeName', { index: index + 1 })} placeholder={t('characterDraft.profile.name')} maxLength={40} value={attribute.key} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row) })} />
-                <select aria-label={t('characterDraft.profile.attributeType', { index: index + 1 })} value={attribute.type} onChange={(event) => {
-                  const type = event.target.value as ProfileAttributeForm['type']
-                  setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, type, value: type === 'boolean' ? 'true' : type === 'number' ? '0' : row.value } : row) })
-                }}><option value="string">{t('characterDraft.profile.text')}</option><option value="number">{t('characterDraft.profile.number')}</option><option value="boolean">{t('characterDraft.profile.boolean')}</option></select>
-                {attribute.type === 'boolean' ? <select aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })}><option value="true">{t('characterDraft.profile.yes')}</option><option value="false">{t('characterDraft.profile.no')}</option></select> : <input aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} type={attribute.type === 'number' ? 'number' : 'text'} maxLength={attribute.type === 'string' ? 200 : undefined} placeholder={t('characterDraft.profile.value')} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })} />}
-                <Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.removeAttribute', { index: index + 1 })} onClick={() => setProfileForm({ ...profileForm, attributes: profileForm.attributes.filter((_, rowIndex) => rowIndex !== index) })}><Trash2Icon /></Button>
-              </div>)}
-            </div>
-            <div className="mt-auto flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setProfileForm(undefined)}>{t('common.cancel')}</Button><Button type="button" onClick={saveProfile}>{t('characterDraft.profile.update')}</Button></div>
-          </> : <>
-            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
-            <p className="character-profile-description">{draft.description || t('characterDraft.profile.noDescription')}</p>
-            <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
-            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3><dl><div><dt>{t('modelSheet.height')}</dt><dd>{draft.modelSheet?.heightCm === undefined ? t('modelSheet.unknownHeight') : `${draft.modelSheet.heightCm} cm`}</dd></div>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl></div>
-          </>}
-        </section>}
-      {!isProfile && (narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
-        {workbench}
-      </SheetContent> : workbench)}
+
+      {narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
+        {isProfile ? profile : workbench}
+      </SheetContent> : isProfile ? profile : workbench}
       </div>}
     </main>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
