@@ -586,7 +586,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               /></div>}
         </CharacterViewport>
         {!hasBase && baseVariant && <Dialog open={startOpen} onOpenChange={setStartOpen}><DialogContent className="max-h-[calc(100svh-2rem)] overflow-auto sm:max-w-md" closeLabel={t('common.close')} data-character-start>
-          <DialogTitle className="pr-10">{t('characterDraft.start.title')}</DialogTitle>
+          <DialogTitle className="pr-10">{t(webmcpReady ? 'characterDraft.start.title' : 'characterDraft.start.desktopTitle')}</DialogTitle>
           <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
           {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
           <div className="flex flex-wrap gap-2">
@@ -595,8 +595,9 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               await navigator.clipboard.writeText(prompt)
               setCopiedPrompt(prompt)
             })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
-              : <Button asChild size="sm"><a href={`https://chatgpt.com/?q=${encodeURIComponent(t('characterDraft.start.imagePrompt'))}`} target="_blank" rel="noopener noreferrer">{t('characterDraft.start.chatgpt')}</a></Button>}
+              : <Button asChild size="sm"><a href={`codex://new?prompt=${encodeURIComponent(t('characterDraft.start.desktopPrompt', { url: window.location.href }))}`} >{t('characterDraft.start.chatgpt')}</a></Button>}
           </div>
+          {!webmcpReady && <Button type="button" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
         </DialogContent></Dialog>}
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}

@@ -70,7 +70,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
         check(panel.textContent.includes(i18n.t(startCheck === 'manual' ? 'characterDraft.start.manualHelp' : 'characterDraft.start.agentHelp')), 'Wrong empty-state language or capability branch')
         if (startCheck === 'manual') {
           const link = panel.querySelector('a')
-          check(new URL(link.href).searchParams.get('q') === i18n.t('characterDraft.start.imagePrompt'), 'ChatGPT link lost its localized prompt')
+          check(link.href.startsWith('codex://new?') && new URL(link.href).searchParams.get('prompt') === i18n.t('characterDraft.start.desktopPrompt', { url: location.href }), 'Desktop link lost its localized prompt or current URL')
           check(!buttons(i18n.t('characterDraft.start.copy')), 'Unsupported browser showed agent action')
         } else {
           let copied
@@ -84,7 +84,8 @@ if (new URLSearchParams(location.search).has('responsive')) {
         check(bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight, 'Start dialog escaped the viewport')
         check(Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2 && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2, 'Start dialog is not centered')
       }
-      document.querySelector('[data-character-start] [data-slot=dialog-close]').click()
+      if (startCheck === 'manual') buttons(i18n.t('characterDraft.start.continueBrowser')).click()
+      else document.querySelector('[data-character-start] [data-slot=dialog-close]').click()
       await ready(() => !document.querySelector('[data-character-start]'))
       await i18n.changeLanguage('en'); await wait()
       check(!document.querySelector('[data-character-start]'), 'Dismissed dialog reopened on render')
