@@ -34,6 +34,7 @@ export const ko: Messages = {
     empty: '아직 캐릭터가 없습니다. 새로 만들거나 이전에 내보낸 캐릭터를 가져오세요.',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: '캐릭터 ZIP 다운로드', characterActions: '캐릭터 작업',
     customizeTitle: '외형 꾸미기',
     categorySwitcher: '외형 분류',

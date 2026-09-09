@@ -34,6 +34,7 @@ export const ja: Messages = {
     empty: 'キャラクターはまだありません。作成するか、以前書き出したキャラクターを読み込んでください。',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: 'キャラクター ZIP をダウンロード', characterActions: 'キャラクター操作',
     customizeTitle: '外見をカスタマイズ',
     categorySwitcher: '外見のカテゴリ',

@@ -82,7 +82,8 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
+  webmcpReady?: boolean
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
@@ -96,6 +97,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   deleteCharacter(): Promise<void>
 }) {
   const { t } = useTranslation()
+  const [copiedPrompt, setCopiedPrompt] = useState('')
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const isModelSheet = step === 'model-sheet'
@@ -555,6 +557,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
         <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
           {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')} title={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
         </div>
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
@@ -581,6 +584,20 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 footLine={registration.footLine}
               /></div>}
         </CharacterViewport>
+        {!hasBase && baseVariant && <div className="absolute inset-x-3 bottom-3 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur-sm" data-character-start>
+          <p className="mb-2 text-sm">{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</p>
+          {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
+          <div className="flex flex-wrap gap-2">
+            {webmcpReady ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => void runBusy('copy-prompt', async () => {
+              const prompt = t('characterDraft.start.agentPrompt')
+              await navigator.clipboard.writeText(prompt)
+              setCopiedPrompt(prompt)
+            })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
+              : <Button asChild size="sm"><a href={`https://chatgpt.com/?q=${encodeURIComponent(t('characterDraft.start.imagePrompt'))}`} target="_blank" rel="noopener noreferrer">{t('characterDraft.start.chatgpt')}</a></Button>}
+            <div><Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}>{t('characterDraft.start.upload')}</Button>{fileInput(baseVariant, 'body')}</div>
+          </div>
+        </div>}
+        </div>
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}

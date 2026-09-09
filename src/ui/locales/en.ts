@@ -75,6 +75,13 @@ export const en = {
     empty: 'No characters yet. Create one, or import a character you exported earlier.',
   },
   characterDraft: {
+    start: {
+      agentHelp: 'Create your character with your agent. Copy this prompt and add your idea.',
+      agentPrompt: 'Help me create the character currently open in AOZU. First ask what character and art style I want. Then inspect this workspace with its tools and follow the base-character image requirements to generate and add the artwork to this character.',
+      manualHelp: 'Upload a character PNG, or create one in ChatGPT and upload it here.',
+      imagePrompt: 'Help me design a character. First ask about the character and art style I want. Then generate a 512 × 768 RGBA full-body front-view PNG in a relaxed A-pose, with the whole head and feet visible, on a transparent background, without text or a frame. I will download it and upload it to AOZU.',
+      copy: 'Copy prompt', copied: 'Copied', upload: 'Upload PNG', chatgpt: 'Open in ChatGPT',
+    },
     customizeTitle: 'Customize appearance',
     categorySwitcher: 'Appearance categories',
     required: 'Required',

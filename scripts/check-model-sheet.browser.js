@@ -21,7 +21,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     for (const width of [320, 390, 900, 1280]) {
       const frame = document.createElement('iframe')
       frame.style.cssText = `width:${width}px;height:844px;border:0`
-      frame.src = '/scripts/check-model-sheet.html'
+      frame.src = '/scripts/check-model-sheet.html' + (new URLSearchParams(location.search).has('start') ? `?start=${new URLSearchParams(location.search).get('start')}` : '')
       document.body.append(frame)
       await ready(() => /^(PASS|FAIL)/.test(frame.contentDocument?.querySelector('#result')?.textContent ?? ''))
       check(frame.contentDocument.querySelector('#result').textContent.startsWith('PASS'), `${width}px: ${frame.contentDocument.querySelector('#result').textContent}`)
@@ -31,12 +31,13 @@ if (new URLSearchParams(location.search).has('responsive')) {
     result.textContent = 'PASS: model sheet flow at 320, 390, 900 and 1280px'
   } catch (error) { result.textContent = `FAIL: ${error.message}` }
 } else {
+  const startCheck = new URLSearchParams(location.search).get('start')
   const registered = new Map()
-  const route = { pathname: '/characters/new/model-sheet' }
+  const route = { pathname: startCheck ? '/characters/new/expressions' : '/characters/new/model-sheet' }
   const app = createApplication({
     defaultView: { location: route, navigator: {}, addEventListener() {}, removeEventListener() {} },
     querySelector: document.querySelector.bind(document),
-    modelContext: { registerTool: (tool) => registered.set(tool.name, tool) },
+    modelContext: startCheck === 'manual' ? undefined : { registerTool: (tool) => registered.set(tool.name, tool) },
   })
   function Location() { const location = useLocation(); useEffect(() => { route.pathname = location.pathname }, [location]); return null }
   const root = createRoot(document.querySelector('#root'))
@@ -60,6 +61,32 @@ if (new URLSearchParams(location.search).has('responsive')) {
   const dataUrlFor = (blob) => new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob) })
   const call = async (name, input) => { try { return await registered.get(name).execute(input, {}) } catch (error) { throw new Error(`${name} ${JSON.stringify(input, (key, value) => key === 'dataUrl' ? '[PNG]' : value)}: ${error.message}`) } }
   try {
+    if (startCheck) {
+      await app.webmcp.ready
+      await ready(() => document.querySelector('[data-character-start]'))
+      for (const language of ['en', 'zh-TW']) {
+        await i18n.changeLanguage(language); await wait()
+        const panel = document.querySelector('[data-character-start]')
+        check(panel.textContent.includes(i18n.t(startCheck === 'manual' ? 'characterDraft.start.manualHelp' : 'characterDraft.start.agentHelp')), 'Wrong empty-state language or capability branch')
+        if (startCheck === 'manual') {
+          const link = panel.querySelector('a')
+          check(new URL(link.href).searchParams.get('q') === i18n.t('characterDraft.start.imagePrompt'), 'ChatGPT link lost its localized prompt')
+          check(!buttons(i18n.t('characterDraft.start.copy')), 'Unsupported browser showed agent action')
+        } else {
+          let copied
+          Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { copied = text } } })
+          buttons(i18n.t('characterDraft.start.copy')).click()
+          await ready(() => copied === i18n.t('characterDraft.start.agentPrompt'))
+          check(!panel.querySelector('a'), 'Agent branch showed external action')
+        }
+        check(panel.querySelector('input[type=file]').accept === 'image/png', 'Missing manual upload fallback')
+        const bounds = panel.getBoundingClientRect()
+        const canvas = document.querySelector('.character-stage-canvas').getBoundingClientRect()
+        check(bounds.left >= canvas.left && bounds.right <= canvas.right && bounds.bottom <= canvas.bottom && bounds.top >= canvas.top, 'Start panel escaped the preview')
+      }
+      check((await app.loadCharacterLibrary()).characters.length === 0, 'Empty-state actions saved a Character')
+      result.textContent = `PASS: ${startCheck} empty-state, both locales, prompt and upload`
+    } else {
     await ready(() => document.querySelectorAll('.model-sheet-card').length === 4)
     await app.webmcp.ready
     check((await app.loadCharacterLibrary()).characters.length === 0, 'Opening an empty model sheet saved a Character')
@@ -374,6 +401,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await call('navigate_character', { destination: 'characters' })
     await ready(() => route.pathname === '/collections')
     result.textContent = 'PASS: 12 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
+    }
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }
 }

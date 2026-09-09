@@ -34,6 +34,7 @@ export const fr: Messages = {
     empty: 'Aucun personnage pour l’instant. Créez-en un ou importez un personnage exporté précédemment.',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: 'Télécharger le ZIP du personnage', characterActions: 'Actions du personnage',
     customizeTitle: 'Personnaliser l’apparence',
     categorySwitcher: 'Catégories d’apparence',

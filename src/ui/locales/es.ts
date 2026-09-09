@@ -34,6 +34,7 @@ export const es: Messages = {
     empty: 'Aún no hay personajes. Crea uno o importa uno que hayas exportado antes.',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: 'Descargar ZIP del personaje', characterActions: 'Acciones del personaje',
     customizeTitle: 'Personalizar apariencia',
     categorySwitcher: 'Categorías de apariencia',

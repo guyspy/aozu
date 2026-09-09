@@ -34,6 +34,7 @@ export const zhCN: Messages = {
     empty: '还没有角色。创建一个，或导入之前导出的角色。',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: '下载角色 ZIP', characterActions: '角色操作',
     customizeTitle: '自定义外观',
     categorySwitcher: '外观分类',

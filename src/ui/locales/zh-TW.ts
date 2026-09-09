@@ -63,6 +63,13 @@ export const zhTW: Messages = {
     empty: '還沒有角色。建立一個，或匯入先前匯出的角色。',
   },
   characterDraft: {
+    start: {
+      agentHelp: '讓 agent 幫你建立角色：複製這段提示詞，再補上你的想法。',
+      agentPrompt: '請幫我建立目前 AOZU 中開啟的角色。先問我想要什麼角色與畫風，再使用此工作區的工具確認目前角色，依照基礎角色圖片規格生成圖片，並加入這個角色。',
+      manualHelp: '上傳角色 PNG，或先到 ChatGPT 生成圖片，再回來上傳。',
+      imagePrompt: '請幫我設計角色。先問我想要什麼角色與畫風，再生成正面全身、自然 A-pose 的 512 × 768 RGBA PNG；頭頂與腳底完整入鏡，透明背景，不要文字或外框。我會下載圖片並上傳到 AOZU。',
+      copy: '複製提示詞', copied: '已複製', upload: '上傳 PNG', chatgpt: '在 ChatGPT 開啟',
+    },
     customizeTitle: '自訂外觀',
     categorySwitcher: '外觀分類',
     required: '必要',

@@ -34,6 +34,7 @@ export const de: Messages = {
     empty: 'Noch keine Figuren. Erstelle eine oder importiere eine zuvor exportierte Figur.',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: 'Charakter-ZIP herunterladen', characterActions: 'Charakteraktionen',
     customizeTitle: 'Aussehen anpassen',
     categorySwitcher: 'Kategorien des Aussehens',

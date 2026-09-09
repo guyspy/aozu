@@ -34,6 +34,7 @@ export const ptBR: Messages = {
     empty: 'Nenhum personagem ainda. Crie um ou importe um personagem exportado antes.',
   },
   characterDraft: {
+    start: en.characterDraft.start,
     downloadZip: 'Baixar ZIP do personagem', characterActions: 'Ações do personagem',
     customizeTitle: 'Personalizar aparência',
     categorySwitcher: 'Categorias de aparência',
