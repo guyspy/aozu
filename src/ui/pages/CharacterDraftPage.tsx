@@ -596,8 +596,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               setCopiedPrompt(prompt)
             })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
               : <Button asChild size="sm"><a href={`codex://new?prompt=${encodeURIComponent(t('characterDraft.start.desktopPrompt', { url: window.location.href }))}`} >{t('characterDraft.start.chatgpt')}</a></Button>}
+            {!webmcpReady && <Button type="button" size="sm" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
           </div>
-          {!webmcpReady && <Button type="button" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
         </DialogContent></Dialog>}
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
