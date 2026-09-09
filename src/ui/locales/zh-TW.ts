@@ -25,13 +25,7 @@ export const zhTW: Messages = {
     label: '參考圖名稱', kind: '用途', viewpoint: '角度', pose: '姿勢', download: '下載原圖', remove: '移除參考圖',
     kinds: { 'full-body': '全身', head: '頭部', structure: '姿勢與結構', expression: '表情與個性', detail: '服裝與細節', style: '配色與畫法' },
     moreHelp: '依需要加入頭部角度、平舉手、抬手、表情、比例與細節圖。維持同一套造型；新設計與待確認的地方請寫在註記中。',
-    planned: {
-      title: '補充角色設定', status: '預留 · 尚未開放',
-      sections: {
-        landmarks: { title: '身體與關節標記', description: '標示參考圖上的頭、頸、肩、肘、腕、髖、膝與踝。左右以角色自身為準，必要時補尾巴或翅膀根部。' },
-        lineup: { title: '角色間尺寸對照', description: '同一地面、同一比例尺排列角色，保留身高與體型差異，並對照道具尺寸。' },
-      },
-    },
+    referencesTitle: '補充角色設定',
   },
   common: { close: '關閉', productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
   navigation: { primary: '主要導覽', home: '首頁', notFound: '找不到這個頁面' },

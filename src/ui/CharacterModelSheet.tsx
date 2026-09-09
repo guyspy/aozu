@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ImagePlusIcon } from 'lucide-react'
+import { ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,9 +11,7 @@ import { Label } from '@/ui/components/ui/label'
 import { Textarea } from '@/ui/components/ui/textarea'
 import { Slider } from '@/ui/components/ui/slider'
 import { Checkbox } from '@/ui/components/ui/checkbox'
-import { Badge } from '@/ui/components/ui/badge'
 import { Card } from '@/ui/components/ui/card'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/ui/components/ui/collapsible'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/components/ui/select'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
@@ -69,11 +67,20 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     </div>
     <div className="model-sheet-grid">{CHARACTER_REFERENCE_VIEWS.map(card)}</div>
     <section className="mt-12" aria-labelledby="model-sheet-more-title">
-      <h2 id="model-sheet-more-title" className="mb-6 font-heading text-xl font-semibold">{t('modelSheet.planned.title')}</h2>
-      <div className="model-sheet-grid">{Object.keys(sheet.references ?? {}).map((id, index) => card(id, CHARACTER_REFERENCE_VIEWS.length + index))}</div>
-      <Collapsible className="my-8">
-        <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="w-full justify-between">{t('modelSheet.add')}<ChevronDownIcon /></Button></CollapsibleTrigger>
-        <CollapsibleContent>
+      <h2 id="model-sheet-more-title" className="mb-6 font-heading text-xl font-semibold">{t('modelSheet.referencesTitle')}</h2>
+      <div className="model-sheet-grid">
+        {Object.keys(sheet.references ?? {}).map((id, index) => card(id, CHARACTER_REFERENCE_VIEWS.length + index))}
+        <Button type="button" variant="ghost" className="model-sheet-art model-sheet-empty h-auto p-0" disabled={busy} onClick={(event) => { trigger.current = event.currentTarget; openReference('new') }}>
+          <ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>
+        </Button>
+      </div>
+    </section>
+    </div>
+    <Sheet open={Boolean(view && (reference || view === 'new'))} onOpenChange={(open) => { if (!open) { revert(); openReference() } }}>
+      <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
+        {view === 'new' && !reference && <>
+          <SheetTitle>{t('modelSheet.add')}</SheetTitle>
+          <SheetDescription>{t('modelSheet.moreHelp')}</SheetDescription>
         <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => {
           event.preventDefault()
           const form = event.currentTarget
@@ -93,19 +100,8 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
           <Input className="min-w-0 max-w-full" type="file" name="file" accept="image/png" required aria-label={t('modelSheet.add')} />
           <Button type="submit" disabled={busy}>{t('modelSheet.add')}</Button>
         </form>
-      </CollapsibleContent>
-      </Collapsible>
-      <div className="mt-6 flex flex-wrap items-center gap-3"><Badge variant="outline">{t('modelSheet.planned.status')}</Badge></div>
-      <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-        {(['landmarks', 'lineup'] as const).map((section) => <li key={section}><Card className="h-full gap-1 bg-transparent p-0 ring-0">
-          <h3 className="font-semibold">{t(`modelSheet.planned.sections.${section}.title`)}</h3>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">{t(`modelSheet.planned.sections.${section}.description`)}</p>
-        </Card></li>)}
-      </ul>
-    </section>
-    </div>
-    <Sheet open={Boolean(view && reference)} onOpenChange={(open) => { if (!open) { revert(); openReference() } }}>
-      <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
+          {error && <p role="alert" className="text-destructive">{error}</p>}
+        </>}
         {view && reference && <>
           <SheetTitle>{draft.name} · {label(view)}</SheetTitle>
           {reference.kind && <p className="model-sheet-state">{t(`modelSheet.kinds.${reference.kind}`)}</p>}

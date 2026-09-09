@@ -104,9 +104,9 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const inspected = (await call('inspect_workspace', { includeSnapshot: true })).data
     check(inspected.currentCharacter.id === id && inspected.currentCharacter.modelSheet.heightCm === 185, 'Tool missed the active model sheet')
     check(inspected.assetPolicy.tool === 'update_character_model_sheet' && inspected.snapshot.status === 'unavailable', 'Reference page advertised appearance-layer rules or the wrong image')
-    document.querySelector('[data-slot=collapsible-trigger]').click()
-    await ready(() => document.querySelector('[data-slot=collapsible-content] form'))
-    const addForm = document.querySelector('[data-slot=collapsible-content] form')
+    document.querySelector('#model-sheet-more-title + .model-sheet-grid > button').click()
+    await ready(() => document.querySelector('.model-sheet-detail form'))
+    const addForm = document.querySelector('.model-sheet-detail form')
     await fill(addForm.querySelector('[name=label]'), 'UI reference')
     const files = new DataTransfer()
     files.items.add(new File([png], 'ui-reference.png', { type: 'image/png' }))
@@ -119,7 +119,6 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(Object.values(sheet().references).some((ref) => ref.label === 'UI reference' && ref.needsReview), 'UI upload or Checkbox did not save')
     buttons('Remove reference').click(); await settled()
     await ready(() => !document.querySelector('.model-sheet-detail'))
-    document.querySelector('[data-slot=collapsible-trigger]').click()
     const revision = state().persistedRevision
     const rejected = await call('update_character_model_sheet', { characterId: id, expectedRevision: revision, view: 'front', guides: { head: 0.9, feet: 0.1 } }).then(() => false, (error) => error.message.includes('head above the feet'))
     check(rejected, 'Invalid guides were not rejected')
@@ -241,7 +240,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(autoFront?.sourceSha256 === autoFront?.asset.inspection.sha256 && autoFront?.asset.blob.size > 0, 'Save did not capture its front and source hash')
     check(app.editor.history.getState().pastStates.length === 0, 'Save as should open a fresh Appearance undo session')
     await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
-    await ready(() => document.querySelectorAll('.model-sheet-empty').length === 3)
+    await ready(() => document.querySelectorAll('.model-sheet-card .model-sheet-empty').length === 3)
     check(document.querySelectorAll('.model-sheet-art img').length === 1 && !buttons('Use current appearance'), 'New Appearance needs only its own front')
     document.querySelector('[aria-label="Open Front reference"]').click()
     await ready(() => route.pathname.endsWith('/model-sheet/front') && document.querySelector('.model-sheet-detail') && Number(document.querySelector('main').dataset.characterRevision) === state().persistedRevision)
@@ -332,7 +331,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
       check(pngFilename === 'Profile test_Fresh.png', 'PNG filename lost the character or Appearance name')
     } finally { HTMLAnchorElement.prototype.click = anchorClick }
     await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
-    await ready(() => document.querySelectorAll('.model-sheet-empty').length === 4)
+    await ready(() => document.querySelectorAll('.model-sheet-card .model-sheet-empty').length === 4)
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: withProp } })
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: fresh } })
     check(Object.keys(sheet().views).length === 0, 'Switching populated a deliberately empty sheet')

@@ -178,13 +178,7 @@ export const en = {
     label: 'Reference name', kind: 'Purpose', viewpoint: 'Viewpoint', pose: 'Pose', download: 'Download original', remove: 'Remove reference',
     kinds: { 'full-body': 'Full body', head: 'Head', structure: 'Pose & structure', expression: 'Expression & personality', detail: 'Clothing & details', style: 'Palette & drawing rules' },
     moreHelp: 'Add head angles, T-pose, raised arms, expressions, proportions and detail sheets as needed. Keep the same outfit; record new designs and unresolved details in notes.',
-    planned: {
-      title: 'More character references', status: 'Planned · not yet available',
-      sections: {
-        landmarks: { title: 'Body & joint landmarks', description: 'Head, neck, shoulders, elbows, wrists, hips, knees and ankles on the reference image. Left and right follow the character; include tail or wing roots where needed.' },
-        lineup: { title: 'Character size comparison', description: 'Characters on one ground line at a shared scale, preserving differences in height and build; prop sizes alongside them.' },
-      },
-    },
+    referencesTitle: 'More character references',
   },
   data: {
     export: 'Export character',
