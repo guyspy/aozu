@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import { createCharacterDraft, saveCharacterDraftAsset } from '../src/core/application/character-creation.ts'
+import { changeCharacterAppearance } from '../src/core/application/character-appearances.ts'
 import { CHARACTER_HISTORY_LIMIT, createCharacterEditor } from '../src/core/application/character-editor.ts'
 import { CharacterRevisionConflict, type CharacterDraftRepository } from '../src/core/application/ports.ts'
 import type { CharacterDraft } from '../src/core/domain/character.ts'
@@ -28,7 +29,7 @@ const characters: CharacterDraftRepository = {
     const row = rows.get(draft.id)
     if (!row) throw new Error('Character not found')
     if (row.version !== expectedVersion) throw new CharacterRevisionConflict(`expected ${expectedVersion}, found ${row.version}`)
-    writeLog.push(draft.name)
+    writeLog.push(draft.variants[0]!.label)
     // The entry owns updatedAt: a write returns the same snapshot's revision and timestamp.
     row.character = { ...structuredClone(draft), updatedAt: ++clock }
     return { version: ++row.version, updatedAt: row.character.updatedAt }
@@ -45,7 +46,8 @@ const editor = createCharacterEditor(characters, (scope) => ({
 const state = () => editor.store.getState()
 const past = () => editor.history.getState().pastStates.length
 const future = () => editor.history.getState().futureStates.length
-const rename = (name: string) => (character: CharacterDraft) => ({ ...character, name })
+// Mixed edits exercise Appearance history while the current Character profile stays intact.
+const rename = (name: string) => (character: CharacterDraft) => ({ ...character, name, variants: character.variants.map((variant, index) => index ? variant : { ...variant, label: name }) })
 
 await characters.create({ ...createCharacterDraft('alpha-pack', 'alpha'), name: 'Alpha' })
 await characters.create({ ...createCharacterDraft('beta-pack', 'beta'), name: 'Beta' })
@@ -79,10 +81,12 @@ assert.notEqual(state().character, opened)
 
 // Undo and redo each persist a new version without adding a duplicate history frame.
 assert.equal(await editor.undo(), true)
-assert.equal(state().character!.name, 'A2')
+assert.equal(state().character!.name, 'A3', 'Appearance Undo preserves the current profile')
+assert.equal(state().character!.variants[0]!.label, 'A2')
 assert.equal(past(), 2)
 assert.equal(future(), 1)
-assert.equal(rows.get('alpha')!.character.name, 'A2')
+assert.equal(rows.get('alpha')!.character.name, 'A3')
+assert.equal(rows.get('alpha')!.character.variants[0]!.label, 'A2')
 assert.equal(state().persistedRevision, 5)
 assert.equal(await editor.redo(), true)
 assert.equal(state().character!.name, 'A3')
@@ -265,9 +269,36 @@ assert.equal(rows.get('first-created-character')!.character.name, 'Latest name')
 assert.equal(newEditor.store.getState().activeCharacterId, 'first-created-character')
 assert.equal(newEditor.store.getState().saveStatus, 'saved')
 await newEditor.undo()
-assert.equal(rows.get('first-created-character')!.character.name, 'First name')
+assert.equal(rows.get('first-created-character')!.character.name, 'Latest name')
+assert.equal(rows.get('first-created-character')!.character.variants[0]!.label, 'First name')
 assert.equal(newEditor.store.getState().character!.id, 'first-created-character')
 await newEditor.redo()
 assert.equal(rows.get('first-created-character')!.character.name, 'Latest name')
 assert.equal(creations, 1)
+// Preparation is part of the save: a failed front capture cannot partially save a look or allow switching.
+let failPreparation = true
+const preparedEditor = createCharacterEditor(characters, () => { throw new Error('No assets in this check') }, async () => inspection, async (draft) => {
+  if (failPreparation) throw new Error('Front capture failed')
+  return { ...draft, description: 'Prepared before persistence' }
+})
+const namedDraft = changeCharacterAppearance(changeCharacterAppearance(createCharacterDraft('prepared-pack', 'prepared'),
+  { action: 'save-as', id: 'first', label: 'First' }), { action: 'save-as', id: 'second', label: 'Second' })
+await characters.create(namedDraft)
+await preparedEditor.open(namedDraft.id)
+await preparedEditor.dispatch((draft) => ({ ...draft, selected: { ...draft.selected, expression: 'happy' } }))
+assert.equal(preparedEditor.store.getState().saveStatus, 'failed')
+assert.equal(rows.get(namedDraft.id)!.character.selected.expression, undefined)
+assert.equal(rows.get(namedDraft.id)!.version, 1)
+assert.throws(() => preparedEditor.dispatch((draft) => changeCharacterAppearance(draft, { action: 'select', id: 'first' })), /retry/)
+failPreparation = false
+await preparedEditor.retry()
+assert.equal(rows.get(namedDraft.id)!.character.appearances![1]!.selected.expression, 'happy')
+assert.equal(rows.get(namedDraft.id)!.character.description, 'Prepared before persistence')
+const queuedEdit = preparedEditor.dispatch(rename('Latest prepared edit'))
+const preparedCopy = await preparedEditor.saveAs()
+await queuedEdit
+assert.equal(preparedCopy.variants[0]!.label, 'Latest prepared edit', 'Character copy waits for the pending save')
+await preparedEditor.open('new')
+await preparedEditor.dispatch((draft) => ({ ...draft, modelSheet: { views: {}, heightCm: 230 } }))
+assert.equal(await preparedEditor.undo(), false, 'Adding height to an empty sheet stays outside Appearance history')
 console.log('character editor: ok')

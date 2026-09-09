@@ -2,6 +2,15 @@ export const CHARACTER_BACKGROUND_GUIDANCE = 'Default to a two-step workflow: ge
 
 export const CHARACTER_NAVIGATION_GUIDANCE = 'AOZU itself handles effects.navigation in this browser tab; the agent must not repeat that navigation. Observe the resulting page after rendering, then call inspect_workspace again for fresh context. A successful tool result is not proof of visual correctness.'
 
+export const CHARACTER_A_POSE_GUIDANCE = 'The first Appearance body establishes a front A-pose: upright torso, neutral face, arms angled down and away from the torso, relaxed visible hands, stable feet, and the complete head-to-feet silhouette inside the canvas. This is the AOZU authoring convention, not a claim of skeleton compatibility. Preserve this pose and registration in derived outfits and expressions. Existing artwork is not automatically verified A-pose; review it visually before proposing a baseline change, which can make derived layers stale.'
+
+export const MODEL_SHEET_REVIEW = {
+  requiredAfterMutation: true,
+  instruction: 'View the submitted reference image and compare it with the source images before continuing. Technical acceptance does not mean user-approved canon. Correct wrong identity, viewpoint, pose, proportions, outfit details or missing parts by replacing the reference, then review again. Record newly invented or uncertain design details in notes for user review.',
+  checks: ['Identity, face, ears, hair/fur and distinctive features match the source.', 'The requested viewpoint and pose are readable; left/right mean the character’s own sides.', 'Body proportions, limb lengths, outfit, accessories and colors agree across references.', 'For full-body images, check head/feet guides visually; raised hands, hats and props do not define height.'],
+  comparison: 'Use visual comparison across references. Different viewpoints or poses must not be forced to overlap the Appearance silhouette; Overlay/Difference/Align and fixed-canvas alpha requirements belong to Appearance layers.',
+} as const
+
 export const CHARACTER_VISUAL_REVIEW = {
   surface: 'browser',
   modes: ['Composite', 'Overlay', 'Difference', 'Align'],

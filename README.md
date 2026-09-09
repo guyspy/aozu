@@ -40,20 +40,22 @@ The agent generates the creative pixels with its available image tools. AOZU mak
 
 ## WebMCP workflow
 
-AOZU exposes ten public tools on every page:
+AOZU exposes these public tools on every page:
 
 | Tool | Purpose |
 | --- | --- |
 | `inspect_workspace` | Discover saved characters, the current route and revision, missing required artwork, and valid next actions |
 | `navigate_character` | Open the character library or an exact character category or variant without guessing a route |
 | `inspect_character_contract` | Obtain allowed operations, exact hashes, placement/alignment references, ownership, dimensions, and diagnostics for one target |
-| `update_character_profile` | Update a character's name, description, multiline backstory, or scalar attributes against its exact revision |
+| `update_character_profile` | Update a character's name, description, multiline backstory, optional height, or scalar attributes against its exact revision |
+| `update_collection_profile` | Update a collection's name, description, or shared world backstory against its exact revision |
+| `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides against its exact revision |
 | `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
-| `set_character_variant_selection` | Select or remove an expression, outfit, or prop against its exact revision; newly added props stack above earlier ones |
+| `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or create/save-as/select/rename/delete a look against its exact revision |
 | `set_character_variant_transform` | Apply an explicit translation and uniform scale when a generated layer needs a small alignment correction |
-| `undo_character_change` | Undo the latest settled change in the active editing session |
-| `redo_character_change` | Redo the most recently undone change in the active editing session |
+| `undo_character_change` | Undo the latest settled Appearance edit, preserving Character profile and shared height |
+| `redo_character_change` | Redo within the current Appearance session; switching looks resets history |
 
 Successful tool calls can also return navigation effects, so the SPA takes the human directly to the affected character or variant for visual review.
 
@@ -90,7 +92,45 @@ Characters are stored locally in IndexedDB and can be duplicated, edited, delete
 - TexturePacker/Pixi-compatible atlas JSON; and
 - enough data to import the character back into AOZU.
 
-The editor and thumbnails render from the same compiled atlas used by the export path.
+The editor and thumbnails compose the original PNG layers directly. The texture atlas is compiled for export.
+
+## Character model sheets
+
+Switch from **Appearance** to **Model sheet** to collect front, three-quarter,
+side, and back full-body references in the same outfit and standing pose. Upload
+one PNG per view, or capture the current appearance as the front reference. PNGs
+keep their original canvas, may be opaque, and can be up to 4096 × 4096 and 5 MiB.
+
+Height in cm is optional. Open a reference to add notes and position its head and
+feet guides; these measure the character independently of image margins, hats,
+and props. Replacing a reference clears its calibration and retains its notes.
+Height is an optional default attribute in Character profile; all Appearances share it.
+The existing height storage is retained for archive compatibility. Use `update_character_profile`
+with `heightCm` (null to clear), never a custom attribute or model-sheet edit.
+References, notes, height, and guides use the existing autosave, duplicate,
+single-character ZIP, and library backup flows. Appearance Undo includes reference
+edits while preserving shared character height and profile. They do not become appearance
+layers or atlas frames. Cross-character scale lineups are a subsequent step.
+
+Named Appearances autosave their current expression, outfit and ordered props.
+Use **Save as…** before editing to preserve the original look.
+The dropdown’s **Add new** starts with the shared base body, no selected
+variants and an empty model sheet. Existing unnamed work appears as an editable
+Default look; viewing it does not write until the next edit.
+Linked front references follow composition edits; other art stays intact with a
+review flag. Switching looks starts a fresh Undo session. **Character profile**
+is the middle tab and previews the current Appearance alongside the existing
+biography and attributes. Character ZIP, copy and delete sit at the right of the glass document tabs;
+A shadcn menu beside the preview groups switching, inline Rename, Save as, Add new and Delete; Undo/Redo and autosave status stay on the toolbar. Delete preserves shared art and requires at least one remaining look.
+PNG download sits inside the preview with pan, zoom and fit controls. Drag in pan mode, use two-finger pan/pinch, or focus the preview and use arrows, +/− and 0. View transforms never change artwork, alignment or exported pixels.
+Ordinary actions reuse shadcn Button variants and a single 32px icon size; avoid page-specific button size/color overrides. Document tabs and artwork selection cards keep their distinct navigation layouts.
+
+The page reserves the remaining sections without creating empty character data.
+See the [model sheet plan](docs/character-model-sheets.md) for the agreed scope,
+reference conventions, review workflow, and acceptance criteria.
+
+Run `/scripts/check-model-sheet.html?responsive` with `pnpm dev` for the
+memory-only browser check at 320, 390, 900, and 1280px.
 
 ## Collections, library backups, and PNGs
 
@@ -122,7 +162,7 @@ action still accepts single-Character ZIPs.
 
 In the workshop, **Download PNG** saves the current visible composition as one
 transparent `512 × 768` PNG, including the selected skin, expression, props, and
-live placement. Diagnostic guides are omitted. Later-added props paint above
+live placement. Its filename is `CharacterName_AppearanceName.png`. Diagnostic guides are omitted. Later-added props paint above
 earlier props within their front/back rig planes. Remove and readd a prop to move
 it to the top; selecting an already active prop keeps its position. That order
 survives undo/redo, reload, ZIP export, and WebMCP selection.
@@ -142,7 +182,7 @@ WebMCP ───┘                 │
 - A thin **WebMCP adapter** projects public Mantle procedures into browser tools and dispatches calls back through the same runtime.
 - The **React SPA** and WebMCP tools share application and domain behavior rather than maintaining parallel business logic.
 - **IndexedDB** keeps character metadata and image blobs browser-local.
-- **PixiJS** renders trimmed atlas frames while preserving their registered placement.
+- **PixiJS** renders original PNG layers while preserving their registered placement.
 - **Cloudflare Workers Static Assets** hosts the deployed SPA.
 
 The dependency direction stays inward:
@@ -161,7 +201,7 @@ pnpm install
 pnpm dev
 ```
 
-Then open the local URL in ChatGPT's in-app browser or another WebMCP-compatible browser. The header reports whether the nine tools are ready.
+Then open the local URL in ChatGPT's in-app browser or another WebMCP-compatible browser. The header reports when the tools are ready.
 
 ```bash
 pnpm lint
@@ -178,3 +218,5 @@ Architecture decisions are recorded in [`docs/adr/`](./docs/adr/).
 ## License
 
 Licensed under the [Apache License 2.0](./LICENSE).
+
+Browser integration checks keep HTML limited to fixtures and mount points, with test logic in sibling `.browser.js` modules. This avoids stale Vite inline-module proxies and keeps stack traces tied to the source file.

@@ -2,6 +2,9 @@ import type { Entry } from '@aotter/mantle-spec'
 import type { MantleRuntime } from '@aotter/mantle-runtime'
 
 import { resolveCharacterDraftPlacements } from '../../core/application/character-creation.ts'
+import { characterAssets, mapCharacterAssets } from '../../core/application/character-assets.ts'
+import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 
 import {
   CharacterRevisionConflict,
@@ -13,7 +16,6 @@ import {
   characterAssetScope,
   type CharacterDraft,
   type CharacterDraftAsset,
-  type CharacterVariantLayer,
   type CharacterWorkspaceData,
 } from '../../core/domain/character.ts'
 
@@ -22,7 +24,7 @@ const context = { user: null, staff: null, env: {} }
 const previewKeyFor = (data: CharacterWorkspaceData) => JSON.stringify(resolveCharacterDraftPlacements(data)
   .map(({ variant, layer, transform, id }) => [id, variant.layers[layer]!.blobId, transform]))
 
-const dataFrom = (draft: CharacterDraft): CharacterWorkspaceData => ({
+const dataFrom = async (draft: CharacterDraft): Promise<CharacterWorkspaceData> => ({
   schemaVersion: draft.schemaVersion,
   packId: draft.packId,
   rigProfile: structuredClone(draft.rigProfile),
@@ -30,18 +32,10 @@ const dataFrom = (draft: CharacterDraft): CharacterWorkspaceData => ({
   ...(draft.description ? { description: draft.description } : {}),
   ...(draft.backstory ? { backstory: draft.backstory } : {}),
   ...(draft.attributes && Object.keys(draft.attributes).length ? { attributes: structuredClone(draft.attributes) } : {}),
-  variants: draft.variants.map(({ layers, ...variant }) => ({
-    ...structuredClone(variant),
-    layers: Object.fromEntries(Object.entries(layers).map(([layer, asset]) => [layer, asset && {
-      filename: asset.filename,
-      source: asset.source,
-      inspection: structuredClone(asset.inspection),
-      ...(asset.canonicalSha256 ? { canonicalSha256: asset.canonicalSha256 } : {}),
-      blobId: asset.inspection.sha256,
-    }])),
-  })),
+  ...await mapCharacterAssets(draft, ({ blob: _blob, ...descriptor }) => ({ ...descriptor, blobId: descriptor.inspection.sha256 })),
   ...(draft.headRegistration ? { headRegistration: structuredClone(draft.headRegistration) } : {}),
   selected: structuredClone(draft.selected),
+  ...(draft.activeAppearanceId ? { activeAppearanceId: draft.activeAppearanceId } : {}),
 })
 
 export function createCharacterWorkspaceRepository(
@@ -49,8 +43,10 @@ export function createCharacterWorkspaceRepository(
   assets: AssetRepositoryFactory,
 ) {
   const persistAssets = async (draft: CharacterDraft) => {
+    validateCharacterAppearances(draft)
+    if (draft.modelSheet) validateModelSheet(draft.modelSheet)
     const repository = assets(characterAssetScope(draft.packId))
-    const unique = new Map(draft.variants.flatMap(({ layers }) => Object.values(layers).filter(Boolean).map((asset) => [asset.inspection.sha256, asset.blob])))
+    const unique = new Map(characterAssets(draft).map((asset) => [asset.inspection.sha256, asset.blob]))
     await Promise.all([...unique].map(async ([id, blob]) => {
       if (!await repository.get(id)) await repository.put(id, blob)
     }))
@@ -59,20 +55,12 @@ export function createCharacterWorkspaceRepository(
     // Legacy `revision`/`published` metadata stays stored until the next real save; a read never writes.
     const { revision: _revision, published: _published, ...data } = structuredClone(entry.data) as unknown as CharacterWorkspaceData & { revision?: unknown; published?: unknown }
     const repository = assets(characterAssetScope(data.packId))
-    const variants = await Promise.all(data.variants.map(async (source) => {
-      const { layers, ...variant } = source
-      return {
-        ...variant,
-        layers: Object.fromEntries(await Promise.all(Object.entries(layers).map(async ([layer, asset]) => {
-          if (!asset) return [layer, undefined]
-          const blob = await repository.get(asset.blobId)
-          if (!blob) throw new Error(`Character asset is missing: ${data.packId}/${asset.blobId}`)
-          const { blobId: _blobId, ...descriptor } = asset
-          return [layer, { ...descriptor, blob } satisfies CharacterDraftAsset]
-        }))) as Partial<Record<CharacterVariantLayer, CharacterDraftAsset>>,
-      }
-    }))
-    return { character: { ...data, id: entry.id, updatedAt: entry.updatedAt, variants }, version: entry.version }
+    const content = await mapCharacterAssets(data, async ({ blobId, ...descriptor }) => {
+      const blob = await repository.get(blobId)
+      if (!blob) throw new Error(`Character asset is missing: ${data.packId}/${blobId}`)
+      return { ...descriptor, blob } satisfies CharacterDraftAsset
+    })
+    return { character: { ...data, ...content, id: entry.id, updatedAt: entry.updatedAt }, version: entry.version }
   }
   const entries = async () => (await runtime()).entries
 
@@ -110,7 +98,7 @@ export function createCharacterWorkspaceRepository(
       await persistAssets(draft)
       const result = await (await runtime()).invokeProcedure<Entry>({
         procedure: 'create-character-workspace',
-        input: dataFrom(draft),
+        input: await dataFrom(draft),
         ctx: context,
       })
       if (!result.ok) throw new Error(result.diagnostic.message ?? 'Character could not be created')
@@ -123,7 +111,7 @@ export function createCharacterWorkspaceRepository(
       await persistAssets(draft)
       const result = await (await runtime()).invokeProcedure<Entry>({
         procedure: 'update-character-workspace',
-        input: { id: draft.id, expectedVersion, ...dataFrom(draft) },
+        input: { id: draft.id, expectedVersion, ...await dataFrom(draft) },
         ctx: context,
       })
       if (!result.ok) {

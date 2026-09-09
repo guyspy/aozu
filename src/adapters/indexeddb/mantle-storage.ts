@@ -26,6 +26,9 @@ import { CHARACTER_COLLECTIONS } from '../../core/domain/character-collection.ts
 import { characterAssetScope, type CharacterWorkspaceData } from '../../core/domain/character.ts'
 import { AUTHORING_NAMESPACE } from '../../core/application/authoring.ts'
 import { CHARACTER_LIBRARY_REVISION_FLOOR } from '../../core/application/character-library.ts'
+import { characterAssets } from '../../core/application/character-assets.ts'
+import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
+import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 import {
   type CompanionDatabase,
   ENTRY_STORE,
@@ -57,8 +60,9 @@ const allEntries = (database: CompanionDatabase, bundleId: string): Promise<Stor
 
 const requireCharacterAssets = async (data: Entry['data'], get: (key: [string, string]) => Promise<StoredAsset | undefined>) => {
   const character = data as unknown as CharacterWorkspaceData
-  for (const { layers } of character.variants) for (const asset of Object.values(layers)) {
-    if (!asset) continue
+  validateCharacterAppearances(character)
+  if (character.modelSheet) validateModelSheet(character.modelSheet)
+  for (const asset of characterAssets(character)) {
     const stored = await get([characterAssetScope(character.packId), asset.blobId])
     if (!stored || stored.blob.type !== 'image/png' || stored.blob.size !== asset.inspection.size) {
       throw new Error('Character assets changed during save; retry the Character operation')

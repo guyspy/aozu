@@ -10,6 +10,7 @@ import { CHARACTER_VISUAL_REVIEW } from '../src/core/application/character-agent
 // A fresh inspection follows UI-only changes, independent of the saved variant selection.
 const page = {
   dataset: { workspaceView: 'character', characterId: 'id', category: 'expressions', variantId: 'happy', previewMode: 'overlay', hasUncommittedInput: 'false' } as Record<string, string>,
+  querySelector: () => null,
   querySelectorAll: () => CHARACTER_VISUAL_REVIEW.checks.map(({ mode, label }) => ({
     dataset: { alignmentMode: mode },
     textContent: label,
@@ -89,7 +90,7 @@ assert.match(registered.get('inspect_character_contract')!.description, /require
 assert.match(registered.get('set_character_variant_transform')!.description, /expression whole head/)
 assert.match(registered.get('set_character_variant_transform')!.description, /x moves right, y moves down/)
 assert.match(registered.get('set_character_variant_transform')!.description, /Composite, Overlay, Difference, and Align/)
-assert.match(registered.get('inspect_workspace')!.description, /two-step workflow/)
+assert.match(registered.get('inspect_workspace')!.description, /model-sheet reference/)
 assert.match(registered.get('inspect_workspace')!.description, /snapshot, not a live subscription/)
 for (const tool of registered.values()) {
   if (!tool.annotations.readOnlyHint) assert.match(tool.description, /AOZU itself handles effects.navigation/)

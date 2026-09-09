@@ -1,6 +1,8 @@
 import { en, type Messages } from './en'
 
 export const ja: Messages = {
+  preview: en.preview,
+  modelSheet: en.modelSheet,
   common: { close: '閉じる', productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
   navigation: { ...en.navigation, primary: 'メインナビゲーション' },
   startup: {
@@ -32,11 +34,9 @@ export const ja: Messages = {
     empty: 'キャラクターはまだありません。作成するか、以前書き出したキャラクターを読み込んでください。',
   },
   characterDraft: {
-    title: 'キャラクター工房',
-    description: '作りたいキャラクターを説明してください。ChatGPT がベースキャラクター、位置合わせ済みの表情、衣装、小道具をこのキャラクターに直接追加できます。',
-    stageTitle: '全身プレビュー',
+    start: en.characterDraft.start,
+    downloadZip: 'キャラクター ZIP をダウンロード', characterActions: 'キャラクター操作',
     customizeTitle: '外見をカスタマイズ',
-    workbenchDescription: 'スロットを選んで、画像をアップロードするか ChatGPT に追加を任せましょう。',
     categorySwitcher: '外見のカテゴリ',
     required: '必須',
     missingRequired: 'ポーズと位置合わせの基準となるベースキャラクターを追加してください。',
@@ -62,7 +62,7 @@ export const ja: Messages = {
       title: 'キャラクタープロフィール', name: '名前', description: '紹介', backstory: '背景', attributes: '属性',
       add: '追加', text: 'テキスト', number: '数値', boolean: 'はい／いいえ', yes: 'はい', no: 'いいえ', value: '値', update: 'プロフィールを更新',
       attributeName: '属性 {{index}} の名前', attributeType: '属性 {{index}} の種類', attributeValue: '属性 {{index}} の値', removeAttribute: '属性 {{index}} を削除',
-      edit: 'プロフィールを編集', expand: 'プロフィールを開く', collapse: 'プロフィールを閉じる',
+      edit: 'プロフィールを編集',
       noDescription: '紹介はまだありません。', noBackstory: '背景はまだありません。', noAttributes: '属性はまだありません。',
     },
     alignment: {

@@ -1,6 +1,8 @@
 import { en, type Messages } from './en'
 
 export const ko: Messages = {
+  preview: en.preview,
+  modelSheet: en.modelSheet,
   common: { close: '닫기', productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
   navigation: { ...en.navigation, primary: '주 탐색' },
   startup: {
@@ -32,11 +34,9 @@ export const ko: Messages = {
     empty: '아직 캐릭터가 없습니다. 새로 만들거나 이전에 내보낸 캐릭터를 가져오세요.',
   },
   characterDraft: {
-    title: '캐릭터 공방',
-    description: '원하는 캐릭터를 설명해 주세요. ChatGPT가 기본 캐릭터, 정렬된 표정, 의상, 소품을 이 캐릭터에 바로 추가할 수 있습니다.',
-    stageTitle: '전신 미리보기',
+    start: en.characterDraft.start,
+    downloadZip: '캐릭터 ZIP 다운로드', characterActions: '캐릭터 작업',
     customizeTitle: '외형 꾸미기',
-    workbenchDescription: '슬롯을 고른 뒤 이미지를 올리거나 ChatGPT에 맡기세요.',
     categorySwitcher: '외형 분류',
     required: '필수',
     missingRequired: '포즈와 정렬 기준이 되는 기본 캐릭터를 먼저 추가해 주세요.',
@@ -62,7 +62,7 @@ export const ko: Messages = {
       title: '캐릭터 프로필', name: '이름', description: '소개', backstory: '배경 이야기', attributes: '속성',
       add: '추가', text: '텍스트', number: '숫자', boolean: '예／아니요', yes: '예', no: '아니요', value: '값', update: '프로필 업데이트',
       attributeName: '속성 {{index}} 이름', attributeType: '속성 {{index}} 유형', attributeValue: '속성 {{index}} 값', removeAttribute: '속성 {{index}} 삭제',
-      edit: '캐릭터 프로필 편집', expand: '캐릭터 프로필 펼치기', collapse: '캐릭터 프로필 접기',
+      edit: '캐릭터 프로필 편집',
       noDescription: '아직 소개가 없습니다.', noBackstory: '아직 배경 이야기가 없습니다.', noAttributes: '아직 속성이 없습니다.',
     },
     alignment: {

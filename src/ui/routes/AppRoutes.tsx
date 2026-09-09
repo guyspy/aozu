@@ -11,12 +11,13 @@ import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StatusPage } from '@/ui/pages/StatusPage'
 
-function CharacterEditor({ application, refresh, savedRevision }: { application: Application; refresh(): Promise<void>; savedRevision?: number }) {
+function CharacterEditor({ application, refresh, savedRevision, webmcpReady }: { webmcpReady: boolean; application: Application; refresh(): Promise<void>; savedRevision?: number }) {
   const navigate = useNavigate()
   const { characterId, step } = useParams()
   if (!characterId) return <Navigate to="/" replace />
   return <CharacterDraftPage
     key={characterId}
+    webmcpReady={webmcpReady}
     editor={application.editor}
     savedRevision={savedRevision}
     autoFitVariant={application.autoFitCharacterVariant}
@@ -24,6 +25,8 @@ function CharacterEditor({ application, refresh, savedRevision }: { application:
     exportCharacter={() => application.exportCharacter(characterId)}
     exportCharacterPng={application.exportCharacterPng}
     replaceAsset={(target, blob) => application.replaceCharacterAsset(characterId, target, blob)}
+    replaceReference={(id, blob, metadata) => application.replaceCharacterReference(characterId, id, blob, metadata)}
+    changeAppearance={(command, revision) => application.changeCharacterAppearance(characterId, command, revision)}
     deleteCharacter={async () => {
       await application.deleteCharacter(characterId)
       await refresh()
@@ -130,8 +133,8 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route path="/collections" element={libraryPage} />
       <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />
-      <Route path="/characters/:characterId/:step" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
-      <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor application={application} refresh={refresh} savedRevision={character?.revision} />} />
+      <Route path="/characters/:characterId/:step" element={<CharacterEditor webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
+      <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
       <Route path="*" element={<StatusPage>404 · {t('navigation.notFound')}</StatusPage>} />
     </Routes>
   </>

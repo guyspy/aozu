@@ -41,7 +41,7 @@ export function DataControls({
 
   return (
     <div className="grid gap-2">
-      {exportData && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant={prepareImport ? 'ghost' : 'outline'} size={exportIconOnly ? 'icon' : 'default'} className={prepareImport ? 'justify-start' : undefined} aria-label={status === 'busy' ? t('data.busy') : downloadLabel} disabled={status === 'busy'} onClick={() => void run(async () => {
+      {exportData && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant={prepareImport ? 'ghost' : 'outline'} size={exportIconOnly ? 'icon' : 'default'} className={prepareImport ? 'justify-start' : undefined} aria-label={status === 'busy' ? t('data.busy') : downloadLabel} disabled={status === 'busy'} onClick={() => void run(async () => {
         const url = URL.createObjectURL(await exportData())
         const link = document.createElement('a')
         link.href = url

@@ -45,7 +45,8 @@ function portablePath(path: string) {
 function draftPath(path: string) {
   return path === 'draft.json' || path === 'experience-draft.json' || path === 'character-pack.json' ||
     path === 'character.atlas.webp' || path === 'character.atlas.json' || path === 'README.md' ||
-    /^assets\/[a-z0-9][a-z0-9_-]*\.png$/.test(path)
+    /^assets\/[a-z0-9][a-z0-9_-]*\.png$/.test(path) ||
+    /^assets\/appearance\/[a-z0-9][a-z0-9_-]{0,39}\/reference-[a-z0-9][a-z0-9_-]{0,39}\.png$/.test(path)
 }
 
 export function companionArchiveKind(bytes: Uint8Array): 'portable' | 'character-draft' {

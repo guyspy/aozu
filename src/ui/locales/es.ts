@@ -1,6 +1,8 @@
 import { en, type Messages } from './en'
 
 export const es: Messages = {
+  preview: en.preview,
+  modelSheet: en.modelSheet,
   common: { close: 'Cerrar', productName: 'AOZU', back: 'Atrás', cancel: 'Cancelar', language: 'Idioma' },
   navigation: { ...en.navigation, primary: 'Navegación principal' },
   startup: {
@@ -32,11 +34,9 @@ export const es: Messages = {
     empty: 'Aún no hay personajes. Crea uno o importa uno que hayas exportado antes.',
   },
   characterDraft: {
-    title: 'Taller de personajes',
-    description: 'Describe el personaje que quieres. ChatGPT puede añadir directamente un personaje base, expresiones alineadas, atuendos y accesorios.',
-    stageTitle: 'Vista de cuerpo entero',
+    start: en.characterDraft.start,
+    downloadZip: 'Descargar ZIP del personaje', characterActions: 'Acciones del personaje',
     customizeTitle: 'Personalizar apariencia',
-    workbenchDescription: 'Elige una ranura y sube una imagen, o deja que ChatGPT la añada.',
     categorySwitcher: 'Categorías de apariencia',
     required: 'Obligatorio',
     missingRequired: 'Añade un personaje base para fijar la pose y la alineación.',
@@ -62,7 +62,7 @@ export const es: Messages = {
       title: 'Perfil del personaje', name: 'Nombre', description: 'Descripción', backstory: 'Historia', attributes: 'Atributos',
       add: 'Añadir', text: 'Texto', number: 'Número', boolean: 'Sí / no', yes: 'Sí', no: 'No', value: 'Valor', update: 'Actualizar perfil',
       attributeName: 'Nombre del atributo {{index}}', attributeType: 'Tipo del atributo {{index}}', attributeValue: 'Valor del atributo {{index}}', removeAttribute: 'Eliminar atributo {{index}}',
-      edit: 'Editar perfil del personaje', expand: 'Abrir perfil del personaje', collapse: 'Cerrar perfil del personaje',
+      edit: 'Editar perfil del personaje',
       noDescription: 'Aún no hay descripción.', noBackstory: 'Aún no hay historia.', noAttributes: 'Aún no hay atributos.',
     },
     alignment: {

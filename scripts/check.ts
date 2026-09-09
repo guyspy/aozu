@@ -27,6 +27,7 @@ import "./check-character-library.ts"
 // Run IndexedDB fixtures after the other modules have settled; each owns its records.
 await import('./check-character-collections.ts')
 await import('./check-character-library-concurrency.ts')
+await import('./check-character-model-sheet.ts')
 
 // Isolate module mocks and browser globals from the other checks.
 const { execFileSync } = await import('node:child_process')

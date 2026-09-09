@@ -1,4 +1,5 @@
-import { ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
+import { Input } from '@/ui/components/ui/input'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -7,10 +8,16 @@ import { useStore } from 'zustand'
 import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
-import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform } from '@/core/domain/character.ts'
+import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
+import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
+import { activeCharacterAppearance } from '@/core/application/character-appearances'
+import { CharacterViewport } from '@/ui/CharacterViewport'
+import { CharacterAppearances } from '@/ui/CharacterAppearances'
+import type { CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,15 +74,17 @@ const isTextEntry = (target: EventTarget | null) => target instanceof HTMLElemen
   && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
 
 type ProfileAttributeForm = { key: string; type: 'string' | 'number' | 'boolean'; value: string }
-type ProfileForm = { name: string; description: string; backstory: string; attributes: ProfileAttributeForm[] }
+type ProfileForm = { heightCm: string; name: string; description: string; backstory: string; attributes: ProfileAttributeForm[] }
 const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
+  heightCm: draft.modelSheet?.heightCm?.toString() ?? '',
   name: draft.name,
   description: draft.description ?? '',
   backstory: draft.backstory ?? '',
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
+  webmcpReady?: boolean
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
@@ -83,20 +92,27 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
+  replaceReference(referenceId: string, blob?: Blob, metadata?: CharacterReferenceMetadata): Promise<unknown>
+  changeAppearance(command: CharacterAppearanceCommand, revision: number): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
   deleteCharacter(): Promise<void>
 }) {
   const { t } = useTranslation()
+  const [copiedPrompt, setCopiedPrompt] = useState('')
+  const [startOpen, setStartOpen] = useState(true)
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
-  const category = characterCategories.find(({ id }) => id === step)
+  const isModelSheet = step === 'model-sheet'
+  const isProfile = step === 'profile'
+  const activeMode = isModelSheet ? 'model-sheet' : isProfile ? 'profile' : 'expressions'
+  const category = isModelSheet || isProfile ? characterCategories[0] : characterCategories.find(({ id }) => id === step)
   const activeCharacterId = useStore(editor.store, (state) => state.activeCharacterId)
   const character = useStore(editor.store, (state) => state.character)
   const saveStatus = useStore(editor.store, (state) => state.saveStatus)
   const persistedRevision = useStore(editor.store, (state) => state.persistedRevision)
   const saveError = useStore(editor.store, (state) => state.saveError)
-  const canUndo = useStore(editor.history, (state) => state.pastStates.length > 0) && saveStatus !== 'conflict'
-  const canRedo = useStore(editor.history, (state) => state.futureStates.length > 0) && saveStatus !== 'conflict'
+  const canUndo = useStore(editor.history, (state) => state.pastStates.length > 0) && saveStatus === 'saved'
+  const canRedo = useStore(editor.history, (state) => state.futureStates.length > 0) && saveStatus === 'saved'
   const [loadError, setLoadError] = useState<{ characterId: string; message: string }>()
   // In-progress text, numeric, or drag edits render locally until one commit; keyed to the committed value they started from.
   const [local, setLocal] = useState<{ base: CharacterDraft; value: CharacterDraft }>()
@@ -104,9 +120,14 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const [error, setError] = useState<string>()
   const [fit, setFit] = useState<{ key: string; value: CharacterFitSuggestion }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 899px)').matches)
-  const [workbenchOpen, setWorkbenchOpen] = useState(false)
+  const [workbenchOpen, setWorkbenchOpen] = useState(narrow && isProfile)
+  const panelContext = `${characterId}:${activeMode}:${narrow}`
+  const [previousPanelContext, setPreviousPanelContext] = useState(panelContext)
+  if (panelContext !== previousPanelContext) {
+    setPreviousPanelContext(panelContext)
+    setWorkbenchOpen(narrow && isProfile)
+  }
   const [profileForm, setProfileForm] = useState<ProfileForm>()
   const [alignmentMode, setAlignmentMode] = useState<'composite' | 'overlay' | 'difference' | 'diagnostic'>('overlay')
   const drag = useRef<{
@@ -125,7 +146,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
-    const update = () => { setNarrow(media.matches); setWorkbenchOpen(false) }
+    const update = () => { setNarrow(media.matches) }
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
@@ -142,7 +163,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   }, [activeCharacterId, characterId, navigate, step, variantId])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
+      if (isProfile || !(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return
       const key = event.key.toLowerCase()
       if (key === 'z') { event.preventDefault(); void (event.shiftKey ? editor.redo() : editor.undo()) }
       else if (key === 'y' && event.ctrlKey) { event.preventDefault(); void editor.redo() }
@@ -151,7 +172,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('beforeunload', onBeforeUnload) }
-  }, [editor])
+  }, [editor, isProfile])
 
   const committed = activeCharacterId === characterId ? character ?? undefined : undefined
   const draft = local && local.base === committed ? local.value : committed
@@ -164,7 +185,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       .finally(() => { if (refreshingRevision.current === externalRevision) refreshingRevision.current = undefined })
   }, [activeCharacterId, characterId, editor, externalRevision, local, profileForm, saveStatus])
   const assetKey = useMemo(() => committed ? characterDraftAtlasKey(committed) : undefined, [committed])
-  const fitGroup = category?.group === 'expression' || category?.group === 'outfit' ? category.group : undefined
+  const fitGroup = !isModelSheet && (category?.group === 'expression' || category?.group === 'outfit') ? category.group : undefined
   const fitKey = committed && assetKey && variantId && fitGroup ? `${fitGroup}:${variantId}:${assetKey}` : undefined
   useEffect(() => {
     if (!fitKey || !fitGroup || !variantId) return
@@ -201,7 +222,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
   const hasBase = Boolean(baseVariant && isCharacterDraftAssetCurrent(draft, baseVariant, 'body'))
   const visibleVariants = category ? draft.variants.filter(({ group }) => category.group === group) : []
   const selectedVariant = visibleVariants.find((variant) => variant.id === variantId)
-  if (variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
+  if (!isModelSheet && variantId && !selectedVariant) return <Navigate to={`/characters/${encodeURIComponent(draft.id)}/${category.id}`} replace />
   const previewLayers = resolveCharacterDraftLayers(draft, selectedVariant)
   const referenceLayers = selectedVariant ? resolveCharacterDraftReferenceLayers(draft, selectedVariant) : []
   const registration = characterRegistrationFrame(draft)
@@ -308,19 +329,34 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
       key.trim(),
       type === 'number' ? value.trim() ? Number(value) : Number.NaN : type === 'boolean' ? value === 'true' : value,
     ]))
-    const patch = { name: profileForm.name, description: profileForm.description, backstory: profileForm.backstory, attributes }
+    const patch = { heightCm: profileForm.heightCm.trim() ? Number(profileForm.heightCm) : null, name: profileForm.name, description: profileForm.description, backstory: profileForm.backstory, attributes }
     try { updateCharacterProfile(draft, patch) }
     catch (caught) { setError(describe(caught)); return }
     commit((current) => updateCharacterProfile(current, patch))
     setProfileForm(undefined)
   }
 
-  const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')} inert={profileOpen ? true : undefined} aria-hidden={profileOpen}>
+  const saveFeedback = <span role="status" title={saveError} className={`ml-1 text-xs ${saveStatus === 'failed' || saveStatus === 'conflict' ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {t(persistedRevision === 0 && saveStatus === 'saved' ? 'books.unsaved' : `characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
+              {externalRevision && <> · <button type="button" className="underline" onClick={() => { setLocal(undefined); setProfileForm(undefined); void runBusy('reload', () => editor.reload()) }}>{t('characterDraft.status.reload')}</button></>}
+              {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
+              {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
+            </span>
+
+  const characterActions = <div className="character-actions flex shrink-0 items-center gap-1" role="group" aria-label={t('characterDraft.characterActions')}>
+    <TooltipProvider>
+      <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{t('characterDraft.saveAs')}</TooltipContent></Tooltip>
+      <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
+      <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
+    </TooltipProvider>
+  </div>
+
+  const workbench = <section className="doll-workbench rounded-2xl border bg-background" aria-label={t('characterDraft.customizeTitle')}>
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
-        <div className="workbench-heading"><span>02</span><div><SheetTitle asChild><h2>{t('characterDraft.customizeTitle')}</h2></SheetTitle><p>{t('characterDraft.workbenchDescription')}</p></div></div>
+        <SheetTitle className="sr-only">{t('characterDraft.customizeTitle')}</SheetTitle>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
-        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs mt-3 grid w-full grid-cols-3">
+        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-3">
           {characterCategories.map(({ id, icon }) => <TabsTrigger key={id} value={id} className="min-w-0">
             <AozuIcon name={icon} />
             <span>{t(`characterDraft.categories.${id}`)}</span>
@@ -346,7 +382,7 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                     ? <CharacterAssetThumbnail blob={thumbnail.blob} bounds={thumbnail.inspection.visibleBounds} label={variant.label} />
                     : <CharacterVariantPlaceholder group={variant.group} variantId={variant.id} label={variant.label} />}</span><span className="variant-label">{variant.label}</span>
                 </button>
-                <button type="button" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon className="size-4" /></button>
+                <Button type="button" variant="outline" size="icon" title={t('characterDraft.editVariant', { name: variant.label })} className="variant-edit" aria-label={t('characterDraft.editVariant', { name: variant.label })} onClick={() => navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}/${encodeURIComponent(variant.id)}`)}><PencilIcon /></Button>
               </div>
             })}
             <button type="button" title={t(`characterDraft.groups.${category.group}.add`)} className="variant-card add-variant" aria-label={t(`characterDraft.groups.${category.group}.add`)} onClick={() => addVariant(category.group)}>
@@ -448,52 +484,83 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
           </>
         })()}
 
-        {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
+        {error && narrow && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
         </TabsContent>
         </Tabs>
         </div>
         {!hasBase && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
         </div>
-        <div className="workbench-footer">
-          <TooltipProvider><div className="workbench-actions flex flex-wrap items-center gap-1">
-            {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo, () => void editor.undo())}
-            {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo, () => void editor.redo())}
-            <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('draft.download')} />
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')}</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>
-            <span role="status" title={saveError} className={`ml-1 text-xs ${saveStatus === 'failed' || saveStatus === 'conflict' ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {t(persistedRevision === 0 && saveStatus === 'saved' ? 'books.unsaved' : `characterDraft.status.${externalRevision ? 'conflict' : saveStatus}`)}
-              {externalRevision && <> · <button type="button" className="underline" onClick={() => { setLocal(undefined); setProfileForm(undefined); void runBusy('reload', () => editor.reload()) }}>{t('characterDraft.status.reload')}</button></>}
-              {saveStatus === 'failed' && <> · <button type="button" className="underline" onClick={() => void editor.retry()}>{t('characterDraft.status.retry')}</button></>}
-              {!externalRevision && saveStatus === 'conflict' && <> · <button type="button" className="underline" onClick={() => void runBusy('reload', () => editor.reload())}>{t('characterDraft.status.reload')}</button> / <button type="button" className="underline" onClick={() => void runBusy('save-as', saveAs)}>{t('characterDraft.saveAs')}</button></>}
-            </span>
-          </div></TooltipProvider>
-        </div>
       </section>
 
-  return <Sheet open={narrow && workbenchOpen} onOpenChange={(open) => { setWorkbenchOpen(open); if (open) setProfileOpen(false) }}><div className="draft-workshop-shell">
-    <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
-      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={category.id}
-      data-variant-id={selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
-      data-panel={profileOpen ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
-      data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
-      <aside className="character-spell-guide" aria-labelledby="character-spell-title">
-        <div className="spell-icon"><AozuIcon name="book" /></div>
-        <div className="min-w-0 flex-1">
-          <h1 id="character-spell-title" className="font-heading text-2xl font-semibold">{t('characterDraft.title')}</h1>
-          <p>{t('characterDraft.description')}</p>
-        </div>
-      </aside>
+  const profile = <section id="character-profile" className="character-profile-panel rounded-2xl border bg-background">
+          {narrow && <SheetTitle className="sr-only">{t('characterDraft.profile.title')}</SheetTitle>}
+          {error && narrow && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          {profileForm ? <>
+            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
+            <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
+            <label><span>{t('characterDraft.profile.description')}</span><textarea maxLength={500} rows={3} value={profileForm.description} onChange={(event) => setProfileForm({ ...profileForm, description: event.target.value })} /></label>
+            <label className="min-h-0"><span>{t('characterDraft.profile.backstory')}</span><textarea className="min-h-28 flex-1" maxLength={8000} value={profileForm.backstory} onChange={(event) => setProfileForm({ ...profileForm, backstory: event.target.value })} /></label>
+            <div className="character-attributes-editor">
+              <div className="character-profile-heading"><span>{t('characterDraft.profile.attributes')}</span><Button type="button" size="sm" variant="ghost" disabled={profileForm.attributes.length >= 32} onClick={() => setProfileForm({ ...profileForm, attributes: [...profileForm.attributes, { key: '', type: 'string', value: '' }] })}><PlusIcon /> {t('characterDraft.profile.add')}</Button></div>
+              <label className="grid gap-1"><span>{t('modelSheet.height')}</span><Input aria-label={t('modelSheet.height')} type="number" min="0.1" max="100000" step="0.1" placeholder={t('modelSheet.unknownHeight')} value={profileForm.heightCm} onChange={(event) => setProfileForm({ ...profileForm, heightCm: event.currentTarget.value })} /></label>
+              {profileForm.attributes.map((attribute, index) => <div className="character-attribute-row" key={index}>
+                <input aria-label={t('characterDraft.profile.attributeName', { index: index + 1 })} placeholder={t('characterDraft.profile.name')} maxLength={40} value={attribute.key} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row) })} />
+                <select aria-label={t('characterDraft.profile.attributeType', { index: index + 1 })} value={attribute.type} onChange={(event) => {
+                  const type = event.target.value as ProfileAttributeForm['type']
+                  setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, type, value: type === 'boolean' ? 'true' : type === 'number' ? '0' : row.value } : row) })
+                }}><option value="string">{t('characterDraft.profile.text')}</option><option value="number">{t('characterDraft.profile.number')}</option><option value="boolean">{t('characterDraft.profile.boolean')}</option></select>
+                {attribute.type === 'boolean' ? <select aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })}><option value="true">{t('characterDraft.profile.yes')}</option><option value="false">{t('characterDraft.profile.no')}</option></select> : <input aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} type={attribute.type === 'number' ? 'number' : 'text'} maxLength={attribute.type === 'string' ? 200 : undefined} placeholder={t('characterDraft.profile.value')} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })} />}
+                <Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.removeAttribute', { index: index + 1 })} onClick={() => setProfileForm({ ...profileForm, attributes: profileForm.attributes.filter((_, rowIndex) => rowIndex !== index) })}><Trash2Icon /></Button>
+              </div>)}
+            </div>
+            <div className="mt-auto flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setProfileForm(undefined)}>{t('common.cancel')}</Button><Button type="button" onClick={saveProfile}>{t('characterDraft.profile.update')}</Button></div>
+          </> : <>
+            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
+            <p className="character-profile-description">{draft.description || t('characterDraft.profile.noDescription')}</p>
+            <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
+            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3><dl><div><dt>{t('modelSheet.height')}</dt><dd>{draft.modelSheet?.heightCm === undefined ? t('modelSheet.unknownHeight') : `${draft.modelSheet.heightCm} cm`}</dd></div>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl></div>
+          </>}
+        </section>
 
-      <div className={`draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3 ${profileOpen ? 'is-profile-open' : ''}`}>
+  const appearanceControls = <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft}
+    manage={!isModelSheet && !isProfile && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
+    change={(command) => void runBusy('appearance', async () => {
+      await changeAppearance(command, persistedRevision!)
+      revert()
+      if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}`)
+    })}>
+    <div className={`flex gap-1 ${isProfile ? 'invisible' : ''}`} inert={isProfile} aria-hidden={isProfile || undefined}><TooltipProvider>
+      {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
+      {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
+    </TooltipProvider></div>
+    {saveFeedback}
+  </CharacterAppearances>
+
+  return <Sheet open={narrow && workbenchOpen} onOpenChange={setWorkbenchOpen}><div className="draft-workshop-shell">
+    <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
+      data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
+      data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
+      data-panel={isProfile ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
+      data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
+      <div className="character-workspace-bar"><nav className="character-workspace-tabs" aria-label={t('modelSheet.mode')}>
+        {(['expressions', 'profile', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" className="character-workspace-tab" variant={mode === activeMode ? 'secondary' : 'ghost'} aria-current={mode === activeMode ? 'page' : undefined}
+          onClick={() => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : mode === 'profile' ? 'characterDraft.profile.title' : 'modelSheet.appearance')}</Button>)}
+      </nav>{characterActions}</div>
+      {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
+      {isModelSheet ? <>
+        <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
+          appearanceSelector={appearanceControls}
+          referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
+          upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })} />
+      </> :
+      <div className="draft-workshop-grid mt-2 min-h-0 flex-1 sm:mt-3">
       <section className="character-stage-panel rounded-2xl border bg-background">
-        <div className="character-stage-heading">
-          <div><span>01</span><strong>{t('characterDraft.stageTitle')}</strong></div>
-          {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="size-10" aria-label={t('characterDraft.customizeTitle')} title={t('characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
-        </div>
-        <div className="character-stage-content">
         <div className="character-stage-preview">
-        <div className="character-stage-canvas relative">
+        <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
+          {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')} title={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
+        </div>
+        <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
+          download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
             aria-label={t('characterDraft.missingRequired')}
@@ -517,65 +584,31 @@ export function CharacterDraftPage({ editor, savedRevision, autoFitVariant, fitS
                 referenceBounds={referenceBounds}
                 footLine={registration.footLine}
               /></div>}
-          {previewLayers.length > 0 && <div className="absolute right-2 top-2"><DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} /></div>}
-        </div>
+        </CharacterViewport>
+        {!hasBase && baseVariant && <Dialog open={startOpen} onOpenChange={setStartOpen}><DialogContent className="max-h-[calc(100svh-2rem)] overflow-auto sm:max-w-md" closeLabel={t('common.close')} data-character-start>
+          <DialogTitle className="pr-10">{t(webmcpReady ? 'characterDraft.start.title' : 'characterDraft.start.desktopTitle')}</DialogTitle>
+          <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
+          {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
+          <div className="flex flex-wrap gap-2">
+            {webmcpReady ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => void runBusy('copy-prompt', async () => {
+              const prompt = t('characterDraft.start.agentPrompt')
+              await navigator.clipboard.writeText(prompt)
+              setCopiedPrompt(prompt)
+            })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
+              : <Button asChild size="sm"><a href={`https://chatgpt.com/codex/deeplink?url=${encodeURIComponent(window.location.href)}`}>{t('characterDraft.start.chatgpt')}</a></Button>}
+            {!webmcpReady && <Button type="button" size="sm" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
+          </div>
+        </DialogContent></Dialog>}
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
-        <section id="character-profile" className="character-profile-panel" inert={!profileOpen ? true : undefined} aria-hidden={!profileOpen}>
-          {profileForm ? <>
-            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
-            <label><span>{t('characterDraft.profile.name')}</span><input maxLength={80} value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} /></label>
-            <label><span>{t('characterDraft.profile.description')}</span><textarea maxLength={500} rows={3} value={profileForm.description} onChange={(event) => setProfileForm({ ...profileForm, description: event.target.value })} /></label>
-            <label className="min-h-0"><span>{t('characterDraft.profile.backstory')}</span><textarea className="min-h-28 flex-1" maxLength={8000} value={profileForm.backstory} onChange={(event) => setProfileForm({ ...profileForm, backstory: event.target.value })} /></label>
-            <div className="character-attributes-editor">
-              <div className="character-profile-heading"><span>{t('characterDraft.profile.attributes')}</span><Button type="button" size="sm" variant="ghost" disabled={profileForm.attributes.length >= 32} onClick={() => setProfileForm({ ...profileForm, attributes: [...profileForm.attributes, { key: '', type: 'string', value: '' }] })}><PlusIcon /> {t('characterDraft.profile.add')}</Button></div>
-              {profileForm.attributes.map((attribute, index) => <div className="character-attribute-row" key={index}>
-                <input aria-label={t('characterDraft.profile.attributeName', { index: index + 1 })} placeholder={t('characterDraft.profile.name')} maxLength={40} value={attribute.key} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row) })} />
-                <select aria-label={t('characterDraft.profile.attributeType', { index: index + 1 })} value={attribute.type} onChange={(event) => {
-                  const type = event.target.value as ProfileAttributeForm['type']
-                  setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, type, value: type === 'boolean' ? 'true' : type === 'number' ? '0' : row.value } : row) })
-                }}><option value="string">{t('characterDraft.profile.text')}</option><option value="number">{t('characterDraft.profile.number')}</option><option value="boolean">{t('characterDraft.profile.boolean')}</option></select>
-                {attribute.type === 'boolean' ? <select aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })}><option value="true">{t('characterDraft.profile.yes')}</option><option value="false">{t('characterDraft.profile.no')}</option></select> : <input aria-label={t('characterDraft.profile.attributeValue', { index: index + 1 })} type={attribute.type === 'number' ? 'number' : 'text'} maxLength={attribute.type === 'string' ? 200 : undefined} placeholder={t('characterDraft.profile.value')} value={attribute.value} onChange={(event) => setProfileForm({ ...profileForm, attributes: profileForm.attributes.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row) })} />}
-                <Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.removeAttribute', { index: index + 1 })} onClick={() => setProfileForm({ ...profileForm, attributes: profileForm.attributes.filter((_, rowIndex) => rowIndex !== index) })}><Trash2Icon /></Button>
-              </div>)}
-            </div>
-            {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-            <div className="mt-auto flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setProfileForm(undefined)}>{t('common.cancel')}</Button><Button type="button" onClick={saveProfile}>{t('characterDraft.profile.update')}</Button></div>
-          </> : <>
-            <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><h2>{draft.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.profile.edit')} onClick={() => { setError(undefined); setProfileForm(profileFormFor(draft)) }}><PencilIcon /></Button></div>
-            <p className="character-profile-description">{draft.description || t('characterDraft.profile.noDescription')}</p>
-            <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
-            <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3>{Object.keys(draft.attributes ?? {}).length ? <dl>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl> : <p className="text-muted-foreground">{t('characterDraft.profile.noAttributes')}</p>}</div>
-          </>}
-        </section>
-        </div>
-        <div className="character-first-dialogue">
-          <span className="dialogue-portrait"><AozuIcon name="profile" /></span>
-          <label className="min-w-0 flex-1">
-            <span>{t('draft.name')}</span>
-            <input
-              aria-label={t('draft.name')}
-              value={draft.name}
-              onChange={(event) => edit({ ...draft, name: event.target.value })}
-              onBlur={(event) => {
-                const name = event.currentTarget.value.trim()
-                commit((current) => current.name === name || !name ? current : { ...current, name })
-              }}
-              onKeyDown={textKeys}
-            />
-          </label>
-          <Button type="button" size="icon" variant="ghost" aria-controls="character-profile" aria-expanded={profileOpen} aria-label={t(profileOpen ? 'characterDraft.profile.collapse' : 'characterDraft.profile.expand')} onClick={() => { setProfileOpen(!profileOpen); setProfileForm(undefined) }}>
-            {profileOpen ? <ChevronDownIcon /> : <ChevronUpIcon />}
-          </Button>
-        </div>
       </section>
 
       {narrow ? <SheetContent className="character-workbench-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
-        {workbench}
-      </SheetContent> : workbench}
-      </div>
+        {isProfile ? profile : workbench}
+      </SheetContent> : isProfile ? profile : workbench}
+      </div>}
     </main>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
       <AlertDialogContent>
