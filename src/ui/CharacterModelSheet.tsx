@@ -1,4 +1,4 @@
-import { ImagePlusIcon } from 'lucide-react'
+import { ChevronDownIcon, ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +6,15 @@ import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet
 import { CHARACTER_REFERENCE_VIEWS, CHARACTER_REFERENCE_KINDS, type CharacterDraft, type CharacterReference, type CharacterReferenceMetadata } from '@/core/domain/character'
 import { DataControls } from '@/ui/DataControls'
 import { BlobImage } from '@/ui/BlobImage'
+import { Input } from '@/ui/components/ui/input'
+import { Label } from '@/ui/components/ui/label'
+import { Textarea } from '@/ui/components/ui/textarea'
+import { Slider } from '@/ui/components/ui/slider'
+import { Checkbox } from '@/ui/components/ui/checkbox'
+import { Badge } from '@/ui/components/ui/badge'
+import { Card } from '@/ui/components/ui/card'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/ui/components/ui/collapsible'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/components/ui/select'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
 
@@ -33,22 +42,22 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
   const change = (patch: Partial<CharacterReference>) => {
     if (view && reference) edit(withCharacterModelSheet(draft, setModelSheetReference(sheet, view, { ...reference, ...patch })))
   }
-  const fileInput = (id: string) => <input type="file" accept="image/png" disabled={busy}
+  const fileInput = (id: string) => <Input className="sr-only" type="file" accept="image/png" disabled={busy}
     aria-label={t('modelSheet.uploadView', { view: label(id) })}
     onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) upload(id, file) }} />
 
   const card = (id: string, index: number) => {
     const item = references[id]
     const size = item?.asset.inspection
-    return <article key={id} className={`model-sheet-card${size && size.width > size.height ? ' col-span-2' : ''}`}>
+    return <Card key={id} className={`model-sheet-card${size && size.width > size.height ? ' col-span-2' : ''}`}>
       <h3><span className="text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>{label(id)}</h3>
-      {item ? <button type="button" className="model-sheet-art" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
+      {item ? <Button type="button" variant="ghost" className="model-sheet-art h-auto p-0" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
-      </button> : <label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</label>}
+      </Button> : <Label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</Label>}
       {isTurnaroundView(id) && <p className="model-sheet-state">{t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>}
       {item?.needsReview && <p className="text-sm font-medium text-amber-900">{t('modelSheet.needsReview')}</p>}
       {item?.notes && <p className="line-clamp-2 wrap-anywhere text-sm text-muted-foreground">{item.notes}</p>}
-    </article>
+    </Card>
   }
 
   return <section className="model-sheet mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border bg-background sm:mt-3" aria-label={t('modelSheet.title')} data-reference-view={view}>
@@ -67,8 +76,9 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       <h2 id="model-sheet-more-title" className="font-heading text-xl font-semibold">{t('modelSheet.planned.title')}</h2>
       <p className="mb-4 mt-2 text-sm text-muted-foreground">{t('modelSheet.moreHelp')}</p>
       <div className="model-sheet-grid">{Object.keys(sheet.references ?? {}).map(card)}</div>
-      <details className="my-4 rounded-lg border p-3">
-        <summary className="cursor-pointer font-semibold">{t('modelSheet.add')}</summary>
+      <Collapsible className="my-4 rounded-lg border p-3">
+        <CollapsibleTrigger asChild><Button type="button" variant="ghost" className="w-full justify-between">{t('modelSheet.add')}<ChevronDownIcon /></Button></CollapsibleTrigger>
+        <CollapsibleContent>
         <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => {
           event.preventDefault()
           const form = event.currentTarget
@@ -81,20 +91,21 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
             ...(data.get('pose') ? { pose: String(data.get('pose')) } : {}),
           })
         }}>
-          <label className="grid gap-1">{t('modelSheet.label')}<input className="min-w-0 rounded border p-2" name="label" required maxLength={80} /></label>
-          <label className="grid gap-1">{t('modelSheet.kind')}<select className="rounded border p-2" name="kind" defaultValue="structure">{CHARACTER_REFERENCE_KINDS.map((kind) => <option key={kind} value={kind}>{t(`modelSheet.kinds.${kind}`)}</option>)}</select></label>
-          <label className="grid gap-1">{t('modelSheet.viewpoint')}<input className="min-w-0 rounded border p-2" name="viewpoint" maxLength={80} /></label>
-          <label className="grid gap-1">{t('modelSheet.pose')}<input className="min-w-0 rounded border p-2" name="pose" maxLength={80} /></label>
-          <input className="min-w-0 max-w-full" type="file" name="file" accept="image/png" required aria-label={t('modelSheet.add')} />
+          <Label className="grid gap-1">{t('modelSheet.label')}<Input name="label" required maxLength={80} /></Label>
+          <Label className="grid gap-1">{t('modelSheet.kind')}<Select name="kind" defaultValue="structure"><SelectTrigger className="w-full" aria-label={t('modelSheet.kind')}><SelectValue /></SelectTrigger><SelectContent>{CHARACTER_REFERENCE_KINDS.map((kind) => <SelectItem key={kind} value={kind}>{t(`modelSheet.kinds.${kind}`)}</SelectItem>)}</SelectContent></Select></Label>
+          <Label className="grid gap-1">{t('modelSheet.viewpoint')}<Input name="viewpoint" maxLength={80} /></Label>
+          <Label className="grid gap-1">{t('modelSheet.pose')}<Input name="pose" maxLength={80} /></Label>
+          <Input className="min-w-0 max-w-full" type="file" name="file" accept="image/png" required aria-label={t('modelSheet.add')} />
           <Button type="submit" disabled={busy}>{t('modelSheet.add')}</Button>
         </form>
-      </details>
-      <div className="mt-6 flex flex-wrap items-center gap-3"><span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">{t('modelSheet.planned.status')}</span></div>
+      </CollapsibleContent>
+      </Collapsible>
+      <div className="mt-6 flex flex-wrap items-center gap-3"><Badge variant="outline">{t('modelSheet.planned.status')}</Badge></div>
       <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-        {(['landmarks', 'lineup'] as const).map((section) => <li key={section} className="rounded-xl border border-dashed p-4">
+        {(['landmarks', 'lineup'] as const).map((section) => <li key={section}><Card className="h-full gap-1 border border-dashed bg-transparent p-4 ring-0">
           <h3 className="font-semibold">{t(`modelSheet.planned.sections.${section}.title`)}</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">{t(`modelSheet.planned.sections.${section}.description`)}</p>
-        </li>)}
+        </Card></li>)}
       </ul>
     </section>
     </div>
@@ -115,15 +126,15 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
               return updateCharacterModelSheet(current, setModelSheetReference(characterModelSheet(current), view, { ...reference, ...(calibratable ? { guides } : {}) }))
             })
           }}>
-            {calibratable && (['head', 'feet'] as const).map((line) => <label key={line} className="grid grid-cols-[4rem_1fr_3rem] items-center gap-3">
-              <span>{t(`modelSheet.${line}`)}</span><input type="range" min={line === 'head' ? 0 : Math.round(guides.head * 100) + 1} max={line === 'head' ? Math.round(guides.feet * 100) - 1 : 100} step="1" value={Math.round(guides[line] * 100)} onChange={(event) => change({ guides: { ...guides, [line]: Number(event.currentTarget.value) / 100 } })} />
+            {calibratable && (['head', 'feet'] as const).map((line) => <Label key={line} className="grid grid-cols-[4rem_1fr_3rem] items-center gap-3">
+              <span>{t(`modelSheet.${line}`)}</span><Slider aria-label={t(`modelSheet.${line}`)} min={line === 'head' ? 0 : Math.round(guides.head * 100) + 1} max={line === 'head' ? Math.round(guides.feet * 100) - 1 : 100} step={1} value={[Math.round(guides[line] * 100)]} onValueChange={([value]) => change({ guides: { ...guides, [line]: value / 100 } })} />
               <output className="text-right tabular-nums">{Math.round(guides[line] * 100)}%</output>
-            </label>)}
-            {(['label', 'viewpoint', 'pose'] as const).map((field) => <label key={field} className="grid gap-1">{t(`modelSheet.${field}`)}<input className="min-w-0 rounded border p-2" maxLength={80} value={reference[field] ?? ''} onChange={(event) => change({ [field]: event.currentTarget.value || undefined })} /></label>)}
-            <label className="grid gap-2"><span>{t('modelSheet.notes')}</span><textarea rows={3} maxLength={1000} value={reference.notes ?? ''} onChange={(event) => change({ notes: event.currentTarget.value })} className="rounded-lg border bg-background p-3" /></label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={reference.needsReview ?? false} onChange={(event) => change({ needsReview: event.currentTarget.checked })} />{t('modelSheet.needsReview')}</label>
+            </Label>)}
+            {(['label', 'viewpoint', 'pose'] as const).map((field) => <Label key={field} className="grid gap-1">{t(`modelSheet.${field}`)}<Input maxLength={80} value={reference[field] ?? ''} onChange={(event) => change({ [field]: event.currentTarget.value || undefined })} /></Label>)}
+            <Label className="grid gap-2"><span>{t('modelSheet.notes')}</span><Textarea rows={3} maxLength={1000} value={reference.notes ?? ''} onChange={(event) => change({ notes: event.currentTarget.value })} /></Label>
+            <Label className="flex items-center gap-2"><Checkbox checked={reference.needsReview ?? false} onCheckedChange={(checked) => change({ needsReview: checked === true })} />{t('modelSheet.needsReview')}</Label>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="model-sheet-replace">{t('modelSheet.replace')}{fileInput(view)}</label>
+              <div className="relative"><Button type="button" variant="outline" disabled={busy} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}>{t('modelSheet.replace')}</Button>{fileInput(view)}</div>
               <Button type="submit" disabled={busy}>{t('modelSheet.saveReference')}</Button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">

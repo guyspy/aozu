@@ -92,7 +92,11 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const openView = (await call('inspect_workspace', {})).data.view
     check(openView.panel === 'reference' && openView.referenceView === 'front', 'Tool missed the open reference editor')
     await fill(dialog.querySelector('textarea'), 'Coat hem is level.')
-    await fill(dialog.querySelector('input[type=range]'), '12')
+    const headSlider = dialog.querySelector('[role=slider]')
+    headSlider.focus()
+    headSlider.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    await wait()
+    for (let i = 0; i < 12; i++) { headSlider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await wait() }
     dialog.querySelector('button[type=submit]').click(); await settled()
     check(sheet().views.front.notes === 'Coat hem is level.' && sheet().views.front.guides.head === 0.12, 'Notes or guides were not saved')
     dialog.querySelector('[data-slot=sheet-close]').click()
@@ -100,6 +104,22 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const inspected = (await call('inspect_workspace', { includeSnapshot: true })).data
     check(inspected.currentCharacter.id === id && inspected.currentCharacter.modelSheet.heightCm === 185, 'Tool missed the active model sheet')
     check(inspected.assetPolicy.tool === 'update_character_model_sheet' && inspected.snapshot.status === 'unavailable', 'Reference page advertised appearance-layer rules or the wrong image')
+    document.querySelector('[data-slot=collapsible-trigger]').click()
+    await ready(() => document.querySelector('[data-slot=collapsible-content] form'))
+    const addForm = document.querySelector('[data-slot=collapsible-content] form')
+    await fill(addForm.querySelector('[name=label]'), 'UI reference')
+    const files = new DataTransfer()
+    files.items.add(new File([png], 'ui-reference.png', { type: 'image/png' }))
+    addForm.querySelector('[type=file]').files = files.files
+    check(new FormData(addForm).get('kind') === 'structure', 'Shadcn Select lost the form value')
+    addForm.requestSubmit(); await settled()
+    await ready(() => document.querySelector('.model-sheet-detail [role=checkbox]'))
+    document.querySelector('.model-sheet-detail [role=checkbox]').click(); await wait()
+    document.querySelector('.model-sheet-detail button[type=submit]').click(); await settled()
+    check(Object.values(sheet().references).some((ref) => ref.label === 'UI reference' && ref.needsReview), 'UI upload or Checkbox did not save')
+    buttons('Remove reference').click(); await settled()
+    await ready(() => !document.querySelector('.model-sheet-detail'))
+    document.querySelector('[data-slot=collapsible-trigger]').click()
     const revision = state().persistedRevision
     const rejected = await call('update_character_model_sheet', { characterId: id, expectedRevision: revision, view: 'front', guides: { head: 0.9, feet: 0.1 } }).then(() => false, (error) => error.message.includes('head above the feet'))
     check(rejected, 'Invalid guides were not rejected')
