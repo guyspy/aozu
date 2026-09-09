@@ -81,9 +81,15 @@ if (new URLSearchParams(location.search).has('responsive')) {
         }
         check(panel.querySelector('input[type=file]').accept === 'image/png', 'Missing manual upload fallback')
         const bounds = panel.getBoundingClientRect()
-        const canvas = document.querySelector('.character-stage-canvas').getBoundingClientRect()
-        check(bounds.left >= canvas.left && bounds.right <= canvas.right && bounds.bottom <= canvas.bottom && bounds.top >= canvas.top, 'Start panel escaped the preview')
+        check(bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight, 'Start dialog escaped the viewport')
+        check(Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2 && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2, 'Start dialog is not centered')
       }
+      document.querySelector('[data-character-start] [data-slot=dialog-close]').click()
+      await ready(() => !document.querySelector('[data-character-start]'))
+      await i18n.changeLanguage('en'); await wait()
+      check(!document.querySelector('[data-character-start]'), 'Dismissed dialog reopened on render')
+      root.render(h(MemoryRouter, { key: 'reload', initialEntries: [route.pathname] }, h(Location), h(AppRoutes, { application: app })))
+      await ready(() => document.querySelector('[data-character-start]'))
       check((await app.loadCharacterLibrary()).characters.length === 0, 'Empty-state actions saved a Character')
       result.textContent = `PASS: ${startCheck} empty-state, both locales, prompt and upload`
     } else {

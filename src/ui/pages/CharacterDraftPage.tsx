@@ -17,6 +17,7 @@ import type { CharacterAppearanceCommand } from '@/core/application/character-ap
 import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,6 +99,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
 }) {
   const { t } = useTranslation()
   const [copiedPrompt, setCopiedPrompt] = useState('')
+  const [startOpen, setStartOpen] = useState(true)
   const navigate = useNavigate()
   const { characterId, step, variantId } = useParams()
   const isModelSheet = step === 'model-sheet'
@@ -557,7 +559,6 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         <div className="flex shrink-0 items-start gap-1"><div className="min-w-0 flex-1">{appearanceControls}</div>
           {narrow && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')} title={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')}><PanelRightOpenIcon /></Button></SheetTrigger>}
         </div>
-        <div className="relative flex min-h-0 flex-1 flex-col">
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
@@ -584,8 +585,9 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
                 footLine={registration.footLine}
               /></div>}
         </CharacterViewport>
-        {!hasBase && baseVariant && <div className="absolute inset-x-3 bottom-3 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur-sm" data-character-start>
-          <p className="mb-2 text-sm">{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</p>
+        {!hasBase && baseVariant && <Dialog open={startOpen} onOpenChange={setStartOpen}><DialogContent className="max-h-[calc(100svh-2rem)] overflow-auto sm:max-w-md" closeLabel={t('common.close')} data-character-start>
+          <DialogTitle className="pr-10">{t('characterDraft.start.title')}</DialogTitle>
+          <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
           {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
           <div className="flex flex-wrap gap-2">
             {webmcpReady ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => void runBusy('copy-prompt', async () => {
@@ -596,8 +598,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               : <Button asChild size="sm"><a href={`https://chatgpt.com/?q=${encodeURIComponent(t('characterDraft.start.imagePrompt'))}`} target="_blank" rel="noopener noreferrer">{t('characterDraft.start.chatgpt')}</a></Button>}
             <div><Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}>{t('characterDraft.start.upload')}</Button>{fileInput(baseVariant, 'body')}</div>
           </div>
-        </div>}
-        </div>
+        </DialogContent></Dialog>}
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
           {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
