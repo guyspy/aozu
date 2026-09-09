@@ -595,7 +595,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               await navigator.clipboard.writeText(prompt)
               setCopiedPrompt(prompt)
             })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
-              : <Button asChild size="sm"><a href={`codex://new?prompt=${encodeURIComponent(t('characterDraft.start.desktopPrompt', { url: window.location.href }))}`} >{t('characterDraft.start.chatgpt')}</a></Button>}
+              : <Button asChild size="sm"><a href={`https://chatgpt.com/codex/deeplink?url=${encodeURIComponent(window.location.href)}`}>{t('characterDraft.start.chatgpt')}</a></Button>}
             {!webmcpReady && <Button type="button" size="sm" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
           </div>
         </DialogContent></Dialog>}

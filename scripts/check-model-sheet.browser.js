@@ -70,7 +70,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
         check(panel.textContent.includes(i18n.t(startCheck === 'manual' ? 'characterDraft.start.manualHelp' : 'characterDraft.start.agentHelp')), 'Wrong empty-state language or capability branch')
         if (startCheck === 'manual') {
           const link = panel.querySelector('a')
-          check(link.href.startsWith('codex://new?') && new URL(link.href).searchParams.get('prompt') === i18n.t('characterDraft.start.desktopPrompt', { url: location.href }), 'Desktop link lost its localized prompt or current URL')
+          check(link.href.startsWith('https://chatgpt.com/codex/deeplink?') && new URL(link.href).searchParams.get('url') === location.href, 'Desktop redirect lost the current URL')
           check(!buttons(i18n.t('characterDraft.start.copy')), 'Unsupported browser showed agent action')
         } else {
           let copied
