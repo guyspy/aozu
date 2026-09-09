@@ -42,7 +42,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
   const change = (patch: Partial<CharacterReference>) => {
     if (view && reference) edit(withCharacterModelSheet(draft, setModelSheetReference(sheet, view, { ...reference, ...patch })))
   }
-  const fileInput = (id: string) => <Input className="sr-only" type="file" accept="image/png" disabled={busy}
+  const fileInput = (id: string) => <Input className="hidden" type="file" accept="image/png" disabled={busy}
     aria-label={t('modelSheet.uploadView', { view: label(id) })}
     onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) upload(id, file) }} />
 
@@ -53,7 +53,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       <h3><span className="text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>{label(id)}</h3>
       {item ? <Button type="button" variant="ghost" className="model-sheet-art h-auto p-0" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
-      </Button> : <Label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</Label>}
+      </Button> : <><Button type="button" variant="ghost" className="model-sheet-art model-sheet-empty h-auto p-0" disabled={busy} aria-label={t('modelSheet.uploadView', { view: label(id) })} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span></Button>{fileInput(id)}</>}
       {item?.notes && <p className="line-clamp-2 wrap-anywhere text-sm text-muted-foreground">{item.notes}</p>}
     </Card>
   }
