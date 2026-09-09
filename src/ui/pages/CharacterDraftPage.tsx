@@ -596,7 +596,6 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               setCopiedPrompt(prompt)
             })}><CopyIcon />{t(copiedPrompt === t('characterDraft.start.agentPrompt') ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}</Button>
               : <Button asChild size="sm"><a href={`https://chatgpt.com/?q=${encodeURIComponent(t('characterDraft.start.imagePrompt'))}`} target="_blank" rel="noopener noreferrer">{t('characterDraft.start.chatgpt')}</a></Button>}
-            <div><Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}>{t('characterDraft.start.upload')}</Button>{fileInput(baseVariant, 'body')}</div>
           </div>
         </DialogContent></Dialog>}
         {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>

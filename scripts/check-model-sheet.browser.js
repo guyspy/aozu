@@ -79,7 +79,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
           await ready(() => copied === i18n.t('characterDraft.start.agentPrompt'))
           check(!panel.querySelector('a'), 'Agent branch showed external action')
         }
-        check(panel.querySelector('input[type=file]').accept === 'image/png', 'Missing manual upload fallback')
+        check(!panel.querySelector('input[type=file]') && document.querySelector('.character-stage-upload input[type=file]'), 'Upload should remain on the preview, not in the dialog')
         const bounds = panel.getBoundingClientRect()
         check(bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight, 'Start dialog escaped the viewport')
         check(Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2 && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2, 'Start dialog is not centered')

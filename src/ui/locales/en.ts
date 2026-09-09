@@ -81,7 +81,7 @@ export const en = {
       agentPrompt: 'Ask me about my character, then use inspect_workspace → inspect_character_contract → replace_character_asset to create it in AOZU.',
       manualHelp: 'Upload a character PNG, or create one in ChatGPT and upload it here.',
       imagePrompt: 'Ask what character and style I want, then generate a transparent 512 × 768 RGBA PNG: full-body front view, relaxed A-pose, head and feet in frame, no text.',
-      copy: 'Copy prompt', copied: 'Copied', upload: 'Upload PNG', chatgpt: 'Open in ChatGPT',
+      copy: 'Copy prompt', copied: 'Copied', chatgpt: 'Open in ChatGPT',
     },
     customizeTitle: 'Customize appearance',
     categorySwitcher: 'Appearance categories',

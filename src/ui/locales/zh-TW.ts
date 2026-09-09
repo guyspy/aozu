@@ -69,7 +69,7 @@ export const zhTW: Messages = {
       agentPrompt: '先問我想要什麼角色，再用 inspect_workspace → inspect_character_contract → replace_character_asset 在 AOZU 建立角色。',
       manualHelp: '上傳角色 PNG，或先到 ChatGPT 生成圖片，再回來上傳。',
       imagePrompt: '先問我想要的角色與畫風，再生成透明背景 512 × 768 RGBA PNG：正面全身、自然 A-pose、頭腳完整入鏡，不要文字。',
-      copy: '複製提示詞', copied: '已複製', upload: '上傳 PNG', chatgpt: '在 ChatGPT 開啟',
+      copy: '複製提示詞', copied: '已複製', chatgpt: '在 ChatGPT 開啟',
     },
     customizeTitle: '自訂外觀',
     categorySwitcher: '外觀分類',
