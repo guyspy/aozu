@@ -45,9 +45,9 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       {item ? <button type="button" className="model-sheet-art" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
       </button> : <label className="model-sheet-art model-sheet-empty"><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span>{fileInput(id)}</label>}
-      <p className="model-sheet-state">{item && !isTurnaroundView(id) ? [item.kind && t(`modelSheet.kinds.${item.kind}`), item.viewpoint, item.pose].filter(Boolean).join(' · ') : t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>
+      {isTurnaroundView(id) && <p className="model-sheet-state">{t(item ? item.guides ? 'modelSheet.calibrated' : 'modelSheet.uncalibrated' : 'modelSheet.missing')}</p>}
       {item?.needsReview && <p className="text-sm font-medium text-amber-900">{t('modelSheet.needsReview')}</p>}
-      {item?.notes && <p className="line-clamp-2 text-sm text-muted-foreground">{item.notes}</p>}
+      {item?.notes && <p className="line-clamp-2 wrap-anywhere text-sm text-muted-foreground">{item.notes}</p>}
     </article>
   }
 
@@ -102,6 +102,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
         {view && reference && <>
           <SheetTitle>{draft.name} · {label(view)}</SheetTitle>
+          {reference.kind && <p className="model-sheet-state">{t(`modelSheet.kinds.${reference.kind}`)}</p>}
           <SheetDescription>{t(calibratable ? 'modelSheet.calibrateHelp' : 'modelSheet.moreHelp')}</SheetDescription>
           <div className="model-sheet-calibration" style={{ aspectRatio: `${reference.asset.inspection.width} / ${reference.asset.inspection.height}`, width: `min(100%, ${55 * reference.asset.inspection.width / reference.asset.inspection.height}svh)` }}>
             <BlobImage blob={reference.asset.blob} alt={label(view)} className="size-full object-contain" />
