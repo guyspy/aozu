@@ -1,3 +1,8 @@
+import { FolderInputIcon } from 'lucide-react'
+import { Button } from '@/ui/components/ui/button'
+import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
+import type { CharacterCollection } from '@/core/domain/character-collection'
+import { Breadcrumbs } from '@/ui/Breadcrumbs'
 import { useWorldLibrary } from '@/ui/useWorldLibrary'
 import { locationAncestors } from '@/core/domain/world-library'
 import { HomePage } from '@/ui/pages/HomePage'
@@ -16,12 +21,28 @@ import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StoryboardPage } from '@/ui/pages/StoryboardPage'
 import { StatusPage } from '@/ui/pages/StatusPage'
 
-function CharacterEditor({ application, refresh, savedRevision, webmcpReady }: { webmcpReady: boolean; application: Application; refresh(): Promise<void>; savedRevision?: number }) {
+function CharacterEditor({ application, collections, refresh, savedRevision, webmcpReady }: { collections: CharacterCollection[]; webmcpReady: boolean; application: Application; refresh(): Promise<void>; savedRevision?: number }) {
   const navigate = useNavigate()
   const { characterId, step } = useParams()
+  const { t } = useTranslation()
+  const [moving, setMoving] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   if (!characterId) return <Navigate to="/" replace />
   return <CharacterDraftPage
     key={characterId}
+    collectionControl={characterId !== 'new' && <>
+      <Button size="icon" variant="outline" aria-label={t('books.move')} title={t('books.move')} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button>
+      <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><SheetContent className="overflow-y-auto p-6" aria-describedby={undefined}><SheetTitle>{t('books.move')}</SheetTitle>
+        <div className="mt-6 grid gap-2">{collections.map((collection) => <Button key={collection.id} variant="outline" disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
+          setBusy(true); setError('')
+          try { await application.assignCollection(characterId, collection.id); await refresh(); setMoving(false) }
+          catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)) }
+          finally { setBusy(false) }
+        }}>{collection.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : collection.name}</Button>)}</div>
+        {error && <p role="alert" className="mt-4 text-destructive">{error}</p>}
+      </SheetContent></Sheet>
+    </>}
     webmcpReady={webmcpReady}
     editor={application.editor}
     savedRevision={savedRevision}
@@ -113,6 +134,26 @@ export function AppRoutes({ application }: { application: Application }) {
     : parts[0] === 'storyboards' && parts[1] ? (boardFolder ? `/storyboards/folders/${boardFolder}` : '/storyboards')
     : parts.length ? '/' : undefined
 
+  const crumbs: Array<{ label: string; path: string }> = []
+  const addCrumb = (label: string, path: string) => crumbs.push({ label, path })
+  if (parts[0] === 'collections' || editing) {
+    addCrumb(t('world.collections'), '/collections')
+    const id = editing ? characterBook : parts[1]
+    const collection = library.collections.find((c) => c.id === id)
+    if (collection) addCrumb(id === 'default' ? t('world.defaultCollection') : collection.name, `/collections/${id}`)
+    if (parts[2] === 'locations') {
+      addCrumb(t('world.locations'), `/collections/${id}/locations`)
+      if (place) for (const ancestor of locationAncestors(world.library, place.id)) addCrumb(ancestor.name, `/collections/${id}/locations/${ancestor.id}`)
+    }
+    if (editing) addCrumb(character?.name ?? t('world.createCharacter'), location.pathname)
+  } else if (parts[0] === 'albums') {
+    addCrumb(t('world.albums'), '/albums')
+    const album = world.library.albums.find((a) => a.id === parts[1])
+    if (album) addCrumb(album.id === 'default' ? t('world.defaultAlbum') : album.name, `/albums/${album.id}`)
+    const photo = world.library.photos.find((p) => p.id === parts[3] && p.albumId === album?.id)
+    if (photo) addCrumb(photo.name, location.pathname)
+  }
+
   const libraryPage = <CharacterLibraryPage
     characters={library.characters}
     loadThumbnail={application.loadCharacterThumbnail}
@@ -121,7 +162,6 @@ export function AppRoutes({ application }: { application: Application }) {
     createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
     updateCollection={application.updateCollection}
     deleteCollection={application.deleteCollection}
-    assignCollection={application.assignCollection}
     exportLibrary={application.exportCharacterLibrary}
     prepareLibraryImport={application.prepareCharacterLibraryImport}
     importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
@@ -141,6 +181,7 @@ export function AppRoutes({ application }: { application: Application }) {
       title={character?.name}
       onBack={backPath ? () => navigate(backPath) : undefined}
     />
+    {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
     <Routes>
       <Route index element={<HomePage application={application} world={world.library} collections={library.collections} characters={library.characters} />} />
       <Route path="/storyboards" element={storyPage} />
@@ -154,8 +195,8 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route path="/collections" element={libraryPage} />
       <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />
-      <Route path="/characters/:characterId/:step" element={<CharacterEditor webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
-      <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
+      <Route path="/characters/:characterId/:step" element={<CharacterEditor collections={library.collections} webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
+      <Route path="/characters/:characterId/:step/:variantId" element={<CharacterEditor collections={library.collections} webmcpReady={webmcp.status === 'ready'} application={application} refresh={refresh} savedRevision={character?.revision} />} />
       <Route path="*" element={<StatusPage>404 · {t('navigation.notFound')}</StatusPage>} />
     </Routes>
   </>

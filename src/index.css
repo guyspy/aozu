@@ -1134,11 +1134,15 @@ body::before {
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 .world-workspace > .world-picture { max-height: 65vh; margin-bottom: 20px; }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-.world-home-card { border: 1px solid var(--border); border-radius: 20px; background: var(--card); overflow: hidden; }
-.world-home-card > a:first-child { display: grid; gap: 14px; padding: 24px; }
+.world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }
+.world-home-card > a:first-child { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 24px; width: 100%; flex: 1; }
+.home-seal.aozu-icon { width: clamp(100px, 12vw, 160px); height: clamp(100px, 12vw, 160px); }
+.world-home-card p { font-size: 14px; color: #f0dcb6; }
+.world-home-card a:focus-visible { outline: 2px solid #f3d899; outline-offset: -6px; }
 .world-home-card h2, .world-section h2 { font-family: var(--font-heading); font-weight: 700; font-size: 22px; }
-.world-shortcut { display: block; padding: 14px 24px; border-top: 1px solid var(--border); }
-.world-home-card a:hover, .world-recent a:hover { background: var(--accent); }
+.world-shortcut { display: block; width: 100%; padding: 14px 24px; border-top: 1px solid #deb46e55; }
+.world-home-card a:hover { background: #deb46e18; }
+.world-recent a:hover { background: var(--accent); }
 .world-section { margin: 28px 0; }
 .world-section h2 { margin-bottom: 12px; }
 .world-recent { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1157,3 +1161,10 @@ body::before {
 .world-tags span, .world-folder-list a { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
 .world-panel { width: min(100vw, 520px) !important; max-width: 520px !important; }
 @media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } .world-upload { flex-wrap: wrap; } }
+
+.app-breadcrumb { width: min(100%, 1152px); margin: 0 auto; padding: 14px clamp(16px, 3vw, 32px) 0; }
+.app-breadcrumb ol { display: flex; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.app-breadcrumb li { display: flex; gap: 10px; min-width: 0; align-items: baseline; }
+.app-breadcrumb li > :last-child { overflow-wrap: anywhere; min-width: 0; }
+.app-breadcrumb [aria-current] { font-weight: 600; }
+.app-breadcrumb a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }

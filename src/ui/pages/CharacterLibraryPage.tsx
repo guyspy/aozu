@@ -1,4 +1,4 @@
-import { BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, FolderInputIcon, PlusIcon } from 'lucide-react'
+import { BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, PlusIcon } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,7 @@ function CharacterCardPortrait({ character, loadThumbnail }: { character: Charac
   </div>
 }
 
-export function CharacterLibraryPage({ characters, loadThumbnail, collections, locationCounts, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, locationCounts, createCollection, updateCollection, deleteCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
   characters: CharacterLibraryItem[]
   loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
@@ -53,7 +53,6 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
   createCollection(name: string): Promise<CharacterCollection>
   updateCollection(id: string, profile: CharacterCollectionProfile, version: number): Promise<void>
   deleteCollection(id: string, version: number): Promise<void>
-  assignCollection(characterId: string, collectionId: string): Promise<void>
   openCharacter(id: string): void
   importCharacter(blob: Blob): Promise<void>
   refresh(): Promise<void>
@@ -62,15 +61,14 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
   const navigate = useNavigate()
   const { collectionId } = useParams()
   const book = collections.find(({ id }) => id === collectionId)
-  const [panel, setPanel] = useState<'create' | 'profile' | 'move' | 'backup' | 'import' | 'delete'>()
+  const [panel, setPanel] = useState<'create' | 'profile' | 'backup' | 'import' | 'delete'>()
   const [editing, setEditing] = useState<CharacterCollection>()
   const [profile, setProfile] = useState<CharacterCollectionProfile>({ name: '', description: '', backstory: '' })
-  const [moving, setMoving] = useState<CharacterLibraryItem>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const nameOf = (value: CharacterCollection) => value.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : value.name
   const openPanel = (next: typeof panel) => { setError(undefined); setPanel(next) }
-  const createBook = () => { setMoving(undefined); setProfile({ name: '', description: '', backstory: '' }); openPanel('create') }
+  const createBook = () => { setProfile({ name: '', description: '', backstory: '' }); openPanel('create') }
   const editBook = (value: CharacterCollection) => { setEditing(value); setProfile({ name: value.name, description: value.description, backstory: value.backstory }); openPanel('profile') }
   const run = async (task: () => Promise<void>) => {
     setBusy(true); setError(undefined)
@@ -146,10 +144,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
               <span className="companion-card-portrait"><CharacterCardPortrait character={character} loadThumbnail={loadThumbnail} /></span>
               <span className="companion-card-name">{character.name}</span>
             </button>
-            <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button className="book-card-action" variant="ghost" size="icon" aria-label={t('books.characterActions', { name: character.name })}><EllipsisIcon /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="book-menu" align="end" sideOffset={4}>
-              <DropdownMenu.Item className={menuItem} onSelect={() => openCharacter(character.id)}>{t('characters.edit')}</DropdownMenu.Item>
-              <DropdownMenu.Item className={menuItem} onSelect={() => { setMoving(character); openPanel('move') }}><FolderInputIcon />{t('books.move')}</DropdownMenu.Item>
-            </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+
           </article>)}
         </div> : <div className="book-empty"><AozuIcon name="book" className="size-20" /><h2 className="font-heading text-xl">{t('books.empty')}</h2><p className="max-w-sm text-sm text-muted-foreground">{t(book.id === DEFAULT_CHARACTER_COLLECTION ? 'books.emptyDefault' : 'books.emptyCustom')}</p><Button variant="outline" onClick={() => book.id === DEFAULT_CHARACTER_COLLECTION ? navigate('/characters/new/expressions') : navigate(`/collections/${DEFAULT_CHARACTER_COLLECTION}`)}>{t(book.id === DEFAULT_CHARACTER_COLLECTION ? 'characters.new' : 'books.browseDefault')}</Button></div>}
       </section>
@@ -164,11 +159,10 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
 
     <Sheet open={Boolean(panel)} onOpenChange={(open) => { if (!open && !busy) setPanel(undefined) }}>
       <SheetContent className="book-panel overflow-y-auto p-5 sm:p-6" closeLabel={t('common.close')} aria-describedby={undefined} onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }} onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}>
-        <SheetTitle className="pr-8 text-xl">{t(panel === 'create' ? 'books.create' : panel === 'move' ? 'books.move' : panel === 'backup' ? 'library.backupTitle' : panel === 'import' ? 'data.import' : panel === 'delete' ? 'books.delete' : 'books.profile')}</SheetTitle>
+        <SheetTitle className="pr-8 text-xl">{t(panel === 'create' ? 'books.create' : panel === 'backup' ? 'library.backupTitle' : panel === 'import' ? 'data.import' : panel === 'delete' ? 'books.delete' : 'books.profile')}</SheetTitle>
         {(panel === 'create' || panel === 'profile') && <form className="book-profile-form" onSubmit={(event) => { event.preventDefault(); void run(async () => {
           if (panel === 'create') {
             const created = await createCollection(profile.name)
-            if (moving) await assignCollection(moving.id, created.id)
             navigate(`/collections/${created.id}`)
           } else if (editing) await updateCollection(editing.id, profile, editing.version)
         }) }}>
@@ -178,7 +172,6 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
           {panel === 'create' && <p className="text-sm text-muted-foreground">{t('books.createHint')}</p>}
           <div className="flex justify-end gap-2"><Button variant="ghost" type="button" disabled={busy} onClick={() => setPanel(undefined)}>{t('common.cancel')}</Button><Button disabled={busy || !profile.name.trim()} type="submit">{t(busy ? 'data.busy' : panel === 'create' ? 'books.create' : 'books.save')}</Button></div>
         </form>}
-        {panel === 'move' && moving && <div className="grid gap-2"><p className="mb-3 text-sm">{moving.name}</p>{collections.map((value) => <Button key={value.id} variant="outline" className="justify-start" disabled={busy || value.characterIds.includes(moving.id)} onClick={() => void run(() => assignCollection(moving.id, value.id))}><BookOpenIcon />{nameOf(value)}</Button>)}<Button className="mt-2 justify-start" variant="ghost" onClick={() => { setProfile({ name: '', description: '', backstory: '' }); openPanel('create') }}><PlusIcon />{t('books.create')}</Button></div>}
         {panel === 'delete' && editing && <><p>{t('books.deleteHint', { name: nameOf(editing) })}</p><Button variant="destructive" disabled={busy} onClick={() => void run(async () => { await deleteCollection(editing.id, editing.version); navigate(`/collections/${DEFAULT_CHARACTER_COLLECTION}`) })}>{t(busy ? 'data.busy' : 'books.delete')}</Button></>}
         {panel === 'backup' && <CharacterLibraryTransfer {...transfer} />}
         {panel === 'import' && <><p className="text-sm text-muted-foreground">{t('books.importHint')}</p><DataControls prepareImport={importCharacter} /></>}

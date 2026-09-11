@@ -1,6 +1,6 @@
 import { Input } from '@/ui/components/ui/input'
 import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -83,12 +83,13 @@ const profileFormFor = (draft: CharacterDraft): ProfileForm => ({
   attributes: Object.entries(draft.attributes ?? {}).map(([key, value]) => ({ key, type: typeof value as ProfileAttributeForm['type'], value: String(value) })),
 })
 
-export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
+export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision, autoFitVariant, fitSuggestion, exportCharacter, exportCharacterPng, collectionControl, replaceAsset, replaceReference, changeAppearance, saveAs, deleteCharacter }: {
   webmcpReady?: boolean
   editor: CharacterEditor
   savedRevision?: number
   autoFitVariant(group: CharacterVariantGroup, variantId: string): Promise<void>
   fitSuggestion(group: CharacterVariantGroup, variantId: string): Promise<CharacterFitSuggestion>
+  collectionControl?: ReactNode
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
   replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
@@ -345,6 +346,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
 
   const characterActions = <div className="character-actions flex shrink-0 items-center gap-1" role="group" aria-label={t('characterDraft.characterActions')}>
     <TooltipProvider>
+      {collectionControl}
       <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={busy === 'save-as' ? t('characterDraft.savingAs') : t('characterDraft.saveAs')} disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void runBusy('save-as', saveAs)}>{busy === 'save-as' ? <LoaderCircleIcon className="animate-spin" /> : <CopyIcon />}</Button></TooltipTrigger><TooltipContent>{t('characterDraft.saveAs')}</TooltipContent></Tooltip>
       <DataControls exportData={exportCharacter} exportFilename={`${exportName}.zip`} exportIconOnly exportLabel={t('characterDraft.downloadZip')} />
       <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('characters.delete')} disabled={Boolean(busy)} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characters.delete')}</TooltipContent></Tooltip>

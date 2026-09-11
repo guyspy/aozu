@@ -1,3 +1,4 @@
+import { Breadcrumbs } from '@/ui/Breadcrumbs'
 import { WorldPicture } from '@/ui/WorldPicture'
 import { StoryboardSettingPicker } from '@/ui/StoryboardSettingPicker'
 import type { Application } from '@/bootstrap'
@@ -78,7 +79,12 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   const uploadInput = (target?: string) => <label className="story-upload">{text(target ? 'addCandidates' : 'importFrames')}<input type="file" accept="image/png" multiple disabled={busy || dirty} onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void upload(files, target) }} /></label>
   const move = (id: string, offset: number) => run(async () => { if (!board) return; const order = board.frames.map((f) => f.id), from = order.indexOf(id), to = from + offset; if (to < 0 || to >= order.length) return; [order[from], order[to]] = [order[to], order[from]]; await update({ action: 'reorder', order }) })
   if (folderId && folderId !== 'unfiled' && !world.folders.some((f) => f.id === folderId)) return <main className="world-workspace"><p role="alert">404</p></main>
-  return <main className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
+  const folder = world.folders.find((f) => f.id === (folderId ?? (boardId && world.boardFolders[boardId])))
+  const crumbs = [{ label: t('world.storyboards'), path: '/storyboards' }]
+  if (folder) crumbs.push({ label: folder.name, path: `/storyboards/folders/${folder.id}` })
+  else if (folderId === 'unfiled') crumbs.push({ label: t('world.unfiled'), path: '/storyboards/folders/unfiled' })
+  if (boardId) crumbs.push({ label: board?.name ?? text('working'), path: `/storyboards/${boardId}` })
+  return <><Breadcrumbs items={crumbs} /><main className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
     <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} boardId={boardId} disabled={busy || dirty} />
     <header className="story-heading"><div><p className="story-eyebrow">AOZU · STORYBOARD</p><h1>{board?.name ?? text('title')}</h1><p>{text('hint')}</p></div>{board && <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || dirty || !board.past.length} onClick={() => void run(async () => { await update({ action: 'undo' }) })}>{text('undo')}</Button><Button variant="outline" disabled={busy || dirty || !board.future.length} onClick={() => void run(async () => { await update({ action: 'redo' }) })}>{text('redo')}</Button><Button disabled={busy || dirty} onClick={() => void run(async () => { const blob = await service.export(board.id, board.revision), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${board.name}.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000) })}>{text('export')}</Button></div>}</header>
     {pendingPhoto && <section className="world-section"><h2>{pendingPhoto.name}</h2><WorldPicture service={worldService} hash={pendingPhoto.image.sha256} alt={pendingPhoto.name} />{board ? <Button disabled={busy || dirty} onClick={() => void run(async () => {
@@ -121,5 +127,5 @@ export function StoryboardPage({ service, worldService, world, collections, appl
       </div></div></>}
       </SheetContent></Sheet>
     </>}
-  </main>
+  </main></>
 }
