@@ -117,6 +117,7 @@ export function AppRoutes({ application }: { application: Application }) {
     characters={library.characters}
     loadThumbnail={application.loadCharacterThumbnail}
     collections={library.collections}
+    locationCounts={Object.fromEntries(library.collections.map((c) => [c.id, world.library!.locations.filter((l) => l.collectionId === c.id).length]))}
     createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
     updateCollection={application.updateCollection}
     deleteCollection={application.deleteCollection}

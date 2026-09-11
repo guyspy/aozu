@@ -67,5 +67,9 @@ try {
   await assert.rejects(service.save(beforeDelete), /changed elsewhere/)
   const forged = structuredClone(library); forged.locations[2].images[0].image.width = 99
   await assert.rejects(service.save(forged), /descriptor|metadata/)
+  library.locations = library.locations.map((l) => ({ ...l, images: [], conditions: l.conditions.map((c) => ({ ...c, images: [] })) }))
+  library = await service.save(library)
+  await assert.rejects(service.image(photo.image.sha256), /missing/, 'Unreferenced originals are reclaimed')
+  assert.equal((await boards.image(board.images[0].id)).size, file.size, 'Board copies survive source cleanup')
   console.log('world-library: hierarchy, cycles, CAS, albums, immutable image references, storyboard snapshots and additive ZIP: ok')
 } finally { globalThis.createImageBitmap = original; service.dispose(); boards.dispose() }

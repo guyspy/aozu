@@ -45,10 +45,11 @@ function CharacterCardPortrait({ character, loadThumbnail }: { character: Charac
   </div>
 }
 
-export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, locationCounts, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
   characters: CharacterLibraryItem[]
   loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
+  locationCounts: Record<string, number>
   createCollection(name: string): Promise<CharacterCollection>
   updateCollection(id: string, profile: CharacterCollectionProfile, version: number): Promise<void>
   deleteCollection(id: string, version: number): Promise<void>
@@ -156,7 +157,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
       {collections.map((value) => <Link key={value.id} to={`/collections/${value.id}`} className="collection-cover">
         <AozuIcon name="book" className="collection-cover-seal" />
         <h2>{nameOf(value)}</h2>
-        <p>{t('books.characterCount', { count: value.characterIds.length })}</p>
+        <p>{t('books.characterCount', { count: value.characterIds.length })} · {t('world.locations')} {locationCounts[value.id] ?? 0}</p>
         {value.description && <span className="line-clamp-2 text-sm">{value.description}</span>}
       </Link>)}
     </section>}

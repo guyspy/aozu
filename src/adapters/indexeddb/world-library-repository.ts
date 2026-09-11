@@ -39,6 +39,9 @@ export function createWorldLibraryRepository() {
             if (!await assets.get([WORLD_NAMESPACE, hash])) throw new Error('Referenced image is missing')
           }
         }
+        for (const assetKey of await assets.index('bundleId').getAllKeys(WORLD_NAMESPACE)) {
+          if (!images.has(assetKey[1])) await assets.delete(assetKey)
+        }
         next.revision++
         const now = Date.now()
         await entries.put({ bundleId: WORLD_NAMESPACE, id: 'library', collection: 'world-library', data: { library: next }, status: 'published', authorId: null, version: next.revision, createdAt: current?.createdAt ?? now, updatedAt: now })
