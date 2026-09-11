@@ -30,7 +30,7 @@ export function createStoryboardService() {
       const command = parseBoardCommand(input)
       if (command.action === 'create') return changed(await repository.create(command.name ?? 'Untitled storyboard'))
       let upload: { image: BoardImage; blob: Blob } | undefined
-      if (command.action === 'add-candidate') {
+      if (command.action === 'add-candidate' || (['pin-setting', 'add-frame'].includes(command.action) && (blob || command.dataUrl))) {
         if (!blob && command.dataUrl) {
           const encoded = command.dataUrl.slice('data:image/png;base64,'.length)
           if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new Error('Invalid PNG base64')

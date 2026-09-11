@@ -3,7 +3,9 @@ import { jsonSchemaToZod, type JsonSchema } from '@aotter/mantle-spec'
 export const STORYBOARD_NAMESPACE = 'aozu-storyboards'
 export const STORYBOARD_LIMITS = { frames: 100, candidates: 500, imageBytes: 5 * 1024 * 1024, dimension: 4096, pixels: 16 * 1024 * 1024 }
 export interface BoardImage { id: string; filename: string; sha256: string; width: number; height: number; size: number; source: string }
+export interface SettingSnapshot { id: string; kind: 'character' | 'location' | 'photo'; sourceId: string; revision: number; name: string; details: string }
 export interface BoardFrame {
+  settings?: SettingSnapshot[]
   id: string; title: string; notes: string; candidates: string[]; selected: string | null
   review: 'draft' | 'needs-work' | 'confirmed'; transition: string; duration: number | null
   references: Array<{ imageId: string; purpose: string }>
@@ -16,9 +18,11 @@ export interface Storyboard extends BoardContent {
 const str = (maxLength = 8000): JsonSchema => ({ type: 'string', maxLength })
 const id: JsonSchema = { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,100}$' }
 const obj = (properties: Record<string, JsonSchema>, required: string[] = []): JsonSchema => ({ type: 'object', properties, required, additionalProperties: false })
+const settingSchema = obj({ id, kind: { enum: ['character', 'location', 'photo'] }, sourceId: id, revision: { type: 'integer', minimum: 0 }, name: str(200), details: str(32000) }, ['id', 'kind', 'sourceId', 'revision', 'name', 'details'])
 export const STORYBOARD_UPDATE_SCHEMA = obj({
+  setting: settingSchema,
   boardId: id, expectedRevision: { type: 'integer', minimum: 0 },
-  action: { enum: ['create', 'rename', 'add-frame', 'edit-frame', 'remove-frame', 'reorder', 'add-candidate', 'select', 'reference', 'undo', 'redo'] },
+  action: { enum: ['create', 'rename', 'add-frame', 'edit-frame', 'remove-frame', 'reorder', 'add-candidate', 'select', 'reference', 'pin-setting', 'unpin-setting', 'undo', 'redo'] },
   name: str(120), notes: str(), frameId: id, title: str(160),
   order: { type: 'array', items: id, maxItems: 100, uniqueItems: true },
   imageId: id, filename: str(200), source: str(2000),
@@ -29,6 +33,7 @@ export const STORYBOARD_UPDATE_SCHEMA = obj({
 }, ['action'])
 const validator = jsonSchemaToZod(STORYBOARD_UPDATE_SCHEMA)
 export interface BoardCommand {
+  setting?: SettingSnapshot
   action: string; boardId?: string; expectedRevision?: number; name?: string; notes?: string; frameId?: string; title?: string
   order?: string[]; imageId?: string; filename?: string; source?: string; dataUrl?: string
   review?: BoardFrame['review']; transition?: string; duration?: number | null; purpose?: string; remove?: boolean
@@ -52,10 +57,15 @@ export function applyBoardCommand(board: Storyboard, command: BoardCommand, imag
       if (command.name !== undefined) { if (!command.name.trim()) throw new Error('Name is required'); next.name = command.name.trim() }
       if (command.notes !== undefined) next.notes = command.notes
       break
-    case 'add-frame':
+    case 'add-frame': {
       if (next.frames.length >= STORYBOARD_LIMITS.frames) throw new Error('Frame limit reached')
-      next.frames.push({ id: crypto.randomUUID(), title: command.title?.trim() || `Frame ${next.frames.length + 1}`, notes: command.notes ?? '', candidates: [], selected: null, review: 'draft', transition: '', duration: null, references: [] })
+      if (image) {
+        if (next.images.length >= STORYBOARD_LIMITS.candidates) throw new Error('Image limit reached')
+        next.images.push(image)
+      }
+      next.frames.push({ id: crypto.randomUUID(), title: command.title?.trim() || `Frame ${next.frames.length + 1}`, notes: command.notes ?? '', candidates: image ? [image.id] : [], selected: null, review: 'draft', transition: '', duration: null, references: [] })
       break
+    }
     case 'edit-frame': {
       const f = requireFrame()
       if (command.title !== undefined) { if (!command.title.trim()) throw new Error('Title is required'); f.title = command.title.trim() }
@@ -92,6 +102,18 @@ export function applyBoardCommand(board: Storyboard, command: BoardCommand, imag
       }
       break
     }
+    case 'pin-setting': {
+      const f = requireFrame()
+      if (!command.setting || !command.setting.name.trim()) throw new Error('Setting is required')
+      if ((f.settings?.length ?? 0) >= 20) throw new Error('At most 20 setting snapshots per frame')
+      f.settings = [...(f.settings ?? []), structuredClone(command.setting)]
+      if (image) {
+        if (next.images.length >= STORYBOARD_LIMITS.candidates) throw new Error('Image limit reached')
+        next.images.push(image); f.references.push({ imageId: image.id, purpose: command.purpose?.trim() || command.setting.name })
+      }
+      break
+    }
+    case 'unpin-setting': { const f = requireFrame(); f.settings = (f.settings ?? []).filter((s) => s.id !== command.imageId); break }
     case 'undo': {
       const value = next.past.pop(); if (!value) throw new Error('Nothing to undo')
       next.future.push(previous); Object.assign(next, value); return next
@@ -111,6 +133,7 @@ export function applyBoardCommand(board: Storyboard, command: BoardCommand, imag
 
 const referenceSchema = obj({ imageId: id, purpose: str(2000) }, ['imageId', 'purpose'])
 const frameSchema = obj({
+  settings: { type: 'array', items: settingSchema, maxItems: 20 },
   id, title: str(160), notes: str(), candidates: { type: 'array', items: id, maxItems: 500, uniqueItems: true },
   selected: { anyOf: [id, { type: 'null' }] }, review: { enum: ['draft', 'needs-work', 'confirmed'] },
   transition: str(), duration: { type: ['number', 'null'], exclusiveMinimum: 0, maximum: 600 },
@@ -135,6 +158,7 @@ export function validateStoryboard(value: unknown): Storyboard {
     if (!content.name.trim()) throw new Error('Invalid board name')
     if (new Set(content.frames.map(({ id }) => id)).size !== content.frames.length) throw new Error('Duplicate frames')
     for (const frame of content.frames) {
+      if (new Set((frame.settings ?? []).map((s) => s.id)).size !== (frame.settings?.length ?? 0) || frame.settings?.some((s) => !s.name.trim())) throw new Error('Invalid setting snapshots')
       if (new Set(frame.candidates).size !== frame.candidates.length || !frame.title.trim() || frame.candidates.some((id) => !ids.has(id)) || (frame.selected && !frame.candidates.includes(frame.selected)) || frame.references.some(({ imageId, purpose }) => !ids.has(imageId) || !purpose.trim()) || new Set(frame.references.map((r) => r.imageId)).size !== frame.references.length || (frame.review === 'confirmed' && !frame.selected)) throw new Error('Invalid frame image reference')
     }
   }

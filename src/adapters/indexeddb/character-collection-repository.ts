@@ -1,3 +1,5 @@
+import { rehomeWorldCollections } from './world-library-repository.ts'
+import { WORLD_NAMESPACE } from '../../core/domain/world-library.ts'
 import { AUTHORING_NAMESPACE } from '../../core/application/authoring.ts'
 import { CharacterRevisionConflict } from '../../core/application/ports.ts'
 import { CHARACTER_LIBRARY_REVISION_FLOOR } from '../../core/application/character-library.ts'
@@ -55,6 +57,9 @@ export function createIndexedDbCharacterCollectionRepository() {
         throw new CharacterRevisionConflict('Collection changed elsewhere; refresh and try again')
       }
       await entries.delete(key(id))
+      const remaining = (await entries.index('bundleId').getAll(AUTHORING_NAMESPACE)).filter((e) => e.collection === CHARACTER_COLLECTIONS).map((e) => e.id)
+      const world = rehomeWorldCollections(await entries.get([WORLD_NAMESPACE, 'library']), new Set(remaining))
+      if (world) await entries.put(world)
       const meta = transaction.objectStore(META_STORE)
       await meta.put(String(Math.max(Number(await meta.get(CHARACTER_LIBRARY_REVISION_FLOOR)) || 0, entry.version)), CHARACTER_LIBRARY_REVISION_FLOOR)
       await transaction.done

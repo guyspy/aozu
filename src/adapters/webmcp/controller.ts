@@ -13,6 +13,10 @@ export function readWorkspaceView(document: Document) {
   const referenceView = page.querySelector<HTMLElement>('[data-reference-view]')?.dataset.referenceView
   return {
     surface: view.workspaceView,
+    ...(view.locationId ? { locationId: view.locationId } : {}),
+    ...(view.albumId ? { albumId: view.albumId } : {}),
+    ...(view.photoId ? { photoId: view.photoId } : {}),
+    ...(view.folderId ? { folderId: view.folderId } : {}),
     boardId: view.boardId ?? null,
     frameId: view.frameId ?? null,
     candidateId: view.candidateId ?? null,

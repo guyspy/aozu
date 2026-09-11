@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, FolderInputIcon, PlusIcon } from 'lucide-react'
+import { BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, FolderInputIcon, PlusIcon } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,10 +45,11 @@ function CharacterCardPortrait({ character, loadThumbnail }: { character: Charac
   </div>
 }
 
-export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, locationCounts, createCollection, updateCollection, deleteCollection, assignCollection, openCharacter, importCharacter, refresh, ...transfer }: CharacterLibraryTransferProps & {
   characters: CharacterLibraryItem[]
   loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
+  locationCounts: Record<string, number>
   createCollection(name: string): Promise<CharacterCollection>
   updateCollection(id: string, profile: CharacterCollectionProfile, version: number): Promise<void>
   deleteCollection(id: string, version: number): Promise<void>
@@ -109,7 +110,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
   return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
     data-workspace-view={book ? 'collection' : 'collections'} data-collection-id={book?.id}
     data-panel={panel} data-has-uncommitted-input={panel === 'profile' || panel === 'create'}>
-    {!book && <Link to="/storyboards" className="story-home-tool"><span>▤</span><div><h2>{t('storyboard.title')}</h2><p>{t('storyboard.toolHint')}</p></div><strong>{t('storyboard.open')}</strong></Link>}
+
     <div className="book-toolbar">
       <div className="min-w-0">
         {book ? <DropdownMenu.Root><DropdownMenu.Trigger asChild>
@@ -133,6 +134,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
       </div>
     </div>
 
+    {book && <nav className="world-tabs"><Link aria-current="page" to={`/collections/${book.id}`}>{t('world.characters')}</Link><Link to={`/collections/${book.id}/locations`}>{t('world.locations')}</Link></nav>}
     {book ? <>
       {book.description && <p className="mb-3 max-w-2xl text-sm text-muted-foreground">{book.description}</p>}
       {book.backstory ? <details className="book-world mb-5"><summary><BookTextIcon className="size-4" />{t('books.world')}</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{book.backstory}</p><Button className="mt-3" variant="outline" onClick={() => editBook(book)}>{t('books.editWorld')}</Button></details>
@@ -155,7 +157,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
       {collections.map((value) => <Link key={value.id} to={`/collections/${value.id}`} className="collection-cover">
         <AozuIcon name="book" className="collection-cover-seal" />
         <h2>{nameOf(value)}</h2>
-        <p>{t('books.characterCount', { count: value.characterIds.length })}</p>
+        <p>{t('books.characterCount', { count: value.characterIds.length })} · {t('world.locations')} {locationCounts[value.id] ?? 0}</p>
         {value.description && <span className="line-clamp-2 text-sm">{value.description}</span>}
       </Link>)}
     </section>}
@@ -183,6 +185,5 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
         {error && <div role="alert" className="text-sm text-destructive">{error}{panel === 'profile' && editing && <Button variant="link" onClick={() => { const latest = collections.find(({ id }) => id === editing.id); if (latest) editBook(latest) }}>{t('characterDraft.status.reload')}</Button>}</div>}
       </SheetContent>
     </Sheet>
-    {book && <Link to="/collections" className="mt-5 inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeftIcon className="size-4" />{t('books.all')}</Link>}
   </main>
 }

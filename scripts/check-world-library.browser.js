@@ -1,0 +1,101 @@
+import 'fake-indexeddb/auto'
+import { createElement as h, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router'
+import { createApplication } from '/src/bootstrap.ts'
+import { AppRoutes } from '/src/ui/routes/AppRoutes.tsx'
+import i18n from '/src/ui/i18n.ts'
+import '/src/index.css'
+const preferences = new Map()
+Object.defineProperty(window, 'localStorage', { value: { getItem: (key) => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value), removeItem: (key) => preferences.delete(key) } })
+await i18n.changeLanguage('en')
+const result = document.querySelector('#result'), wait = () => new Promise((resolve) => setTimeout(resolve, 30))
+const check = (value, message) => { if (!value) throw new Error(message) }
+const ready = async (predicate) => { for (let i = 0; i < 400; i++) { if (await predicate()) return; await wait() } throw new Error(`Timed out: ${predicate}`) }
+const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label)
+const enter = (input, value) => { Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) }
+let route, navigate
+function Location() { const location = useLocation(), go = useNavigate(); useEffect(() => { route = location.pathname; navigate = go }, [location, go]); return null }
+if (new URLSearchParams(location.search).has('responsive')) {
+  try {
+    for (const width of [320, 757, 1440]) {
+      const frame = document.createElement('iframe'); frame.style.cssText = `width:${width}px;height:900px;border:0`; frame.src = '/scripts/check-world-library.html'; document.body.append(frame)
+      await ready(() => /^(PASS|FAIL)/.test(frame.contentDocument?.querySelector('#result')?.textContent ?? ''))
+      check(frame.contentDocument.querySelector('#result').textContent.startsWith('PASS'), `${width}px: ${frame.contentDocument.querySelector('#result').textContent}`)
+      check(frame.contentDocument.querySelector('#root').scrollWidth <= width + 1, `Overflow at ${width}px`)
+      frame.remove()
+    }
+    result.textContent = 'PASS: complete IA flow at 320, 757 and 1440px'
+  } catch (e) { result.textContent = `FAIL: ${e.message}` }
+} else try {
+  const app = createApplication(document.implementation.createHTMLDocument())
+  const collection = await app.createCollection('Island world')
+  let world = await app.worldLibrary.load()
+  world.locations.push({ id: 'city', collectionId: collection.id, parentId: null, name: 'Harbor', description: 'Sea walls', consistency: 'Clock tower in the east', updatedAt: Date.now(), tags: ['coast'], images: [], conditions: [] })
+  world = await app.worldLibrary.save(world)
+  const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 24; canvas.getContext('2d').fillRect(0, 0, 32, 24)
+  const png = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+  world = await app.worldLibrary.upload(world, 'default', [new File([png], 'Harbor.png', { type: 'image/png' })])
+  createRoot(document.querySelector('#root')).render(h(MemoryRouter, { initialEntries: ['/'] }, h(Location), h(AppRoutes, { application: app })))
+  await ready(() => document.querySelector('.world-home-grid'))
+  check(document.querySelectorAll('.world-home-card').length === 3, 'Home must have three areas')
+  document.querySelector('a[href="/collections"]').click()
+  await ready(() => route === '/collections' && document.querySelector('.collection-cover'))
+  document.querySelector(`a[href="/collections/${collection.id}"]`).click()
+  await ready(() => document.querySelector('.world-tabs'))
+  document.querySelector(`a[href="/collections/${collection.id}/locations"]`).click()
+  await ready(() => document.querySelector('.world-card'))
+  document.querySelector(`a[href="/collections/${collection.id}/locations/city"]`).click()
+  await ready(() => document.querySelector('h1')?.textContent === 'Harbor')
+  button('Create location').click()
+  await ready(() => document.querySelector('.world-form input[name="name"]'))
+  enter(document.querySelector('.world-form input[name="name"]'), 'House')
+  document.querySelector('.world-form').requestSubmit()
+  await ready(() => !document.querySelector('[role="dialog"]') && document.querySelector('h1')?.textContent === 'House')
+  check(document.querySelector('.world-breadcrumb').textContent.includes('Harbor'), 'Location breadcrumbs missing parent')
+  document.querySelector('header button[aria-label="Back"]').click()
+  await ready(() => document.querySelector('h1')?.textContent === 'Harbor')
+  button('Add condition').click()
+  await ready(() => document.querySelector('.world-form input[name="name"]'))
+  enter(document.querySelector('.world-form input[name="name"]'), 'Night')
+  document.querySelector('.world-form').requestSubmit()
+  await ready(() => !document.querySelector('[role="dialog"]') && document.querySelector('summary')?.textContent === 'Night')
+  button('Add from album').click()
+  await ready(() => document.querySelector('select[name="photoId"]'))
+  const select = document.querySelector('select[name="photoId"]'); select.value = world.photos[0].id; select.dispatchEvent(new Event('change', { bubbles: true }))
+  enter(document.querySelector('input[name="label"]'), 'Main view')
+  document.querySelector('.world-form').requestSubmit()
+  await ready(() => !document.querySelector('[role="dialog"]') && document.body.textContent.includes('Main view'))
+  navigate('/albums/default')
+  await ready(() => document.querySelector('h1')?.textContent === 'My images')
+  document.querySelector('a.world-card').click()
+  await ready(() => button('Use in storyboard'))
+  button('Use in storyboard').click()
+  await ready(() => document.querySelector('.story-create'))
+  enter(document.querySelector('.story-create input[name="name"]'), 'Arrival')
+  document.querySelector('.story-create').requestSubmit()
+  await ready(() => button('Use in storyboard'))
+  button('Use in storyboard').click()
+  await ready(() => document.querySelector('[role="dialog"]') && document.querySelector('.story-candidates img'))
+  check(!document.querySelector('.story-card-open')?.textContent.includes('Selected'), 'Imported image must not be auto-approved')
+  const settingSelects = document.querySelectorAll('section.world-form select')
+  settingSelects[1].value = 'city'; settingSelects[1].dispatchEvent(new Event('change', { bubbles: true }))
+  await ready(() => button('Pin current setting') && !button('Pin current setting').disabled)
+  button('Pin current setting').click()
+  await ready(() => document.querySelector('section.world-form summary')?.textContent.includes('Harbor'))
+  button('Close').click()
+  await ready(() => !document.querySelector('[role="dialog"]'))
+  navigate('/storyboards')
+  await ready(() => button('Create folder'))
+  button('Create folder').click()
+  await ready(() => document.querySelector('.world-form'))
+  enter(document.querySelector('.world-form input[name="name"]'), 'Episode one')
+  document.querySelector('.world-form').requestSubmit()
+  await ready(() => route.includes('/folders/') && !document.querySelector('[role="dialog"]'))
+  document.querySelector('header button[aria-label="Back"]').click()
+  await ready(() => route === '/storyboards')
+  document.querySelector('a[aria-label="Home"]').click()
+  await ready(() => route === '/' && document.querySelector('.world-home-grid'))
+  check(document.querySelector('#root').scrollWidth <= innerWidth + 1, 'Horizontal overflow')
+  result.textContent = 'PASS: home, collections, nested locations, conditions, album references, album-to-board, folders, parent navigation and logo home'
+} catch (e) { result.textContent = `FAIL: ${e.message}`; console.error(e) }

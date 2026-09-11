@@ -8,6 +8,7 @@ import { createIndexedDbCharacterLibraryRepository } from './adapters/indexeddb/
 import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/zip/character-library.ts'
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
+import { createWorldLibraryService } from './core/application/world-library.ts'
 import { createStoryboardService } from './core/application/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
 import { CHARACTER_A_POSE_GUIDANCE, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
@@ -199,6 +200,7 @@ const CHARACTER_WEBMCP_TRIGGERS = [
 
 export function createApplication(document: Document) {
   const storyboards = createStoryboardService()
+  const worldLibrary = createWorldLibraryService()
   const legacyCharacterDrafts = createIndexedDbCharacterDraftRepository()
   const browser = document.defaultView
   // Legacy migration spans asset staging, Mantle creation and legacy cleanup. Serialize it with
@@ -315,6 +317,7 @@ export function createApplication(document: Document) {
 
   const application = {
     storyboards,
+    worldLibrary,
     webmcp,
     editor,
     changeCharacterAppearance: applyCharacterAppearance,
@@ -322,6 +325,11 @@ export function createApplication(document: Document) {
     async loadCharacterLibrary() {
       await migrateLegacyCharacters()
       return { collections: await collections.list(), characters: await storedCharacterDrafts.listSummaries() }
+    },
+    async characterReference(id: string) {
+      const record = await storedCharacterDrafts.get(id)
+      if (!record) throw new Error('Character no longer exists')
+      return { ...record, png: await renderCharacterCompositeBlob(resolveCharacterDraftLayers(record.character)) }
     },
     loadCharacterThumbnail(id: string, previewKey: string, signal: AbortSignal): Promise<Blob | null> {
       const key = `${id}:${previewKey}`
@@ -354,6 +362,7 @@ export function createApplication(document: Document) {
     },
     async deleteCollection(id: string, version: number) {
       await collections.delete(id, version)
+      await worldLibrary.refresh()
       characterChanges.publish({ characterId: id, revision: null })
     },
     async assignCollection(characterId: string, collectionId: string | null) {
@@ -370,6 +379,7 @@ export function createApplication(document: Document) {
       await editor.settle()
       if (editor.store.getState().saveStatus !== 'saved') throw new Error('Save or reload your unsaved Character before restoring the library')
       await libraryRepository.restore(snapshot, mode)
+      await worldLibrary.refresh()
       const activeId = editor.store.getState().activeCharacterId
       if (activeId) await editor.close(activeId)
       legacyCharactersMigrated = undefined
@@ -502,6 +512,7 @@ export function createApplication(document: Document) {
     const route = browser?.location.pathname ?? '/'
     const view = readWorkspaceView(document)
     const books = await collections.list()
+    const visualLibrary = await worldLibrary.load()
     const selectedRoute = routeSelection(route)
     const records = await listCharacterDrafts()
     const saved = records.find(({ character }) => character.id === selectedRoute?.characterId)
@@ -510,6 +521,16 @@ export function createApplication(document: Document) {
     const renderSnapshot = async () => {
       const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
       if (view?.boardId) return unavailable('Use inspect_storyboard with boardId and explicit image IDs to view the original storyboard images.')
+      if (view?.locationId || view?.photoId) {
+        if (view.hasUncommittedInput) return unavailable('Finish or cancel local edits before requesting a snapshot.')
+        const location = visualLibrary.locations.find((l) => l.id === view.locationId)
+        const photo = visualLibrary.photos.find((p) => p.id === view.photoId)
+        const image = photo?.image ?? location?.images.find((i) => i.purpose === 'design')?.image ?? location?.images[0]?.image
+        if (!image) return unavailable('This setting has no image yet.')
+        const dataUrl = await readDataUrl(await worldLibrary.image(image.sha256))
+        if (browser?.location.pathname !== route || (await worldLibrary.load()).revision !== visualLibrary.revision) return unavailable('The source changed while loading; inspect again.')
+        return { status: 'ready', source: photo ? 'album-photo' : 'location-setting', ...image, dataUrl }
+      }
       if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
       if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
       const state = editor.store.getState()
@@ -552,7 +573,7 @@ export function createApplication(document: Document) {
     }
     const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
-    const navigation = [{ destination: 'storyboards', path: '/storyboards' }, { destination: 'characters', path: '/collections' }, ...(character ? [
+    const navigation = [{ destination: 'home', path: '/' }, { destination: 'albums', path: '/albums' }, { destination: 'storyboards', path: '/storyboards' }, { destination: 'characters', path: '/collections' }, ...(character ? [
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
       { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
@@ -572,6 +593,13 @@ export function createApplication(document: Document) {
         currentStoryboard: view?.boardId ? await storyboards.inspect(view.boardId) : null,
         currentCollection: books.find(({ id }) => id === view?.collectionId) ?? null,
         collections: books,
+        visualLibrary: { revision: visualLibrary.revision, albums: visualLibrary.albums, folders: visualLibrary.folders,
+          locations: visualLibrary.locations.map(({ id, collectionId, parentId, name, tags }) => ({ id, collectionId, parentId, name, tags })),
+          currentLocation: visualLibrary.locations.find((l) => l.id === view?.locationId) ?? null,
+          currentPhoto: visualLibrary.photos.find((p) => p.id === view?.photoId) ?? null,
+          currentAlbum: view?.albumId ? { album: visualLibrary.albums.find((a) => a.id === view.albumId), photos: visualLibrary.photos.filter((p) => p.albumId === view.albumId) } : null,
+          currentFolder: visualLibrary.folders.find((f) => f.id === (view?.folderId ?? (view?.boardId ? visualLibrary.boardFolders[view.boardId] : null))) ?? null,
+          policy: 'Location hierarchy supplies spatial/world context; local settings and conditions take precedence. Inspiration images are not adopted designs. Pinned storyboard references are snapshots and do not follow source edits.' },
         characters: records.map(({ character: draft, version }) => ({
           id: draft.id,
           name: draft.name,

@@ -34,3 +34,5 @@ await import('./check-storyboard.ts')
 const { execFileSync } = await import('node:child_process')
 execFileSync(process.execPath, ['--experimental-strip-types', '--experimental-test-module-mocks', 'scripts/check-character-renderer.ts'], { stdio: 'inherit' })
 execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/check-character-fit.ts'], { stdio: 'inherit' })
+
+execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/check-world-library.ts'], { stdio: 'inherit' })
