@@ -1,3 +1,5 @@
+import { rehomeWorldCollections } from './world-library-repository.ts'
+import { WORLD_NAMESPACE } from '../../core/domain/world-library.ts'
 import {
   CHARACTER_LIBRARY_REVISION_FLOOR, characterLibraryKey, inspectCharacterLibrarySnapshot,
   isCharacterLibraryAsset, isCharacterLibraryEntry, mergeCharacterLibraries,
@@ -72,6 +74,8 @@ export function createIndexedDbCharacterLibraryRepository({ inspect = inspectCha
             ? { ...entry, version: floor, updatedAt: Math.max(Date.now(), entry.updatedAt) } : entry
           await entries.put(restored)
         }
+        const world = rehomeWorldCollections(await entries.get([WORLD_NAMESPACE, 'library']), new Set(merged.entries.filter((e) => e.collection === 'character-collections').map((e) => e.id)))
+        if (world) await entries.put(world)
         for (const asset of merged.assets) await assets.put(asset)
         for (const draft of merged.legacyDrafts) await drafts.put(draft)
         await meta.put(String(floor), CHARACTER_LIBRARY_REVISION_FLOOR)

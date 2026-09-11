@@ -1111,3 +1111,49 @@ body::before {
 .story-large-preview { margin-bottom:18px; border:1px solid var(--border); border-radius:12px; overflow:hidden}
 .story-reference>label { display:flex; align-items:center; margin-top:8px}
 .story-compare figcaption { font-size:12px; overflow-wrap:anywhere; margin-top:6px; color:var(--muted-foreground) }
+
+/* The three library areas share the same page rhythm and native form controls. */
+.world-workspace { width: min(100%, 1152px); margin: 0 auto; padding: clamp(16px, 3vw, 32px); }
+.world-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.world-heading > div:first-child { min-width: 0; flex: 1 1 240px; }
+.world-heading h1 { font-family: var(--font-heading); font-size: clamp(26px, 4vw, 36px); font-weight: 700; overflow-wrap: anywhere; }
+.world-heading p { max-width: 65ch; }
+.world-eyebrow { font-size: 12px; letter-spacing: .12em; margin-bottom: 8px; }
+.world-actions, .world-tabs, .world-breadcrumb, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.world-tabs { margin: 16px 0 24px; border-bottom: 1px solid var(--border); }
+.world-tabs a { padding: 12px; }
+.world-tabs [aria-current] { border-bottom: 3px solid currentColor; font-weight: 700; }
+.world-breadcrumb { font-size: 14px; gap: 6px; }
+.world-breadcrumb a:hover, .world-folder-list a:hover { text-decoration: underline; }
+.world-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 18px; }
+.world-card { min-width: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--card); }
+.world-card > div:last-child { padding: 16px; }
+.world-card h3 { display: flex; align-items: center; gap: 8px; font-weight: 600; overflow-wrap: anywhere; }
+.world-card p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.world-picture { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); min-width: 0; }
+.world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
+.world-workspace > .world-picture { max-height: 65vh; margin-bottom: 20px; }
+.world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.world-home-card { border: 1px solid var(--border); border-radius: 20px; background: var(--card); overflow: hidden; }
+.world-home-card > a:first-child { display: grid; gap: 14px; padding: 24px; }
+.world-home-card h2, .world-section h2 { font-family: var(--font-heading); font-weight: 700; font-size: 22px; }
+.world-shortcut { display: block; padding: 14px 24px; border-top: 1px solid var(--border); }
+.world-home-card a:hover, .world-recent a:hover { background: var(--accent); }
+.world-section { margin: 28px 0; }
+.world-section h2 { margin-bottom: 12px; }
+.world-recent { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.world-recent a { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
+.world-recent span { font-size: 12px; }
+.world-empty { padding: 40px 16px; text-align: center; }
+.world-upload { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.world-upload input { width: 180px; max-width: 100%; }
+.world-form { display: grid; gap: 18px; margin-top: 24px; }
+.world-form label, .world-heading label { display: grid; gap: 8px; font-size: 14px; }
+.world-form input:not([type=checkbox]), .world-form textarea, .world-form select, .world-heading select { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--background); color: var(--foreground); }
+.world-form .world-checkbox { display: flex; align-items: center; margin-top: 8px; }
+.world-condition { padding: 16px; margin: 12px 0; border: 1px solid var(--border); border-radius: 12px; }
+.world-condition summary { cursor: pointer; font-weight: 600; }
+.world-condition > p, .world-condition > .world-actions { margin: 12px 0; }
+.world-tags span, .world-folder-list a { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.world-panel { width: min(100vw, 520px) !important; max-width: 520px !important; }
+@media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } .world-upload { flex-wrap: wrap; } }
