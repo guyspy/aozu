@@ -1,3 +1,4 @@
+import { AozuIcon } from '@/ui/AozuIcon'
 import { FolderInputIcon } from 'lucide-react'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
@@ -33,13 +34,13 @@ function CharacterEditor({ application, collections, refresh, savedRevision, web
     key={characterId}
     collectionControl={characterId !== 'new' && <>
       <Button size="icon" variant="outline" aria-label={t('books.move')} title={t('books.move')} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button>
-      <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><SheetContent className="overflow-y-auto p-6" aria-describedby={undefined}><SheetTitle>{t('books.move')}</SheetTitle>
-        <div className="mt-6 grid gap-2">{collections.map((collection) => <Button key={collection.id} variant="outline" disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
+      <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><SheetContent className="collection-move-sheet overflow-y-auto p-6" aria-describedby={undefined}><SheetTitle className="font-heading text-xl">{t('books.move')}</SheetTitle>
+        <div className="collection-move-grid mt-6">{collections.map((collection) => <button type="button" className="collection-cover" key={collection.id} disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
           setBusy(true); setError('')
           try { await application.assignCollection(characterId, collection.id); await refresh(); setMoving(false) }
           catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)) }
           finally { setBusy(false) }
-        }}>{collection.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : collection.name}</Button>)}</div>
+        }}><AozuIcon name="book" className="collection-cover-seal" /><span className="font-heading font-semibold">{collection.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : collection.name}</span></button>)}</div>
         {error && <p role="alert" className="mt-4 text-destructive">{error}</p>}
       </SheetContent></Sheet>
     </>}

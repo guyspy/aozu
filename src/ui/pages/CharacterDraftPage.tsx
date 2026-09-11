@@ -1,3 +1,4 @@
+import { Workspace, WorkspaceToolbar } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
 import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PanelRightOpenIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
@@ -539,15 +540,15 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   </CharacterAppearances>
 
   return <Sheet open={narrow && workbenchOpen} onOpenChange={setWorkbenchOpen}><div className="draft-workshop-shell">
-    <main className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
+    <Workspace className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={isProfile ? 'profile' : narrow && workbenchOpen ? 'workbench' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
-      <div className="character-workspace-bar"><nav className="character-workspace-tabs" aria-label={t('modelSheet.mode')}>
+      <WorkspaceToolbar className="character-workspace-bar"><nav className="character-workspace-tabs" aria-label={t('modelSheet.mode')}>
         {(['expressions', 'profile', 'model-sheet'] as const).map((mode) => <Button key={mode} type="button" className="character-workspace-tab" variant={mode === activeMode ? 'secondary' : 'ghost'} aria-current={mode === activeMode ? 'page' : undefined}
           onClick={() => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{t(mode === 'model-sheet' ? 'modelSheet.title' : mode === 'profile' ? 'characterDraft.profile.title' : 'modelSheet.appearance')}</Button>)}
-      </nav>{characterActions}</div>
+      </nav>{characterActions}</WorkspaceToolbar>
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
@@ -611,7 +612,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         {isProfile ? profile : workbench}
       </SheetContent> : isProfile ? profile : workbench}
       </div>}
-    </main>
+    </Workspace>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>{t('characters.deleteTitle')}</AlertDialogTitle><AlertDialogDescription>{t('characters.deleteDescription', { name: draft.name })}</AlertDialogDescription></AlertDialogHeader>

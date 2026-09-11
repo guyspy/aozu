@@ -1,3 +1,4 @@
+import { Workspace, WorkspaceToolbar, WorkspaceScroll, WorkspaceAdd } from '@/ui/Workspace'
 import { BookOpenIcon, BookTextIcon, ChevronDownIcon, EllipsisIcon, PlusIcon } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -105,11 +106,11 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
   if (collectionId && !book) return <Navigate to={`/collections/${DEFAULT_CHARACTER_COLLECTION}`} replace />
   const menuItem = 'book-menu-item'
 
-  return <main className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
+  return <Workspace className="card-library mx-auto w-full max-w-6xl p-4 sm:p-6"
     data-workspace-view={book ? 'collection' : 'collections'} data-collection-id={book?.id}
     data-panel={panel} data-has-uncommitted-input={panel === 'profile' || panel === 'create'}>
 
-    <div className="book-toolbar">
+    <WorkspaceToolbar className="book-toolbar">
       <div className="min-w-0">
         {book ? <DropdownMenu.Root><DropdownMenu.Trigger asChild>
           <button type="button" className="book-switcher" aria-label={t('books.switch')}><BookOpenIcon aria-hidden="true" /><h1>{nameOf(book)}</h1><ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" /></button>
@@ -122,7 +123,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
         <p className="mt-1 text-sm text-muted-foreground">{t(book ? 'books.characterCount' : 'books.bookCount', { count: book ? visible.length : collections.length })}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button onClick={() => book ? navigate('/characters/new/expressions') : createBook()}><PlusIcon />{t(book ? 'characters.new' : 'books.create')}</Button>
+
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="outline" size="icon" aria-label={t('books.actions')}><EllipsisIcon /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="book-menu" align="end" sideOffset={8}>
           {book && <DropdownMenu.Item className={menuItem} onSelect={() => editBook(book)}><BookTextIcon />{t('books.profile')}</DropdownMenu.Item>}
           <DropdownMenu.Item className={menuItem} onSelect={() => openPanel('import')}>{t('data.import')}</DropdownMenu.Item>
@@ -130,8 +131,8 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
           {book && book.id !== DEFAULT_CHARACTER_COLLECTION && <DropdownMenu.Item className={`${menuItem} text-destructive`} onSelect={() => { setEditing(book); openPanel('delete') }}>{t('books.delete')}</DropdownMenu.Item>}
         </DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
       </div>
-    </div>
-
+    </WorkspaceToolbar>
+    <WorkspaceScroll>
     {book && <nav className="world-tabs"><Link aria-current="page" to={`/collections/${book.id}`}>{t('world.characters')}</Link><Link to={`/collections/${book.id}/locations`}>{t('world.locations')}</Link></nav>}
     {book ? <>
       {book.description && <p className="mb-3 max-w-2xl text-sm text-muted-foreground">{book.description}</p>}
@@ -157,6 +158,8 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
       </Link>)}
     </section>}
 
+    <WorkspaceAdd><Button onClick={() => book ? navigate('/characters/new/expressions') : createBook()}><PlusIcon />{t(book ? 'characters.new' : 'books.create')}</Button></WorkspaceAdd>
+    </WorkspaceScroll>
     <Sheet open={Boolean(panel)} onOpenChange={(open) => { if (!open && !busy) setPanel(undefined) }}>
       <SheetContent className="book-panel overflow-y-auto p-5 sm:p-6" closeLabel={t('common.close')} aria-describedby={undefined} onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }} onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}>
         <SheetTitle className="pr-8 text-xl">{t(panel === 'create' ? 'books.create' : panel === 'backup' ? 'library.backupTitle' : panel === 'import' ? 'data.import' : panel === 'delete' ? 'books.delete' : 'books.profile')}</SheetTitle>
@@ -178,5 +181,5 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
         {error && <div role="alert" className="text-sm text-destructive">{error}{panel === 'profile' && editing && <Button variant="link" onClick={() => { const latest = collections.find(({ id }) => id === editing.id); if (latest) editBook(latest) }}>{t('characterDraft.status.reload')}</Button>}</div>}
       </SheetContent>
     </Sheet>
-  </main>
+  </Workspace>
 }

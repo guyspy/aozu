@@ -1,3 +1,4 @@
+import { WorkspaceScroll } from '@/ui/Workspace'
 import { ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,7 +61,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     <div className="model-sheet-toolbar draft-workshop-grid shrink-0">
       <div className="min-w-0">{appearanceSelector}</div>
     </div>
-    <div className="model-sheet-content mt-3 min-h-0 flex-1 overflow-auto">
+    <WorkspaceScroll className="model-sheet-content mt-3">
     <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 className="font-heading text-xl font-semibold">{t('modelSheet.fullBody')}</h2>
       <p className="text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p>
@@ -75,7 +76,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
         </Button>
       </div>
     </section>
-    </div>
+    </WorkspaceScroll>
     <Sheet open={Boolean(view && (reference || view === 'new'))} onOpenChange={(open) => { if (!open) { revert(); openReference() } }}>
       <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
         {view === 'new' && !reference && <>
