@@ -3,6 +3,7 @@ import { createElement as h, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { createApplication } from '/src/bootstrap.ts'
+import { Workspace, WorkspaceToolbar, WorkspaceScroll } from '/src/ui/Workspace.tsx'
 import { AppRoutes } from '/src/ui/routes/AppRoutes.tsx'
 import i18n from '/src/ui/i18n.ts'
 import '/src/index.css'
@@ -18,14 +19,14 @@ let route, navigate
 function Location() { const location = useLocation(), go = useNavigate(); useEffect(() => { route = location.pathname; navigate = go }, [location, go]); return null }
 if (new URLSearchParams(location.search).has('responsive')) {
   try {
-    for (const width of [320, 757, 1440]) {
-      const frame = document.createElement('iframe'); frame.style.cssText = `width:${width}px;height:900px;border:0`; frame.src = '/scripts/check-world-library.html'; document.body.append(frame)
+    for (const [width, height] of [[320, 900], [757, 900], [1440, 900], [757, 480]]) {
+      const frame = document.createElement('iframe'); frame.style.cssText = `width:${width}px;height:${height}px;border:0`; frame.src = '/scripts/check-world-library.html'; document.body.append(frame)
       await ready(() => /^(PASS|FAIL)/.test(frame.contentDocument?.querySelector('#result')?.textContent ?? ''))
       check(frame.contentDocument.querySelector('#result').textContent.startsWith('PASS'), `${width}px: ${frame.contentDocument.querySelector('#result').textContent}`)
       check(frame.contentDocument.querySelector('#root').scrollWidth <= width + 1, `Overflow at ${width}px`)
       frame.remove()
     }
-    result.textContent = 'PASS: complete IA flow at 320, 757 and 1440px'
+    result.textContent = 'PASS: IA flow at 320/757/1440px, 480px short window, nested workspace scroll'
   } catch (e) { result.textContent = `FAIL: ${e.message}` }
 } else try {
   const app = createApplication(document.implementation.createHTMLDocument())
@@ -98,6 +99,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(getComputedStyle(document.querySelector('.story-card')).backgroundColor === 'rgba(0, 0, 0, 0)', 'Frames share the drawing paper background')
   check(document.querySelector('.story-grid').compareDocumentPosition(document.querySelector('.workspace-add')) & Node.DOCUMENT_POSITION_FOLLOWING, 'Add frame follows frames')
   check(document.querySelector('#root').scrollHeight <= document.querySelector('#root').clientHeight + 1, 'Storyboard scroll stays inside panel')
+  check(document.querySelector('.story-paper').clientHeight > 80, 'Short windows retain usable paper height')
   navigate('/storyboards')
   await ready(() => button('Create folder'))
   button('Create folder').click()
@@ -125,5 +127,17 @@ if (new URLSearchParams(location.search).has('responsive')) {
   document.querySelector('a[aria-label="Home"]').click()
   await ready(() => route === '/' && document.querySelector('.world-home-grid'))
   check(document.querySelector('#root').scrollWidth <= innerWidth + 1, 'Horizontal overflow')
+  const wrapper = document.createElement('div')
+  wrapper.style.cssText = 'position:fixed;inset:0 auto auto 0;width:300px;height:180px;display:flex;flex-direction:column'
+  document.body.append(wrapper)
+  const nested = createRoot(wrapper)
+  nested.render(h(Workspace, null, h(WorkspaceToolbar, null, 'Tools'), h(WorkspaceScroll, null, h('div', { style: { height: 800 } }, 'Long content'))))
+  await ready(() => wrapper.querySelector('.workspace-scroll'))
+  const scroll = wrapper.querySelector('.workspace-scroll')
+  check(wrapper.scrollHeight <= wrapper.clientHeight + 1, 'Nested panel does not overflow its parent')
+  check(scroll.clientHeight > 0 && scroll.scrollHeight > scroll.clientHeight, 'Nested panel owns inner scroll')
+  scroll.scrollTop = 200
+  check(scroll.scrollTop === 200, 'Nested scroll responds')
+  nested.unmount(); wrapper.remove()
   result.textContent = 'PASS: home, collections, nested locations, conditions, album references, album-to-board, folders, parent navigation and logo home'
 } catch (e) { result.textContent = `FAIL: ${e.message}`; console.error(e) }
