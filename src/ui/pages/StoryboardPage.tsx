@@ -19,7 +19,7 @@ import { Sheet, SheetDescription } from '@/ui/components/ui/sheet'
 import { Button } from '@/ui/components/ui/button'
 import { useBlobUrl } from '@/ui/useBlobUrl'
 import { DataControls } from '@/ui/DataControls'
-import { ImportIcon } from 'lucide-react'
+import { ImportIcon, PencilIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 
 function Picture({ service, id, alt }: { service: StoryboardService; id?: string | null; alt: string }) {
@@ -45,6 +45,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   const trigger = useRef<HTMLButtonElement>(null)
   const [frameId, setFrameId] = useState('')
   const [settings, setSettings] = useState<BoardCommand>()
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [dragged, setDragged] = useState('')
   const [draft, setDraft] = useState<BoardCommand>()
   const [compare, setCompare] = useState<string[]>([])
@@ -64,7 +65,8 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     const next = await service.update({ boardId: board.id, expectedRevision: board.revision, ...command }, blob)
     setBoard(next); return next
   }
-  const dirty = Boolean(draft || settings)
+  const settingsDirty = Boolean(settings && board && (settings.name !== board.name || settings.notes !== board.notes))
+  const dirty = Boolean(draft || settingsDirty)
   const details = Boolean(useMatch('/storyboards/:boardId/details'))
   const frame = board?.frames.find((f) => f.id === frameId)
   const open = (id: string) => { setFrameId(id); setDraft(undefined); setCompare([]); setReference(''); setPurpose('') }
@@ -97,6 +99,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   else if (folderId === 'unfiled') crumbs.push({ label: t('world.unfiled'), path: '/storyboards/folders/unfiled' })
   if (boardId) crumbs.push({ label: board?.name ?? text('working'), path: `/storyboards/${boardId}` })
   const documentActions = board && <WorkspaceActions>
+    <StoryboardFolders service={worldService} library={world} collections={collections} boardId={board.id} disabled={busy || dirty} />
     <DataControls exportData={() => service.export(board.id, board.revision)} exportFilename={`${board.name}.zip`} exportLabel={text('export')} exportIconOnly />
     <TooltipProvider><Tooltip><TooltipTrigger asChild><Button asChild type="button" size="icon" variant="outline" aria-label={text('importFrames')} disabled={busy || dirty}>
       <label><ImportIcon /><input className="sr-only" type="file" accept="image/png" multiple disabled={busy || dirty} onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void upload(files) }} /></label>
@@ -108,11 +111,10 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
 <WorkspaceSurface surface={boardId ? 'paper' : undefined} className={boardId ? 'story-document' : 'workspace-scroll'}>
     {!boardId && <h1 className="sr-only">{text('title')}</h1>}
-    <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} boardId={boardId} disabled={busy || dirty}>
-      {board && <><WorkspaceHistoryActions undoLabel={text('undo')} redoLabel={text('redo')} canUndo={!busy && !dirty && Boolean(board.past.length)} canRedo={!busy && !dirty && Boolean(board.future.length)}
+    {!boardId ? <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} disabled={busy || dirty} /> : board && !details &&
+      <div className="story-folder-toolbar flex min-w-0 flex-wrap items-center gap-1"><WorkspaceHistoryActions undoLabel={text('undo')} redoLabel={text('redo')} canUndo={!busy && !dirty && Boolean(board.past.length)} canRedo={!busy && !dirty && Boolean(board.future.length)}
         onUndo={() => void run(async () => { await update({ action: 'undo' }) })} onRedo={() => void run(async () => { await update({ action: 'redo' }) })} />
-        <span role="status" className="ml-1 text-xs text-muted-foreground">{dirty ? text('unsavedStatus') : text('saved')}</span></>}
-    </StoryboardFolders>
+        <span role="status" className="ml-1 text-xs text-muted-foreground">{dirty ? text('unsavedStatus') : text('saved')}</span></div>}
 
     {pendingPhoto && <section className="world-section"><h2>{pendingPhoto.name}</h2><WorldPicture service={worldService} hash={pendingPhoto.image.sha256} alt={pendingPhoto.name} />{board ? <Button disabled={busy || dirty} onClick={() => void run(async () => {
       const blob = await worldService.png(pendingPhoto.image)
@@ -122,7 +124,10 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     {error && <p role="alert" className="story-error">{error}</p>}
     {busy && <p role="status">{text('working')}</p>}
     {!boardId ? <section className="bookshelf-grid">{boards.filter((b) => !folderId || (folderId === 'unfiled' ? !world.boardFolders[b.id] : world.boardFolders[b.id] === folderId)).map((b) => <LibraryBookCard key={b.id} icon="storyboards" to={`/storyboards/${b.id}${photoQuery}`} label={b.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={text('create')} onClick={() => { setCreating(true); setError('') }} /></section> : !board ? <p>{text('working')}</p> : details ?
-      <WorkspaceScroll className="story-details"><form onSubmit={(e) => { e.preventDefault(); if (settings) void run(async () => { await update(settings); setSettings(undefined) }) }}><label>{text('name')}<input disabled={busy} value={settings?.name ?? board.name} required maxLength={120} onChange={(e) => setSettings({ action: 'rename', expectedRevision: board.revision, ...settings, name: e.target.value })} /></label><label>{text('notes')}<textarea disabled={busy} value={settings?.notes ?? board.notes} maxLength={8000} onChange={(e) => setSettings({ action: 'rename', expectedRevision: board.revision, ...settings, notes: e.target.value })} /></label><div className="flex gap-2"><Button disabled={busy || !settings}>{text('save')}</Button>{settings && <Button type="button" variant="outline" onClick={() => setSettings(undefined)}>{text('cancel')}</Button>}</div></form></WorkspaceScroll> : <>
+      <WorkspaceScroll className="story-details"><div className="book-profile flex flex-col gap-4" aria-label={text('settings')}>
+        <div className="character-profile-heading"><div className="min-w-0"><span>{text('settings')}</span><h2>{board.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={text('editDetails')} onClick={() => { setSettings({ action: 'rename', name: board.name, notes: board.notes }); setDetailsOpen(true) }}><PencilIcon /></Button></div>
+        <div><h3 className="font-heading text-lg font-semibold">{text('notes')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{board.notes || text('emptyNotes')}</p></div>
+      </div></WorkspaceScroll> : <>
       <WorkspaceScroll className="story-paper"><section className="story-grid" aria-label={text('frames')}>
         {board.frames.map((f, index) => <article key={f.id} draggable={!busy && !dirty} onDragStart={(e) => { setDragged(f.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f.id) }} onDragOver={(e) => { if (dragged && !dirty) e.preventDefault() }} onDragEnd={() => setDragged('')} onDrop={(e) => { e.preventDefault(); if (!dragged || dragged === f.id || busy || dirty) return; const order = board.frames.map((item) => item.id); order.splice(order.indexOf(dragged), 1); order.splice(order.indexOf(f.id), 0, dragged); setDragged(''); void run(async () => { await update({ action: 'reorder', order }) }) }} className={`story-card ${frameId === f.id ? 'active' : ''}`}><button className="story-card-open" disabled={dirty} onClick={(event) => { trigger.current = event.currentTarget; open(f.id) }}><div className="story-card-caption"><span>{String(index + 1).padStart(2, '0')}</span><span className={`story-review ${f.review}`}>{text(f.review)}</span></div><Picture service={service} id={f.selected} alt={f.title} /></button><div className="story-frame-text"><h2><button className="story-title-open" disabled={dirty} onClick={(event) => { trigger.current = event.currentTarget; open(f.id) }}>{f.title}</button></h2><p>{f.selected ? `${f.candidates.length} ${text('candidates')}` : text('noSelection')}</p><div className="story-card-footer"><Button size="sm" variant="ghost" aria-label={`${text('previous')} ${f.title}`} disabled={busy || dirty || index === 0} onClick={() => void move(f.id, -1)}>←</Button><span>{f.duration ? `${f.duration}s` : '—'}</span><Button size="sm" variant="ghost" aria-label={`${text('next')} ${f.title}`} disabled={busy || dirty || index === board.frames.length - 1} onClick={() => void move(f.id, 1)}>→</Button></div>{f.notes && <p className="story-frame-notes">{f.notes}</p>}{f.transition && <p className="story-transition">↳ {f.transition}</p>}</div></article>)}
         <WorkspaceAddCard className="story-card story-add-card" aspect="16 / 9" label={text('addFrame')} disabled={busy || dirty}
@@ -156,6 +161,15 @@ export function StoryboardPage({ service, worldService, world, collections, appl
       </WorkspaceSheet></Sheet>
     </>}
   </WorkspaceSurface>
+    {board && <Sheet open={detailsOpen} onOpenChange={(open) => { if (!busy) { setDetailsOpen(open); if (!open) setSettings(undefined) } }}>
+      <WorkspaceSheet title={text('settings')} closeLabel={text('close')} aria-describedby={undefined}>
+        <form className="book-profile-form" onSubmit={(e) => { e.preventDefault(); if (settings && settingsDirty) void run(async () => { await update(settings); setSettings(undefined); setDetailsOpen(false) }) }}>
+          <label>{text('name')}<input autoFocus disabled={busy} value={settings?.name ?? board.name} required maxLength={120} onChange={(e) => setSettings({ action: 'rename', ...settings, name: e.target.value })} /></label>
+          <label>{text('notes')}<textarea disabled={busy} rows={11} value={settings?.notes ?? board.notes} maxLength={8000} onChange={(e) => setSettings({ action: 'rename', ...settings, notes: e.target.value })} /></label>
+          <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={() => { setSettings(undefined); setDetailsOpen(false) }}>{text('cancel')}</Button><Button disabled={busy || !settingsDirty}>{text('save')}</Button></div>
+        </form>
+      </WorkspaceSheet>
+    </Sheet>}
     <Sheet open={creating} onOpenChange={(open) => { if (!open && !busy) setCreating(false) }}>
       <WorkspaceSheet title={text('create')}  closeLabel={text('close')} aria-describedby={undefined} onEscapeKeyDown={(e) => { if (busy) e.preventDefault() }} onPointerDownOutside={(e) => { if (busy) e.preventDefault() }}>
 

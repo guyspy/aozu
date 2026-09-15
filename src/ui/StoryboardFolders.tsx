@@ -1,5 +1,5 @@
-import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { FolderInputIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -7,23 +7,25 @@ import type { WorldLibraryService } from '@/core/application/world-library'
 import type { WorldLibrary, StoryFolder } from '@/core/domain/world-library'
 import type { CharacterCollection } from '@/core/domain/character-collection'
 import { WorkspaceMenuSelect, WorkspaceSheet } from '@/ui/Workspace'
+import { LibraryBookCard } from '@/ui/LibraryCards'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet } from '@/ui/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import { DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator } from '@/ui/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/ui/components/ui/alert-dialog'
 
-export function StoryboardFolders({ service, library, collections, folderId, boardId, disabled, children }: {
+export function StoryboardFolders({ service, library, collections, folderId, boardId, disabled }: {
   service: WorldLibraryService
   library: WorldLibrary
   collections: CharacterCollection[]
   folderId?: string
   boardId?: string
   disabled?: boolean
-  children?: ReactNode
 }) {
   const { t } = useTranslation(), text = (key: string) => t(`world.${key}`), navigate = useNavigate()
   const folder = library.folders.find((item) => item.id === (boardId ? library.boardFolders[boardId] : folderId))
   const [editing, setEditing] = useState<{ value: StoryFolder; snapshot: WorldLibrary }>()
+  const [moving, setMoving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const run = async (task: () => Promise<void>) => { setBusy(true); setError(''); try { await task() } catch (e) { setError(String(e)) } finally { setBusy(false) } }
@@ -35,7 +37,7 @@ export function StoryboardFolders({ service, library, collections, folderId, boa
       const next = structuredClone(library)
       if (id === 'unfiled') delete next.boardFolders[boardId]
       else next.boardFolders[boardId] = id
-      await service.save(next)
+      await service.save(next); setMoving(false)
     })
   }
   const remove = () => run(async () => {
@@ -45,6 +47,17 @@ export function StoryboardFolders({ service, library, collections, folderId, boa
     next.boardFolders = Object.fromEntries(Object.entries(next.boardFolders).filter(([, id]) => id !== folder.id))
     await service.save(next); setDeleteOpen(false); navigate('/storyboards')
   })
+
+  if (boardId) return <>
+    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="outline" aria-label={text('moveToFolder')} disabled={disabled} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button></TooltipTrigger><TooltipContent>{text('moveToFolder')}</TooltipContent></Tooltip></TooltipProvider>
+    <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><WorkspaceSheet title={text('moveToFolder')} aria-describedby={undefined}>
+      <div className="collection-move-grid mt-6">
+        <LibraryBookCard icon="storyboards" label={text('unfiled')} disabled={busy || selected === 'unfiled'} onClick={() => choose('unfiled')} />
+        {library.folders.map((item) => <LibraryBookCard key={item.id} icon="storyboards" label={item.name} disabled={busy || selected === item.id} onClick={() => choose(item.id)} />)}
+      </div>
+      {error && <p role="alert" className="mt-4 text-destructive">{error}</p>}
+    </WorkspaceSheet></Sheet>
+  </>
 
   return <>
     <div className="story-folder-toolbar flex min-w-0 flex-wrap items-center gap-1" data-has-uncommitted-input={Boolean(editing) || deleteOpen}>
@@ -57,7 +70,6 @@ export function StoryboardFolders({ service, library, collections, folderId, boa
           </DropdownMenuRadioGroup>
           {!boardId && <><DropdownMenuItem onSelect={() => edit()}><PlusIcon />{text('createFolder')}</DropdownMenuItem>{folder && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}><Trash2Icon />{text('remove')}</DropdownMenuItem></>}</>}
       </WorkspaceMenuSelect>
-      {children}
       {error && <p role="alert" className="story-error">{error}</p>}
     </div>
     <Sheet open={Boolean(editing)} onOpenChange={(open) => { if (!open && !busy) setEditing(undefined) }}>
