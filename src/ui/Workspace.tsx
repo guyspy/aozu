@@ -1,9 +1,11 @@
 import './workspace.css'
-import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
-import { PanelRightOpenIcon, PlusIcon } from 'lucide-react'
+import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react'
+import { ChevronsUpDownIcon, PanelRightOpenIcon, PlusIcon, Redo2Icon, Undo2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/components/ui/sheet'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import { Link } from 'react-router'
 import { cn } from '@/ui/lib/utils'
 
@@ -74,6 +76,40 @@ export function WorkspaceAddCard({ label, className, watermark, ...props }: Omit
 /** The icon actions that belong to a whole document; sits beside its tabs. */
 export function WorkspaceActions({ className, ...props }: ComponentProps<'div'>) {
   return <div role="group" className={cn('workspace-actions flex shrink-0 items-center gap-1', className)} {...props} />
+}
+
+export function WorkspaceMenuSelect({ label, value, disabled, triggerRef, children }: {
+  label: string
+  value: ReactNode
+  disabled?: boolean
+  triggerRef?: Ref<HTMLButtonElement>
+  children: ReactNode
+}) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button ref={triggerRef} type="button" variant="outline" className="min-w-0 flex-1 basis-36 justify-between" aria-label={label} disabled={disabled}>
+      <span className="truncate">{value}</span><ChevronsUpDownIcon className="text-muted-foreground" />
+    </Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="min-w-56 max-w-[calc(100vw-2rem)]">{children}</DropdownMenuContent>
+  </DropdownMenu>
+}
+
+/** The same local history controls below a document's tabs. */
+export function WorkspaceHistoryActions({ undoLabel, redoLabel, canUndo, canRedo, onUndo, onRedo, hidden }: {
+  undoLabel: string
+  redoLabel: string
+  canUndo: boolean
+  canRedo: boolean
+  onUndo(): void
+  onRedo(): void
+  hidden?: boolean
+}) {
+  const action = (label: string, enabled: boolean, run: () => void, icon: ReactNode) => <Tooltip><TooltipTrigger asChild>
+    <Button type="button" size="icon" variant="ghost" aria-label={label} disabled={!enabled} onClick={run}>{icon}</Button>
+  </TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>
+  return <div className={cn('flex gap-1', hidden && 'invisible')} inert={hidden || undefined} aria-hidden={hidden || undefined}><TooltipProvider>
+    {action(undoLabel, canUndo, onUndo, <Undo2Icon />)}
+    {action(redoLabel, canRedo, onRedo, <Redo2Icon />)}
+  </TooltipProvider></div>
 }
 
 /** Document tabs along the panel's top edge; children become the actions that belong to the whole document. */

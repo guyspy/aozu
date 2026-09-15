@@ -1,24 +1,25 @@
-import { ChevronsUpDownIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
-import { useState } from 'react'
+import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 
 import type { WorldLibraryService } from '@/core/application/world-library'
 import type { WorldLibrary, StoryFolder } from '@/core/domain/world-library'
 import type { CharacterCollection } from '@/core/domain/character-collection'
-import { WorkspaceSheet } from '@/ui/Workspace'
+import { WorkspaceMenuSelect, WorkspaceSheet } from '@/ui/Workspace'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet } from '@/ui/components/ui/sheet'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator } from '@/ui/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/ui/components/ui/alert-dialog'
 
-export function StoryboardFolders({ service, library, collections, folderId, boardId, disabled }: {
+export function StoryboardFolders({ service, library, collections, folderId, boardId, disabled, children }: {
   service: WorldLibraryService
   library: WorldLibrary
   collections: CharacterCollection[]
   folderId?: string
   boardId?: string
   disabled?: boolean
+  children?: ReactNode
 }) {
   const { t } = useTranslation(), text = (key: string) => t(`world.${key}`), navigate = useNavigate()
   const folder = library.folders.find((item) => item.id === (boardId ? library.boardFolders[boardId] : folderId))
@@ -46,12 +47,8 @@ export function StoryboardFolders({ service, library, collections, folderId, boa
   })
 
   return <>
-    <div className="story-folder-toolbar" data-has-uncommitted-input={Boolean(editing) || deleteOpen}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button type="button" variant="outline" className="min-w-0 justify-between" aria-label={text('folder')} disabled={busy || disabled}>
-          <span className="truncate">{selected === 'all' ? text('allBoards') : selected === 'unfiled' ? text('unfiled') : folder?.name}</span><ChevronsUpDownIcon className="text-muted-foreground" />
-        </Button></DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-56 max-w-[calc(100vw-2rem)]">
+    <div className="story-folder-toolbar flex min-w-0 flex-wrap items-center gap-1" data-has-uncommitted-input={Boolean(editing) || deleteOpen}>
+      <WorkspaceMenuSelect label={text('folder')} value={selected === 'all' ? text('allBoards') : selected === 'unfiled' ? text('unfiled') : folder?.name} disabled={busy || disabled}>
           {!boardId && folder && <><DropdownMenuItem onSelect={() => edit(folder)}><PencilIcon />{text('edit')}</DropdownMenuItem><DropdownMenuSeparator /></>}
           <DropdownMenuRadioGroup value={selected} onValueChange={choose}>
             {!boardId && <DropdownMenuRadioItem value="all">{text('allBoards')}</DropdownMenuRadioItem>}
@@ -59,8 +56,8 @@ export function StoryboardFolders({ service, library, collections, folderId, boa
             {library.folders.map((item) => <DropdownMenuRadioItem key={item.id} value={item.id}><span className="truncate">{item.name}</span></DropdownMenuRadioItem>)}
           </DropdownMenuRadioGroup>
           {!boardId && <><DropdownMenuItem onSelect={() => edit()}><PlusIcon />{text('createFolder')}</DropdownMenuItem>{folder && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}><Trash2Icon />{text('remove')}</DropdownMenuItem></>}</>}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      </WorkspaceMenuSelect>
+      {children}
       {error && <p role="alert" className="story-error">{error}</p>}
     </div>
     <Sheet open={Boolean(editing)} onOpenChange={(open) => { if (!open && !busy) setEditing(undefined) }}>

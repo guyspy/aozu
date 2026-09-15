@@ -1,6 +1,6 @@
-import { DownloadIcon, FolderTreeIcon, ImportIcon } from 'lucide-react'
+import { DownloadIcon, FolderTreeIcon } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 
 import type { Application } from '@/bootstrap'
@@ -38,7 +38,7 @@ export function LibraryExplorer({ application, world, collections, characters, r
   characters: CharacterLibraryItem[]
   refresh(): Promise<void>
 }) {
-  const { t } = useTranslation(), text = (key: string) => t(`world.${key}`), navigate = useNavigate(), { pathname } = useLocation()
+  const { t } = useTranslation(), text = (key: string) => t(`world.${key}`), { pathname } = useLocation()
   const [open, setOpen] = useState(false), [boards, setBoards] = useState<Awaited<ReturnType<Application['storyboards']['list']>>>([]), [error, setError] = useState('')
   const loadBoards = useCallback(() => application.storyboards.list().then(setBoards, (caught) => setError(String(caught))), [application])
   useEffect(() => { void loadBoards(); return application.storyboards.subscribe(() => void loadBoards()) }, [application, loadBoards])
@@ -51,6 +51,7 @@ export function LibraryExplorer({ application, world, collections, characters, r
   }
   const go = () => setOpen(false)
   const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)}><summary>{place.name}</summary><TreeLink to={`/collections/${collectionId}/locations/${place.id}`}>{text('settings')}</TreeLink><div className="library-tree-children">{locations(place.id, collectionId)}</div></TreeDetails>)
+  const storyboardLinks = (folder?: string) => boards.filter((board) => world.boardFolders[board.id] === folder).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>
     <Button type="button" variant="ghost" onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}</Button>
@@ -70,10 +71,11 @@ export function LibraryExplorer({ application, world, collections, characters, r
               </div></TreeDetails>)}</div>
             </TreeDetails>
             <TreeDetails initialOpen={pathname.startsWith('/albums')}><summary><AozuIcon name="albums" />{text('albums')}</summary><div className="library-tree-children">{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</div></TreeDetails>
-            <TreeDetails initialOpen={pathname.startsWith('/storyboards')}><summary><AozuIcon name="storyboards" />{text('storyboards')}</summary><div className="library-tree-actions"><Button asChild size="sm" variant="ghost"><label><ImportIcon />{t('storyboard.importZip')}<input className="sr-only" type="file" accept=".zip" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void application.storyboards.import(file).then((board) => { void loadBoards(); navigate(`/storyboards/${board.id}`); go() }, (caught) => setError(String(caught))) }} /></label></Button></div><div className="library-tree-children">
-              <TreeLink to="/storyboards/folders/unfiled">{text('unfiled')}</TreeLink>
-              {world.folders.map((folder) => <TreeDetails key={folder.id} initialOpen={pathname.includes(folder.id)}><summary>{folder.name}</summary><div className="library-tree-children">{boards.filter((board) => world.boardFolders[board.id] === folder.id).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)}</div></TreeDetails>)}
-              {boards.filter((board) => !world.boardFolders[board.id]).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)}
+            <TreeDetails initialOpen={pathname.startsWith('/storyboards')}><summary><AozuIcon name="storyboards" />{text('storyboards')}</summary><div className="library-tree-children">
+              <TreeDetails initialOpen={pathname.includes('/folders/unfiled') || boards.some((board) => !world.boardFolders[board.id] && pathname.includes(board.id))}><summary>{text('unfiled')}</summary><div className="library-tree-children">
+                {storyboardLinks()}
+              </div></TreeDetails>
+              {world.folders.map((folder) => <TreeDetails key={folder.id} initialOpen={pathname.includes(folder.id)}><summary>{folder.name}</summary><div className="library-tree-children">{storyboardLinks(folder.id)}</div></TreeDetails>)}
             </div></TreeDetails>
           </nav>
           {error && <p role="alert" className="story-error">{error}</p>}

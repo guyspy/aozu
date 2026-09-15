@@ -1,7 +1,7 @@
-import { Workspace, WorkspaceActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
+import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
-import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, Trash2Icon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
@@ -301,11 +301,6 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     setBusy(key); setError(undefined)
     try { await task() } catch (caught) { setError(describe(caught)) } finally { setBusy(undefined) }
   }
-  const iconAction = (label: string, icon: ComponentType<{ className?: string }>, enabled: boolean, run: () => void) => {
-    const Icon = icon
-    return <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" aria-label={label} disabled={!enabled} onClick={run}><Icon /></Button></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>
-  }
-
   const saveProfile = () => {
     if (!profileForm) return
     const rows = profileForm.attributes.filter(({ key }) => key.trim())
@@ -512,10 +507,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
       revert()
       if (variantId) navigate(`/characters/${encodeURIComponent(draft.id)}/${isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}`)
     })}>
-    <div className={`flex gap-1 ${isProfile ? 'invisible' : ''}`} inert={isProfile} aria-hidden={isProfile || undefined}><TooltipProvider>
-      {iconAction(t('characterDraft.undo'), Undo2Icon, canUndo && !busy && !local, () => void editor.undo())}
-      {iconAction(t('characterDraft.redo'), Redo2Icon, canRedo && !busy && !local, () => void editor.redo())}
-    </TooltipProvider></div>
+    <WorkspaceHistoryActions hidden={isProfile} undoLabel={t('characterDraft.undo')} redoLabel={t('characterDraft.redo')}
+      canUndo={canUndo && !busy && !local} canRedo={canRedo && !busy && !local} onUndo={() => void editor.undo()} onRedo={() => void editor.redo()} />
     {saveFeedback}
   </CharacterAppearances>
 

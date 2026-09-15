@@ -203,6 +203,7 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route index element={<HomePage application={application} world={world.library} collections={library.collections} characters={library.characters} />} />
       <Route path="/storyboards" element={storyPage} />
       <Route path="/storyboards/:boardId" element={storyPage} />
+      <Route path="/storyboards/:boardId/details" element={storyPage} />
       <Route path="/storyboards/folders/:folderId" element={storyPage} />
       <Route path="/albums" element={worldPage} />
       <Route path="/albums/:albumId" element={worldPage} />

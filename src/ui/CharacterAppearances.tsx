@@ -1,12 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { CheckIcon, ChevronsUpDownIcon, PencilIcon, PlusIcon, SaveIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { CheckIcon, PencilIcon, PlusIcon, SaveIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { activeCharacterAppearance, type CharacterAppearanceCommand } from '@/core/application/character-appearances'
 import type { CharacterDraft } from '@/core/domain/character'
 import { Button } from '@/ui/components/ui/button'
 import { Input } from '@/ui/components/ui/input'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/components/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator } from '@/ui/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/ui/components/ui/alert-dialog'
+import { WorkspaceMenuSelect } from '@/ui/Workspace'
 
 export function CharacterAppearances({ draft, change, busy, manage = false, children }: {
   draft: CharacterDraft
@@ -42,11 +43,7 @@ export function CharacterAppearances({ draft, change, busy, manage = false, chil
           onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); closeForm() } }} />
         <Button type="button" size="icon" variant="ghost" aria-label={t('common.cancel')} onClick={closeForm} disabled={busy}><XIcon /></Button>
         <Button type="submit" size="icon" variant="ghost" aria-label={t(form.action === 'rename' ? 'modelSheet.appearances.rename' : 'modelSheet.appearances.save')} disabled={busy || !form.label.trim()}><CheckIcon /></Button>
-      </form> : <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button ref={trigger} type="button" variant="outline" className="min-w-0 flex-1 basis-36 justify-between" aria-label={t('modelSheet.appearances.choose')} disabled={busy}>
-          <span className="truncate">{active?.label}</span><ChevronsUpDownIcon className="text-muted-foreground" />
-        </Button></DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-56 max-w-[calc(100vw-2rem)]">
+      </form> : <WorkspaceMenuSelect triggerRef={trigger} label={t('modelSheet.appearances.choose')} value={active?.label} disabled={busy}>
           {manage && active && <><DropdownMenuItem onSelect={() => setForm({ action: 'rename', label: active.label })}><PencilIcon />{t('modelSheet.appearances.rename')}</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setForm({ action: 'save-as', label: newLabel(t('modelSheet.appearances.copyName', { name: active.label })) })}><SaveIcon />{t('modelSheet.appearances.saveNew')}</DropdownMenuItem>
             <DropdownMenuSeparator /></>}
@@ -61,8 +58,7 @@ export function CharacterAppearances({ draft, change, busy, manage = false, chil
             <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={() => setDeleteOpen(true)}><Trash2Icon />{t('modelSheet.appearances.delete')}</DropdownMenuItem>
             {!canDelete && <DropdownMenuLabel>{t('modelSheet.appearances.keepOne')}</DropdownMenuLabel>}
           </>}
-        </DropdownMenuContent>
-      </DropdownMenu>}
+      </WorkspaceMenuSelect>}
       {children}
     </div>
     <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
