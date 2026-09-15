@@ -109,6 +109,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
   await ready(() => !document.querySelector('[role="dialog"]'))
   check(document.querySelector('.story-frame-text'), 'Storyboard uses image/text rows')
   check(document.querySelector('.story-grid').parentElement.matches('.story-paper.workspace-scroll'), 'Only drawing paper owns storyboard scroll')
+  check(document.querySelector('.story-document').dataset.workspaceSurface === 'paper', 'Storyboard document fills the paper surface')
   check(getComputedStyle(document.querySelector('.story-card')).backgroundColor === 'rgba(0, 0, 0, 0)', 'Frames share the drawing paper background')
   check(document.querySelector('.story-grid').lastElementChild.matches('.workspace-add-card'), 'Add frame closes the frame grid')
   check(document.querySelector('#root').scrollHeight <= document.querySelector('#root').clientHeight + 1, 'Storyboard scroll stays inside panel')
@@ -158,6 +159,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(wrapper.scrollHeight <= wrapper.clientHeight + 1, 'Nested panel does not overflow its parent')
   check(scroll.clientHeight > 0 && scroll.scrollHeight > scroll.clientHeight, 'Nested panel owns inner scroll')
   scroll.scrollTop = 200
+  await wait()
   check(scroll.scrollTop === 200, 'Nested scroll responds')
   nested.render(h(Sheet, { open: true }, h(WorkspaceSheet, { title: 'Paper test', surface: 'paper', 'aria-describedby': undefined }, h('div', { style: { height: 1600 } }, 'Long drawing'))))
   await ready(() => document.querySelector('.workspace-sheet [data-workspace-surface="paper"]'))
@@ -168,6 +170,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(getComputedStyle(paper).backgroundColor === 'rgb(247, 246, 242)', 'Portal paper retains shared material')
   check(getComputedStyle(paper).scrollbarWidth === 'none' && paper.scrollHeight > paper.clientHeight, 'Portal owns hidden inner scroll')
   paper.scrollTop = 200
+  await wait()
   check(paper.scrollTop === 200 && title.getBoundingClientRect().top === titleTop, 'Sheet title remains fixed while paper scrolls')
   nested.unmount(); wrapper.remove()
   result.textContent = 'PASS: home, collections, nested locations, conditions, album references, album-to-board, folders, parent navigation and logo home'
