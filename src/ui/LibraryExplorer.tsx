@@ -26,9 +26,13 @@ function TreeLink({ to, children, action }: { to: string; children: ReactNode; a
   return <div className={cn('library-tree-row', pathname === to && 'active')}><Link to={to}>{children}</Link>{action}</div>
 }
 
-function TreeDetails({ initialOpen, children }: { initialOpen: boolean; children: ReactNode }) {
+function TreeChildren({ children }: { children: ReactNode }) {
+  return <div className="library-tree-children">{children}</div>
+}
+
+function TreeDetails({ initialOpen, label, children }: { initialOpen: boolean; label: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(initialOpen)
-  return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>{children}</details>
+  return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>{label}</summary><TreeChildren>{children}</TreeChildren></details>
 }
 
 export function LibraryExplorer({ application, world, collections, characters, refresh }: {
@@ -50,7 +54,7 @@ export function LibraryExplorer({ application, world, collections, characters, r
     storyboards: application.storyboards,
   }
   const go = () => setOpen(false)
-  const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)}><summary>{place.name}</summary><TreeLink to={`/collections/${collectionId}/locations/${place.id}`}>{text('settings')}</TreeLink><div className="library-tree-children">{locations(place.id, collectionId)}</div></TreeDetails>)
+  const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)} label={place.name}><TreeLink to={`/collections/${collectionId}/locations/${place.id}`}>{text('settings')}</TreeLink>{locations(place.id, collectionId)}</TreeDetails>)
   const storyboardLinks = (folder?: string) => boards.filter((board) => world.boardFolders[board.id] === folder).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>
@@ -63,20 +67,20 @@ export function LibraryExplorer({ application, world, collections, characters, r
             <DataControls exportData={() => exportLibraryArchive(services)} exportFilename="aozu-library.zip" exportLabel={text('downloadComplete')} importLabel={text('importComplete')} prepareImport={async (blob) => { await importLibraryArchive(blob, services); await refresh(); await loadBoards() }} />
           </section>
           <nav className="library-tree" aria-label={text('library')} onClick={(event) => { if ((event.target as Element).closest('a')) go() }}>
-            <TreeDetails initialOpen={pathname.startsWith('/collections') || pathname.startsWith('/characters')}><summary><AozuIcon name="collections" />{t('library.collections')}</summary>
-              <div className="library-tree-children">{collections.map((collection) => <TreeDetails key={collection.id} initialOpen={pathname.includes(`/collections/${collection.id}`) || collection.characterIds.some((id) => pathname.includes(id))}><summary>{collection.id === 'default' ? text('defaultCollection') : collection.name}</summary><div className="library-tree-children">
+            <TreeDetails initialOpen={pathname.startsWith('/collections') || pathname.startsWith('/characters')} label={<><AozuIcon name="collections" />{t('library.collections')}</>}>
+              {collections.map((collection) => <TreeDetails key={collection.id} initialOpen={pathname.includes(`/collections/${collection.id}`) || collection.characterIds.some((id) => pathname.includes(id))} label={collection.id === 'default' ? text('defaultCollection') : collection.name}>
                 <TreeLink to={`/collections/${collection.id}`}>{text('characters')}</TreeLink>
-                <div className="library-tree-children">{characters.filter((character) => collection.characterIds.includes(character.id)).map((character) => <TreeLink key={character.id} to={`/characters/${character.id}/expressions`} action={<Button size="icon" variant="ghost" aria-label={t('data.export')} onClick={() => void application.exportCharacter(character.id).then((blob) => save(blob, `${character.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{character.name}</TreeLink>)}</div>
-                <TreeLink to={`/collections/${collection.id}/locations`}>{text('locations')}</TreeLink><div className="library-tree-children">{locations(null, collection.id)}</div>
-              </div></TreeDetails>)}</div>
+                <TreeChildren>{characters.filter((character) => collection.characterIds.includes(character.id)).map((character) => <TreeLink key={character.id} to={`/characters/${character.id}/expressions`} action={<Button size="icon" variant="ghost" aria-label={t('data.export')} onClick={() => void application.exportCharacter(character.id).then((blob) => save(blob, `${character.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{character.name}</TreeLink>)}</TreeChildren>
+                <TreeLink to={`/collections/${collection.id}/locations`}>{text('locations')}</TreeLink><TreeChildren>{locations(null, collection.id)}</TreeChildren>
+              </TreeDetails>)}
             </TreeDetails>
-            <TreeDetails initialOpen={pathname.startsWith('/albums')}><summary><AozuIcon name="albums" />{text('albums')}</summary><div className="library-tree-children">{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</div></TreeDetails>
-            <TreeDetails initialOpen={pathname.startsWith('/storyboards')}><summary><AozuIcon name="storyboards" />{text('storyboards')}</summary><div className="library-tree-children">
-              <TreeDetails initialOpen={pathname.includes('/folders/unfiled') || boards.some((board) => !world.boardFolders[board.id] && pathname.includes(board.id))}><summary>{text('unfiled')}</summary><div className="library-tree-children">
+            <TreeDetails initialOpen={pathname.startsWith('/albums')} label={<><AozuIcon name="albums" />{text('albums')}</>}>{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</TreeDetails>
+            <TreeDetails initialOpen={pathname.startsWith('/storyboards')} label={<><AozuIcon name="storyboards" />{text('storyboards')}</>}>
+              <TreeDetails initialOpen={pathname.includes('/folders/unfiled') || boards.some((board) => !world.boardFolders[board.id] && pathname.includes(board.id))} label={text('unfiled')}>
                 {storyboardLinks()}
-              </div></TreeDetails>
-              {world.folders.map((folder) => <TreeDetails key={folder.id} initialOpen={pathname.includes(folder.id)}><summary>{folder.name}</summary><div className="library-tree-children">{storyboardLinks(folder.id)}</div></TreeDetails>)}
-            </div></TreeDetails>
+              </TreeDetails>
+              {world.folders.map((folder) => <TreeDetails key={folder.id} initialOpen={pathname.includes(folder.id)} label={folder.name}>{storyboardLinks(folder.id)}</TreeDetails>)}
+            </TreeDetails>
           </nav>
           {error && <p role="alert" className="story-error">{error}</p>}
         </WorkspaceScroll>

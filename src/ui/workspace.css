@@ -93,6 +93,7 @@
 .library-tree summary:hover, .library-tree-row:hover { background: var(--muted); }
 .library-tree summary .aozu-icon { width: 1.25rem; height: 1.25rem; }
 .library-tree-children { display: grid; gap: 0.125rem; margin-left: 0.75rem; padding-left: 0.75rem; border-left: 1px solid var(--border); }
+.library-tree > details > .library-tree-children { margin-left: 1.5rem; }
 .library-tree-row { display: flex; min-width: 0; min-height: 2rem; align-items: center; border-radius: 0.5rem; }
 .library-tree-row.active { background: var(--muted); font-weight: 600; }
 .library-tree-row > a { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
