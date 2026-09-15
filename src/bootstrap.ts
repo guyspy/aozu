@@ -11,7 +11,7 @@ import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle
 import { createWorldLibraryService } from './core/application/world-library.ts'
 import { createStoryboardService } from './core/application/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
-import { CHARACTER_A_POSE_GUIDANCE, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
+import { CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
@@ -1095,6 +1095,7 @@ export function createApplication(document: Document) {
     return { status: 'ok', data: {
       character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
+      generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
         'References belong to modelSheet.appearanceId. Edits automatically save into the current Appearance, including its expression/outfit/ordered props. Use set_character_variant_selection with appearance:{action:"save-as",id,label} BEFORE editing to keep the original look, appearance:{action:"create",id,label} for a new look with no selected variants or references, appearance:{action:"select",id} to switch, or appearance:{action:"delete",id} to remove a look and its references (keep at least one). Shared assets are retained. Switching waits for saving and starts a new Appearance undo session. Shared variant art affects all looks that use it. Captured fronts follow composition edits; existing other views are retained with needsReview:true after the composition changes. Inspect and visually compare them before replacing art or clearing needsReview. Default adopts legacy working art in memory; reads do not save. Save-as keeps the combination with a front and empty other views; create keeps the shared body/assets with no selected variants and an empty sheet.',

@@ -5,7 +5,7 @@ import type { WebMcpTool } from '@aotter/mantle-web/webmcp'
 import { createWebMcpController, readWorkspaceView } from '../src/adapters/webmcp/controller.ts'
 import { bindMantleWebMcpTools, createAgentCapability } from '../src/adapters/webmcp/tools.ts'
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
-import { CHARACTER_VISUAL_REVIEW } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_VISUAL_REVIEW, modelSheetGenerationGuidance } from '../src/core/application/character-agent-guidance.ts'
 
 // A fresh inspection follows UI-only changes, independent of the saved variant selection.
 const page = {
@@ -87,6 +87,7 @@ assert.deepEqual([
   registered.get('undo_character_change')?.annotations.readOnlyHint,
 ], [true, false, false])
 assert.match(registered.get('inspect_character_contract')!.description, /required browser visual-review workflow/)
+assert.match(registered.get('inspect_character_contract')!.description, /generationGuidance/)
 assert.match(registered.get('set_character_variant_transform')!.description, /expression whole head/)
 assert.match(registered.get('set_character_variant_transform')!.description, /x moves right, y moves down/)
 assert.match(registered.get('set_character_variant_transform')!.description, /Composite, Overlay, Difference, and Align/)
@@ -130,3 +131,10 @@ await bindMantleWebMcpTools(document, plan, async () => ({
 await assert.rejects(registered.get('navigate_character')!.execute({ destination: 'characters' }, {}), /stale/)
 
 console.log('webmcp: ok')
+
+// Study instructions must allow new poses without leaking fixed-layer registration rules.
+assert.match(modelSheetGenerationGuidance('structure').task, /Pose may change/)
+assert.match(modelSheetGenerationGuidance('full-body').task, /rather than mirroring/)
+assert.match(modelSheetGenerationGuidance('expression').task, /do not freeze/)
+assert.match(modelSheetGenerationGuidance('style').task, /do not force photographic realism/)
+assert.match(modelSheetGenerationGuidance().task, /inspect again/)
