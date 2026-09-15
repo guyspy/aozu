@@ -26,3 +26,6 @@ output/
 *.njsproj
 *.sln
 *.sw?
+
+# Local dev server launch config: absolute paths, per-machine.
+.claude/launch.json

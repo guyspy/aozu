@@ -1,8 +1,20 @@
-import type { ComponentProps } from 'react'
+import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
+import { PanelRightOpenIcon, PlusIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Button } from '@/ui/components/ui/button'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/components/ui/sheet'
+import { Link } from 'react-router'
 import { cn } from '@/ui/lib/utils'
+
+/** The split stacks below this content width: the former 900px window breakpoint minus the panel's 24px padding. */
+const SPLIT_MIN_WIDTH = 852
 
 export function Workspace({ className, ...props }: ComponentProps<'main'>) {
   return <main className={cn('workspace-panel', className)} {...props} />
+}
+/** A full-column sheet inside a workspace. `paper` renders it as artwork on a desk rather than app chrome. */
+export function WorkspaceSurface({ surface, className, ...props }: ComponentProps<'section'> & { surface?: 'paper' }) {
+  return <section data-workspace-surface={surface} className={cn('workspace-surface', className)} {...props} />
 }
 export function WorkspaceToolbar({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('workspace-toolbar', className)} {...props} />
@@ -12,4 +24,108 @@ export function WorkspaceScroll({ className, ...props }: ComponentProps<'div'>) 
 }
 export function WorkspaceAdd({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('workspace-add', className)} {...props} />
+}
+
+/**
+ * One tile in a grid: a preview of a fixed shape, its name, and optional secondary text or a corner control.
+ * Pass the grid's own card class for that grid's frame; `to` makes the tile a link, `onClick` a button.
+ */
+export function WorkspaceCard({ label, meta, action, aspect = '1', to, onClick, className, children, ...props }: Omit<ComponentProps<'button'>, 'children'> & {
+  label: ReactNode
+  meta?: ReactNode
+  action?: ReactNode
+  aspect?: string
+  to?: string
+  children: ReactNode
+}) {
+  const body = <>
+    <span className="workspace-card-preview" style={{ aspectRatio: aspect }}>{children}</span>
+    <span className="workspace-card-label">{label}</span>
+    {meta !== undefined && <span className="workspace-card-meta">{meta}</span>}
+  </>
+  return <div className={cn('workspace-card', className)}>
+    {to ? <Link to={to} className="workspace-card-open" aria-label={props['aria-label']} title={props.title}>{body}</Link>
+      : onClick ? <button type="button" className="workspace-card-open" onClick={onClick} {...props}>{body}</button>
+      : <span className="workspace-card-open" {...props}>{body}</span>}
+    {action}
+  </div>
+}
+
+/** The "add one" tile that closes a grid; the same card with a plus where the preview would be. */
+export function WorkspaceAddCard({ label, className, ...props }: Omit<ComponentProps<'button'>, 'children'> & { label: string; aspect?: string }) {
+  return <WorkspaceCard aria-label={label} title={label} label={label} className={cn('workspace-add-card', className)} {...props}>
+    <PlusIcon className="size-8" />
+  </WorkspaceCard>
+}
+
+/** The icon actions that belong to a whole document; sits beside its tabs. */
+export function WorkspaceActions({ className, ...props }: ComponentProps<'div'>) {
+  return <div role="group" className={cn('workspace-actions flex shrink-0 items-center gap-1', className)} {...props} />
+}
+
+/** Document tabs along the panel's top edge; children become the actions that belong to the whole document. */
+export function WorkspaceTabs<Id extends string>({ label, items, active, onSelect, className, children }: {
+  label: string
+  items: readonly { id: Id; label: string }[]
+  active: Id
+  onSelect(id: Id): void
+  className?: string
+  children?: ReactNode
+}) {
+  return <div className={cn('workspace-tabs-bar', className)}>
+    <nav className="workspace-tabs" aria-label={label}>
+      {items.map(({ id, label: text }) => <Button key={id} type="button" className="workspace-tab"
+        variant={id === active ? 'secondary' : 'ghost'} aria-current={id === active ? 'page' : undefined}
+        onClick={() => onSelect(id)}>{text}</Button>)}
+    </nav>
+    {children}
+  </div>
+}
+
+/**
+ * Two columns whose stacking follows the split's own width, so a workspace stays correct inside any shell.
+ * Stacked, the aside moves into a drawer and the split renders its trigger; `aside` receives that state.
+ */
+export function WorkspaceSplit({ aside, asideLabel, defaultAsideOpen = false, openKey, className, children, ...props }: Omit<ComponentProps<'div'>, 'children'> & {
+  aside: ReactNode | ((stacked: boolean) => ReactNode)
+  asideLabel: string
+  defaultAsideOpen?: boolean
+  /** Reopening state resets to `defaultAsideOpen` whenever this changes, for example on a different document or tab. */
+  openKey?: string
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  const split = useRef<HTMLDivElement>(null)
+  const [stacked, setStacked] = useState(false)
+  const [open, setOpen] = useState(defaultAsideOpen)
+  const [seen, setSeen] = useState(`${openKey}:${stacked}`)
+  if (`${openKey}:${stacked}` !== seen) {
+    setSeen(`${openKey}:${stacked}`)
+    setOpen(defaultAsideOpen)
+  }
+  useLayoutEffect(() => {
+    const element = split.current
+    if (!element) return
+    // Measured before paint so the first frame already picks the right column count.
+    setStacked(element.clientWidth < SPLIT_MIN_WIDTH)
+    const observer = new ResizeObserver(([entry]) => setStacked(entry.contentRect.width < SPLIT_MIN_WIDTH))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const content = typeof aside === 'function' ? aside(stacked) : aside
+
+  return <Sheet open={stacked && open} onOpenChange={setOpen}>
+    <div ref={split} data-split={stacked ? 'stacked' : 'wide'} data-aside={!stacked ? 'inline' : open ? 'drawer-open' : 'drawer-closed'}
+      className={cn('workspace-split', className)} {...props}>
+      {stacked && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="workspace-split-trigger"
+        aria-label={asideLabel} title={asideLabel}><PanelRightOpenIcon /></Button></SheetTrigger>}
+      {children}
+      {stacked
+        ? <SheetContent className="workspace-aside-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
+          <SheetTitle className="sr-only">{asideLabel}</SheetTitle>
+          {content}
+        </SheetContent>
+        : content}
+    </div>
+  </Sheet>
 }

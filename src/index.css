@@ -269,6 +269,7 @@ body::before {
 
 /* Cards: any bordered rounded-2xl panel becomes a parchment scroll. */
 #root main :is(article, section).rounded-2xl.border,
+#root main section.workspace-surface,
 #root main button.rounded-2xl.border {
   border: 1px solid rgb(128 79 35 / 40%);
   background-color: rgb(244 225 181 / 58%);
@@ -348,18 +349,20 @@ body::before {
 .book-menu-item > span:last-child { margin-left: auto; }
 .book-world { border-block: 1px solid var(--border); padding: 0.75rem 0; }
 .book-world summary { display: flex; align-items: center; gap: 0.5rem; width: fit-content; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
-.book-page { overflow: clip; min-height: 20rem; padding: clamp(0.65rem, 2vw, 1.5rem); border: 1px solid #b58b58; border-radius: 1rem; background: #fff0c933; box-shadow: inset 0 1px #fff4d9aa; }
+.book-page { overflow: clip; }
 .book-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: clamp(0.75rem, 2vw, 1.5rem); }
 .book-character-card { transform-origin: 50% 125%; position: relative; min-width: 0; padding: 0.55rem; border: 1px solid #a8773c; border-radius: 0.85rem; background: linear-gradient(145deg, #f5e2b2, #e2bc77); box-shadow: inset 0 0 0 4px #83532622, 0 0.2rem 0.5rem #45250f15; }
-.companion-card-open { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center; padding-bottom: 2.5rem; border-radius: 0.5rem; }
-.companion-card-portrait { width: 100%; overflow: hidden; border-radius: 0.5rem; background: radial-gradient(circle, #fff1c575, transparent); }
-.companion-card-portrait [role="img"] { border: 0; border-radius: 0; background-color: transparent; }
-.companion-card-name { width: 100%; overflow-wrap: anywhere; padding-inline: 0.25rem; color: #4e2d19; font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; }
+.book-character-card .workspace-card-open { align-items: center; gap: 0.6rem; text-align: center; }
+.book-character-card .workspace-card-preview { border-radius: 0.5rem; background: radial-gradient(circle, #fff1c575, transparent); }
+.book-character-card .workspace-card-preview > * { width: 100%; }
+.book-character-card .workspace-card-preview [role="img"] { border: 0; border-radius: 0; background-color: transparent; }
+.book-character-card .workspace-card-label { color: #4e2d19; font-size: 0.95rem; }
 .book-card-action { position: absolute; bottom: 0.35rem; right: 0.35rem; }
 .bookshelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 1.5rem; }
 .collection-cover { display: flex; min-width: 0; min-height: 19rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; border: 1px solid #986637; border-left: 0.5rem solid #644126; border-radius: 0.4rem 1rem 1rem 0.4rem; background: linear-gradient(120deg, #79522e, #51361f); color: #f3d899; text-align: center; box-shadow: inset 0 0 0 5px #deb46e33, 0.25rem 0.35rem 0 #d6b374, 0.4rem 0.6rem 1rem #45250f22; }
-.collection-cover h2 { font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700; overflow-wrap: anywhere; }
-#root .collection-cover h2 { color: inherit; }
+.collection-cover .workspace-card-open { align-items: center; justify-content: center; gap: 0.75rem; text-align: center; }
+.collection-cover .workspace-card-label { font-size: 1.35rem; }
+.collection-cover .workspace-card-meta { color: inherit; }
 .collection-cover-seal.aozu-icon { width: 6rem; height: 6rem; }
 .collection-cover:hover { filter: brightness(1.08); }
 .book-empty { display: flex; min-height: 20rem; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; text-align: center; }
@@ -368,7 +371,7 @@ body::before {
 .book-profile-form { display: grid; gap: 1.25rem; }
 .book-profile-form label { display: grid; gap: 0.5rem; font-weight: 600; }
 .book-profile-form input, .book-profile-form textarea { width: 100%; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--background); color: var(--foreground); font-weight: 400; }
-.book-switcher:focus-visible, .collection-cover:focus-visible, .companion-card-open:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+.collection-cover:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 @media (max-width: 600px) {
   .book-toolbar { flex-wrap: wrap; align-items: flex-start; gap: 0.75rem; }
   .book-toolbar > div:last-child { margin-left: auto; }
@@ -466,16 +469,17 @@ body::before {
   overflow: hidden;
 }
 
-/* Tabs share the glass document's top edge; character actions belong to the entire document. */
-.draft-workshop { --workspace-padding: 0.85rem; --workspace-tab-height: 2.75rem; --workspace-edge: #ecdbb2; }
-#root main.draft-workshop::before {
+/* Tabs share the glass document's top edge; the actions beside them belong to the entire document. */
+.workspace-panel { --workspace-padding: 24px; --workspace-tab-height: 2.75rem; --workspace-edge: #ecdbb2; }
+.workspace-panel.draft-workshop { --workspace-padding: 0.85rem; }
+#root .workspace-panel:has(> .workspace-tabs-bar)::before {
   top: calc(var(--workspace-padding) + var(--workspace-tab-height) - 1px);
   background: linear-gradient(180deg, var(--workspace-edge), rgb(232 209 160 / 38%) 12rem);
   box-shadow: inset 0 1px rgb(255 248 219 / 68%), 0 1.2rem 3rem rgb(72 39 20 / 8%), 0 0 2rem rgb(232 187 83 / 9%);
 }
-.character-workspace-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; flex-shrink: 0; }
-.character-workspace-tabs { display: flex; align-items: flex-end; gap: 0.2rem; min-width: 0; height: var(--workspace-tab-height); }
-.character-workspace-tabs .character-workspace-tab {
+.workspace-tabs-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; flex-shrink: 0; }
+.workspace-tabs { display: flex; align-items: flex-end; gap: 0.2rem; min-width: 0; height: var(--workspace-tab-height); }
+.workspace-tabs .workspace-tab {
   position: relative;
   height: calc(var(--workspace-tab-height) - 0.35rem);
   padding: 0.65rem 1rem;
@@ -488,8 +492,8 @@ body::before {
   transform: none;
   transition: background-color 150ms, color 150ms;
 }
-.character-workspace-tabs .character-workspace-tab:hover { background: rgb(255 242 201 / 36%); }
-.character-workspace-tabs .character-workspace-tab[aria-current="page"] {
+.workspace-tabs .workspace-tab:hover { background: rgb(255 242 201 / 36%); }
+.workspace-tabs .workspace-tab[aria-current="page"] {
   z-index: 1;
   height: var(--workspace-tab-height);
   border-color: rgb(125 77 35 / 34%);
@@ -498,46 +502,36 @@ body::before {
   font-weight: 700;
   box-shadow: inset 0 1px rgb(255 252 237 / 80%);
 }
-.character-workspace-tab[aria-current="page"]::after { content: ''; position: absolute; inset: auto 0 -1px; height: 2px; background: var(--workspace-edge); }
-.character-workspace-tab:focus-visible { z-index: 2; }
-.character-actions { padding-bottom: 0.3rem; }
-@media (min-width: 640px) { .draft-workshop { --workspace-padding: 1.5rem; } }
+.workspace-tab[aria-current="page"]::after { content: ''; position: absolute; inset: auto 0 -1px; height: 2px; background: var(--workspace-edge); }
+.workspace-tab:focus-visible { z-index: 2; }
+.workspace-actions { margin-left: auto; padding-bottom: 0.3rem; }
+@media (min-width: 640px) { .workspace-panel.draft-workshop { --workspace-padding: 1.5rem; } }
 @media (max-width: 639px) {
-  .character-workspace-bar { flex-wrap: wrap; gap: 0; }
-  .character-actions { margin-left: auto; padding-bottom: 0.5rem; }
-  .character-workspace-tabs { order: 1; width: 100%; }
-  .character-workspace-tabs .character-workspace-tab { flex: 1; padding-inline: 0.5rem; font-size: 0.75rem; }
-  #root main.draft-workshop::before { top: calc(var(--workspace-padding) + var(--workspace-tab-height) + 2.5rem - 1px); }
+  .workspace-tabs-bar { flex-wrap: wrap; gap: 0; }
+  .workspace-actions { margin-left: auto; padding-bottom: 0.5rem; }
+  .workspace-tabs { order: 1; width: 100%; }
+  .workspace-tabs .workspace-tab { flex: 1; padding-inline: 0.5rem; font-size: 0.75rem; }
+  /* Actions wrap above the tabs, so the backing starts one row lower. */
+  #root .workspace-panel:has(> .workspace-tabs-bar)::before { top: calc(var(--workspace-padding) + var(--workspace-tab-height) + 2.5rem - 1px); }
 }
-@media (prefers-reduced-motion: reduce) { .character-workspace-tabs .character-workspace-tab { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .workspace-tabs .workspace-tab { transition: none; } }
 
-.draft-workshop-grid {
+/* Columns follow the split's own width, measured by WorkspaceSplit, so a workspace stays correct inside any shell. */
+.workspace-split {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(7rem, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   align-items: stretch;
 }
 
-@media (min-width: 900px) {
-  .draft-workshop-grid {
-    grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr);
-  }
-}
+.workspace-split[data-split="wide"] { grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr); }
 
-.character-stage-panel,
-.character-profile-panel,
-.model-sheet,
-.doll-workbench {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  padding: 1rem;
-}
-
-.doll-workbench {
-  overflow: hidden;
-}
+/* Stacked, the aside lives in a drawer and its trigger overlays the split's top-right corner, claiming no row of
+   its own so the main column keeps the same geometry as a full-column workspace. Panels make room with the variable. */
+.workspace-split[data-split="stacked"] { --workspace-split-trigger: 2.75rem; }
+.workspace-split-trigger { position: absolute; z-index: 2; top: 1rem; right: 1rem; }
+.character-stage-preview > :first-child { padding-right: var(--workspace-split-trigger, 0); }
 
 .character-stage-preview {
   display: flex;
@@ -777,19 +771,9 @@ body::before {
   box-shadow: 0 0 0 2px rgb(181 126 38 / 18%);
 }
 
-.variant-preview {
-  display: flex;
-  aspect-ratio: 1;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 0.45rem;
-  background: rgb(112 68 34 / 8%);
-}
-
-.variant-preview.is-expression {
-  padding: 0.15rem;
-}
+.variant-card .workspace-card-open { gap: 0; }
+.variant-card .workspace-card-preview { padding: 0.45rem; background: rgb(112 68 34 / 8%); }
+.variant-card.is-expression .workspace-card-preview { padding: 0.15rem; }
 
 .expression-placeholder {
   width: 100%;
@@ -802,23 +786,17 @@ body::before {
   mix-blend-mode: multiply;
 }
 
-.variant-label {
-  display: block;
+.variant-card .workspace-card-label {
   overflow: hidden;
   padding: 0.4rem 0.3rem;
   color: #65411f;
-  font-weight: 700;
+  font-family: inherit;
+  overflow-wrap: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .variant-edit { position: absolute; top: 0.3rem; right: 0.3rem; }
-
-.add-variant {
-  display: flex;
-  flex-direction: column;
-  border-style: dashed;
-}
 
 .variant-editor-heading {
   display: grid;
@@ -913,12 +891,12 @@ body::before {
    Responsive
    --------------------------------------------------------------------------- */
 
-.character-workbench-drawer {
+.workspace-aside-drawer {
   width: min(26rem, calc(100vw - 2rem));
   max-width: none;
 }
 
-.character-workbench-drawer > :is(.doll-workbench, .character-profile-panel) {
+.workspace-aside-drawer > :not([data-slot]) {
   flex: 1;
   padding: 3.25rem 1rem 1rem;
   border: 0;
@@ -926,16 +904,12 @@ body::before {
 }
 
 @media (max-width: 899px) {
-  .draft-workshop-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .workbench-tabs {
     height: 3.5rem;
   }
 
   #root .workbench-tabs [data-slot="tabs-trigger"],
-  .character-workbench-drawer .workbench-tabs [data-slot="tabs-trigger"] {
+  .workspace-aside-drawer .workbench-tabs [data-slot="tabs-trigger"] {
     flex-direction: column;
     gap: 0.1rem;
     padding-inline: 0.15rem;
@@ -956,7 +930,7 @@ body::before {
   .draft-workshop {
     height: auto;
   }
-  .draft-workshop > .draft-workshop-grid {
+  .draft-workshop > .workspace-split {
     min-height: 32rem;
   }
 }
@@ -985,7 +959,7 @@ body::before {
     border-radius: 1rem;
   }
 
-  .draft-workshop-grid {
+  .workspace-split {
     gap: 0.5rem;
   }
 
@@ -993,21 +967,16 @@ body::before {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .character-stage-panel,
-  .character-profile-panel,
-  .model-sheet,
-  .doll-workbench {
-    padding: 0.5rem;
-  }
+  .workspace-split-trigger { top: 0.5rem; right: 0.5rem; }
   .workbench-content > h3 {
     white-space: normal;
   }
 }
 
 /* One continuous drawing sheet inside the shared workshop shell. */
-.model-sheet-toolbar { align-items: start; }
-#root main section.model-sheet.rounded-2xl.border { background: #eee; }
-.model-sheet-content { padding: clamp(1rem, 3vw, 2.5rem); color: #333; }
+.model-sheet-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+@media (min-width: 900px) { .model-sheet-toolbar { grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr); } }
+.model-sheet-content { padding: clamp(1rem, 3vw, 2.5rem); }
 .model-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2.5rem 1.5rem; }
 .model-sheet-card { overflow: visible; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; box-shadow: none; }
 .model-sheet-content :is(h2, h3), .model-sheet-card > p { font-family: "LXGW WenKai TC", cursive; font-weight: 400; letter-spacing: 0.025em; color: #4a4a46; }
@@ -1026,13 +995,7 @@ body::before {
 
 /* Storyboards share the library's paper palette;  originals are never cropped. */
 
-.story-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin:28px 0}
-
-.story-heading h1 { font-family:var(--font-heading); font-size:clamp(26px,3vw,40px); font-weight:600; overflow-wrap:anywhere}
-
-.story-heading p:not(.story-eyebrow) { color:var(--muted-foreground); margin-top:8px; font-size:14px}
-
-.story-eyebrow { font-size:11px; letter-spacing:.18em; color:var(--muted-foreground)}
+.story-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin:0 0 16px}
 
 .story-toolbar,.story-create { display:flex; gap:12px; justify-content:space-between; align-items:center; margin:20px 0; flex-wrap:wrap}
 
@@ -1078,6 +1041,7 @@ body::before {
 .story-settings form { margin-top:16px}
 .story-library { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:24px}
 .story-library>a { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--card)}
+.story-add-card { border:1px dashed var(--border); border-radius:14px}
 .story-library>a>div:last-child { padding:16px}
 .story-library h2 { font-weight:600}
 .story-library p { font-size:13px; color:var(--muted-foreground); margin-top:6px}
@@ -1087,8 +1051,7 @@ body::before {
 .story-home-tool p { font-size:13px; color:var(--muted-foreground); margin-top:5px}
 .story-home-tool strong { margin-left:auto; font-size:13px}
 
-@media(max-width:700px) { .story-workspace { padding:16px}
-.story-heading { align-items:flex-start; flex-direction:column; gap:16px}
+@media(max-width:700px) { .story-heading { align-items:flex-start; flex-direction:column; gap:16px}
 .story-detail-grid { grid-template-columns:1fr}
 .story-home-tool { flex-wrap:wrap; padding:18px}
 .story-home-tool strong { margin-left:0}
@@ -1101,23 +1064,19 @@ body::before {
 .story-compare figcaption { font-size:12px; overflow-wrap:anywhere; margin-top:6px; color:var(--muted-foreground) }
 
 /* The three library areas share the same page rhythm and native form controls. */
-.world-workspace { width: min(100%, 1152px); margin: 0 auto; padding: clamp(16px, 3vw, 32px); }
 .world-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
-.world-heading > div:first-child { min-width: 0; flex: 1 1 240px; }
 .world-heading h1 { font-family: var(--font-heading); font-size: clamp(26px, 4vw, 36px); font-weight: 700; overflow-wrap: anywhere; }
 .world-heading p { max-width: 65ch; }
 .world-eyebrow { font-size: 12px; letter-spacing: .12em; margin-bottom: 8px; }
-.world-actions, .world-tabs, .world-breadcrumb, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.world-tabs { margin: 16px 0 24px; border-bottom: 1px solid var(--border); }
-.world-tabs a { padding: 12px; }
-.world-tabs [aria-current] { border-bottom: 3px solid currentColor; font-weight: 700; }
+.world-actions, .world-breadcrumb, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .world-breadcrumb { font-size: 14px; gap: 6px; }
 .world-breadcrumb a:hover, .world-folder-list a:hover { text-decoration: underline; }
 .world-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 18px; }
 .world-card { min-width: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--card); }
-.world-card > div:last-child { padding: 16px; }
-.world-card h3 { display: flex; align-items: center; gap: 8px; font-weight: 600; overflow-wrap: anywhere; }
-.world-card p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.world-card .workspace-card-open { gap: 0; }
+.world-card .workspace-card-label { display: flex; align-items: center; gap: 8px; padding: 16px 16px 0; font-weight: 600; }
+.world-card .workspace-card-meta { padding: 4px 16px 16px; white-space: pre-wrap; }
+.world-card-remove { margin: 0 16px 16px; }
 .world-picture { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); min-width: 0; }
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 .world-workspace > .world-picture { max-height: 65vh; margin-bottom: 20px; }
@@ -1176,30 +1135,40 @@ body::before {
 .collection-move-grid .collection-cover:disabled { opacity: .55; cursor: default; filter: none; }
 .collection-move-sheet { background: var(--background); }
 
-/* Storyboard sheets follow the character workspace's compact toolbar and paper surface. */
-.story-workspace[data-board-id] .story-heading { margin: 0 0 16px; gap: 16px; flex-wrap: wrap; }
-.story-workspace[data-board-id] .story-heading h1 { font-size: clamp(22px, 2.5vw, 30px); }
-.story-workspace[data-board-id] .story-heading .story-eyebrow,
-.story-workspace[data-board-id] .story-heading p:not(.story-eyebrow) { display: none; }
-.model-sheet-content { scrollbar-width: none; }
-.model-sheet-content::-webkit-scrollbar { display: none; }
-
 /* Canonical character document surface and its reusable layout slots. */
 .workspace-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; width: 100%; max-width: 1152px; min-width: 0; margin: 0 auto; padding: 24px; }
 .workspace-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; flex-shrink: 0; }
 .workspace-toolbar > :first-child { min-width: 0; }
+.workspace-surface { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; margin-top: 0.5rem; padding: 1rem; border-radius: 1rem; }
+@media (min-width: 640px) { .workspace-surface { margin-top: 0.75rem; } }
+@media (max-width: 640px) { .workspace-surface { padding: 0.5rem; } }
+#root main section.workspace-surface[data-workspace-surface="paper"] { background: #eee; color: #333; }
 .workspace-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
 .workspace-scroll::-webkit-scrollbar { display: none; }
 .workspace-scroll:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .workspace-add { display: flex; flex-wrap: wrap; gap: 12px; padding: 18px 0 6px; }
-@media (max-width: 700px) { .workspace-panel { padding: 14px; } }
+/* One tile shape for every grid; each grid's own card class supplies the frame around it. */
+.workspace-card { position: relative; min-width: 0; }
+.workspace-card-open { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 0.5rem; border-radius: inherit; }
+.workspace-card-preview { display: grid; place-items: center; width: 100%; overflow: hidden; }
+.workspace-card-label { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-heading); font-weight: 700; }
+.workspace-card-meta { min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; font-weight: 400; color: var(--muted-foreground); }
+.workspace-card-open:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+
+/* Adding is the same tile with a plus where the preview would be. */
+.workspace-add-card { border-style: dashed; background: rgb(248 229 182 / 30%); color: #7d5326; box-shadow: none; }
+.workspace-add-card:hover { background: rgb(248 229 182 / 55%); }
+.workspace-add-card .workspace-card-open { align-items: center; justify-content: center; text-align: center; }
+/* A collection cover's thick spine is part of the book, not of an empty slot. */
+.workspace-add-card.collection-cover { border-left-width: 1px; }
+@media (max-width: 700px) { .workspace-panel { --workspace-padding: 14px; padding: 14px; } }
 
 /* Reading order: frame on the left, camera/action notes on the right. */
 .story-workspace > .workspace-scroll { padding: 0 2px; }
 .workspace-scroll > .world-picture { max-height: 65vh; }
 
 /* A single drawing sheet owns the scroll; the document controls stay outside. */
-.story-document { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.story-document { padding: 0.5rem; }
 .story-document > .world-section { flex: none; margin: 4px 0 12px; }
 .story-document > .world-section .world-heading { margin: 0; }
 .story-document > .world-section select { width: auto; max-width: 100%; }

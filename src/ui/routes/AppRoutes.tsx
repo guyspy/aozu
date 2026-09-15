@@ -2,6 +2,7 @@ import { AozuIcon } from '@/ui/AozuIcon'
 import { FolderInputIcon } from 'lucide-react'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import type { CharacterCollection } from '@/core/domain/character-collection'
 import { Breadcrumbs } from '@/ui/Breadcrumbs'
 import { useWorldLibrary } from '@/ui/useWorldLibrary'
@@ -17,6 +18,7 @@ import { DEFAULT_CHARACTER_COLLECTION } from '@/core/domain/character-collection
 import type { Application } from '@/bootstrap.ts'
 import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
+import { CollectionActions } from '@/ui/CollectionActions'
 import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StoryboardPage } from '@/ui/pages/StoryboardPage'
@@ -33,7 +35,7 @@ function CharacterEditor({ application, collections, refresh, savedRevision, web
   return <CharacterDraftPage
     key={characterId}
     collectionControl={characterId !== 'new' && <>
-      <Button size="icon" variant="outline" aria-label={t('books.move')} title={t('books.move')} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button>
+      <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('books.move')} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button></TooltipTrigger><TooltipContent>{t('books.move')}</TooltipContent></Tooltip>
       <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><SheetContent className="collection-move-sheet overflow-y-auto p-6" aria-describedby={undefined}><SheetTitle className="font-heading text-xl">{t('books.move')}</SheetTitle>
         <div className="collection-move-grid mt-6">{collections.map((collection) => <button type="button" className="collection-cover" key={collection.id} disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
           setBusy(true); setError('')
@@ -74,6 +76,8 @@ export function AppRoutes({ application }: { application: Application }) {
   const location = useLocation()
   const world = useWorldLibrary(application.worldLibrary)
   const [webmcp, setWebmcp] = useState(application.webmcp.getState())
+  // Storyboards load inside their page, so it reports the open board's name for the header.
+  const [boardTitle, setBoardTitle] = useState<string>()
   const [library, setLibrary] = useState<Awaited<ReturnType<Application['loadCharacterLibrary']>>>()
   const [loadError, setLoadError] = useState(false)
   useLayoutEffect(() => { document.getElementById('root')?.scrollTo(0, 0) }, [location.pathname])
@@ -125,6 +129,15 @@ export function AppRoutes({ application }: { application: Application }) {
   const characterBook = library.collections.find(({ characterIds }) => characterId && characterIds.includes(characterId))?.id ?? DEFAULT_CHARACTER_COLLECTION
   const parts = location.pathname.split('/').filter(Boolean)
   const place = parts[2] === 'locations' ? world.library.locations.find((l) => l.id === parts[3]) : undefined
+  const collection = parts[0] === 'collections' && parts[1] ? library.collections.find((c) => c.id === parts[1]) : undefined
+  const album = parts[0] === 'albums' && parts[1] ? world.library.albums.find((a) => a.id === parts[1]) : undefined
+  const photo = album && parts[2] === 'photos' ? world.library.photos.find((pic) => pic.id === parts[3] && pic.albumId === album.id) : undefined
+  const named = (value: { id: string; name: string }, fallback: string) => value.id === 'default' ? t(fallback) : value.name
+  // The header names the document being worked on; list pages stay on the product name.
+  const documentTitle = character?.name ?? place?.name ?? photo?.name
+    ?? (album ? named(album, 'world.defaultAlbum') : undefined)
+    ?? (collection ? named(collection, 'world.defaultCollection') : undefined)
+    ?? (parts[0] === 'storyboards' ? boardTitle : undefined)
   const boardFolder = parts[0] === 'storyboards' ? world.library.boardFolders[parts[1]] : undefined
   const backPath = editing ? `/collections/${characterBook}`
     : place ? `/collections/${place.collectionId}/locations${locationAncestors(world.library, place.id).at(-2) ? `/${place.parentId}` : ''}`
@@ -140,8 +153,8 @@ export function AppRoutes({ application }: { application: Application }) {
   if (parts[0] === 'collections' || editing) {
     addCrumb(t('world.collections'), '/collections')
     const id = editing ? characterBook : parts[1]
-    const collection = library.collections.find((c) => c.id === id)
-    if (collection) addCrumb(id === 'default' ? t('world.defaultCollection') : collection.name, `/collections/${id}`)
+    const crumbCollection = library.collections.find((c) => c.id === id)
+    if (crumbCollection) addCrumb(named(crumbCollection, 'world.defaultCollection'), `/collections/${id}`)
     if (parts[2] === 'locations') {
       addCrumb(t('world.locations'), `/collections/${id}/locations`)
       if (place) for (const ancestor of locationAncestors(world.library, place.id)) addCrumb(ancestor.name, `/collections/${id}/locations/${ancestor.id}`)
@@ -149,24 +162,17 @@ export function AppRoutes({ application }: { application: Application }) {
     if (editing) addCrumb(character?.name ?? t('world.createCharacter'), location.pathname)
   } else if (parts[0] === 'albums') {
     addCrumb(t('world.albums'), '/albums')
-    const album = world.library.albums.find((a) => a.id === parts[1])
-    if (album) addCrumb(album.id === 'default' ? t('world.defaultAlbum') : album.name, `/albums/${album.id}`)
-    const photo = world.library.photos.find((p) => p.id === parts[3] && p.albumId === album?.id)
+    if (album) addCrumb(named(album, 'world.defaultAlbum'), `/albums/${album.id}`)
     if (photo) addCrumb(photo.name, location.pathname)
   }
 
-  const libraryPage = <CharacterLibraryPage
-    characters={library.characters}
-    loadThumbnail={application.loadCharacterThumbnail}
-    collections={library.collections}
-    locationCounts={Object.fromEntries(library.collections.map((c) => [c.id, world.library!.locations.filter((l) => l.collectionId === c.id).length]))}
-    createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
+  const collectionActions = <CollectionActions
+    collection={collection}
     updateCollection={application.updateCollection}
     deleteCollection={application.deleteCollection}
     exportLibrary={application.exportCharacterLibrary}
     prepareLibraryImport={application.prepareCharacterLibraryImport}
     importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
-    openCharacter={(id) => navigate(`/characters/${encodeURIComponent(id)}/expressions`)}
     importCharacter={async (blob) => {
       const imported = await application.importCharacter(blob)
       await refresh()
@@ -174,12 +180,22 @@ export function AppRoutes({ application }: { application: Application }) {
     }}
     refresh={refresh}
   />
-  const worldPage = <WorldLibraryPage key={location.pathname} service={application.worldLibrary} library={world.library} collections={library.collections} />
-  const storyPage = <StoryboardPage key={location.pathname} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
+  const libraryPage = <CharacterLibraryPage
+    characters={library.characters}
+    loadThumbnail={application.loadCharacterThumbnail}
+    collections={library.collections}
+    locationCounts={Object.fromEntries(library.collections.map((c) => [c.id, world.library!.locations.filter((l) => l.collectionId === c.id).length]))}
+    createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
+    openCharacter={(id) => navigate(`/characters/${encodeURIComponent(id)}/expressions`)}
+    refresh={refresh}
+    actions={collectionActions}
+  />
+  const worldPage = <WorldLibraryPage key={location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
+  const storyPage = <StoryboardPage key={location.pathname} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
   return <>
     <AppHeader
       webmcp={webmcp}
-      title={character?.name}
+      title={documentTitle}
       onBack={backPath ? () => navigate(backPath) : undefined}
     />
     {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
@@ -191,6 +207,7 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route path="/albums" element={worldPage} />
       <Route path="/albums/:albumId" element={worldPage} />
       <Route path="/albums/:albumId/photos/:photoId" element={worldPage} />
+      <Route path="/collections/:collectionId/profile" element={libraryPage} />
       <Route path="/collections/:collectionId/locations" element={worldPage} />
       <Route path="/collections/:collectionId/locations/:locationId" element={worldPage} />
       <Route path="/collections" element={libraryPage} />

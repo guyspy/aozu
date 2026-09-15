@@ -58,9 +58,9 @@ root.render(h(StrictMode, null, h(MemoryRouter, { initialEntries: ['/collections
 const releaseDecode = (character) => decodes.get(character.variants[0].layers.body.blob).resolve()
 try {
   for (const character of characters) {
-    await ready(() => document.querySelector('.companion-card-open'))
-    const cards = [...document.querySelectorAll('.companion-card-open')]
-    cards.find((button) => button.querySelector('.companion-card-name').textContent === character.name).click()
+    await ready(() => document.querySelector('.book-character-card:not(.workspace-add-card) .workspace-card-open'))
+    const cards = [...document.querySelectorAll('.book-character-card:not(.workspace-add-card) .workspace-card-open')]
+    cards.find((button) => button.querySelector('.workspace-card-label').textContent === character.name).click()
     await wait(80)
     check(!document.querySelector('.character-stage-canvas'), 'Pending character read must not show the previous editor')
     reads.get(character.id).resolve()

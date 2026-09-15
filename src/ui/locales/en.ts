@@ -16,6 +16,7 @@ export const en = {
     default: 'My settings', shelf: 'Collections', all: 'All collections', switch: 'Switch collection',
     create: 'New collection', name: 'Collection name', description: 'Description', profile: 'Collection details',
     world: 'World background', editWorld: 'Edit world background', save: 'Save collection',
+    noDescription: 'No description yet.', noWorld: 'No world background yet.',
     worldHint: 'The setting, history, and rules shared by this collection’s characters and locations. ChatGPT can use this context alongside each character’s own backstory.',
     createHint: 'Organize characters and locations here, then add the shared world background in Collection details.',
     actions: 'Collection and library actions', characterActions: 'Actions for {{name}}', move: 'Move to collection',

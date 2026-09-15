@@ -32,7 +32,7 @@ export function AppHeader({ webmcp, title, onBack }: AppHeaderProps) {
             <AozuIcon name="book" />
             {!title && <span className="font-heading text-lg font-semibold">{t('common.productName')}</span>}
           </Link>
-          {title && <span className="truncate font-heading text-lg font-semibold">{title}</span>}
+          {title && <h1 className="truncate font-heading text-lg font-semibold">{title}</h1>}
         </div>
         <div className="flex items-center gap-2">
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>

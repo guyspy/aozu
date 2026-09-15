@@ -35,6 +35,7 @@ export const zhTW: Messages = {
   },
   draft: { name: '角色名稱', download: '匯出角色' },
   books: { ...en.books, default: '我的設定', shelf: '我的收藏', all: '所有設定集', switch: '切換設定集',
+    noDescription: '還沒有簡介。', noWorld: '還沒有世界觀設定。',
     create: '建立設定集', name: '設定集名稱', description: '簡介', profile: '設定集資料', world: '世界觀', editWorld: '編輯世界觀', save: '儲存設定集',
     worldHint: '這個設定集中角色與場景共用的背景、歷史與世界規則。ChatGPT 可以搭配每個角色自己的背景故事使用。',
     createHint: '把角色與場景整理進這個設定集，再從「設定集資料」加入世界觀。', actions: '設定集與備份選單', characterActions: '「{{name}}」的操作', move: '移至設定集',

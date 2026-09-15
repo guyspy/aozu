@@ -1,4 +1,4 @@
-import { WorkspaceScroll } from '@/ui/Workspace'
+import { WorkspaceScroll, WorkspaceSurface } from '@/ui/Workspace'
 import { ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,8 +57,8 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     </Card>
   }
 
-  return <section className="model-sheet mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border bg-background sm:mt-3" aria-label={t('modelSheet.title')} data-reference-view={view}>
-    <div className="model-sheet-toolbar draft-workshop-grid shrink-0">
+  return <WorkspaceSurface surface="paper" className="model-sheet" aria-label={t('modelSheet.title')} data-reference-view={view}>
+    <div className="model-sheet-toolbar shrink-0">
       <div className="min-w-0">{appearanceSelector}</div>
     </div>
     <WorkspaceScroll className="model-sheet-content mt-3">
@@ -145,5 +145,5 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
         </>}
       </SheetContent>
     </Sheet>
-  </section>
+  </WorkspaceSurface>
 }
