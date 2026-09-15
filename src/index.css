@@ -842,7 +842,7 @@ body::before {
 .world-card .workspace-card-label { display: flex; align-items: center; gap: 8px; padding: 16px 16px 0; font-weight: 600; }
 .world-card .workspace-card-meta { padding: 4px 16px 16px; white-space: pre-wrap; }
 .world-card-remove { margin: 0 16px 16px; }
-.world-picture { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); min-width: 0; }
+.world-picture { position: relative; display: grid; width: 100%; min-width: 0; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); }
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }

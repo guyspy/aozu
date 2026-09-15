@@ -3,7 +3,7 @@ import { jsonSchemaToZod, type JsonSchema } from '@aotter/mantle-spec'
 export const STORYBOARD_NAMESPACE = 'aozu-storyboards'
 export const STORYBOARD_LIMITS = { frames: 100, candidates: 500, imageBytes: 5 * 1024 * 1024, dimension: 4096, pixels: 16 * 1024 * 1024 }
 export interface BoardImage { id: string; filename: string; sha256: string; width: number; height: number; size: number; source: string }
-export interface SettingSnapshot { id: string; kind: 'character' | 'location' | 'photo'; sourceId: string; revision: number; name: string; details: string }
+export interface SettingSnapshot { id: string; kind: 'character' | 'location' | 'photo'; sourceId: string; revision: number; name: string; details: string; sha256?: string }
 export interface BoardFrame {
   settings?: SettingSnapshot[]
   id: string; title: string; notes: string; candidates: string[]; selected: string | null
@@ -18,9 +18,10 @@ export interface Storyboard extends BoardContent {
 const str = (maxLength = 8000): JsonSchema => ({ type: 'string', maxLength })
 const id: JsonSchema = { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,100}$' }
 const obj = (properties: Record<string, JsonSchema>, required: string[] = []): JsonSchema => ({ type: 'object', properties, required, additionalProperties: false })
-const settingSchema = obj({ id, kind: { enum: ['character', 'location', 'photo'] }, sourceId: id, revision: { type: 'integer', minimum: 0 }, name: str(200), details: str(32000) }, ['id', 'kind', 'sourceId', 'revision', 'name', 'details'])
+const settingSchema = obj({ id, kind: { enum: ['character', 'location', 'photo'] }, sourceId: id, revision: { type: 'integer', minimum: 0 }, name: str(200), details: str(32000), sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['id', 'kind', 'sourceId', 'revision', 'name', 'details'])
 export const STORYBOARD_UPDATE_SCHEMA = obj({
   setting: settingSchema,
+  settings: { type: 'array', items: settingSchema, maxItems: 20 },
   boardId: id, expectedRevision: { type: 'integer', minimum: 0 },
   action: { enum: ['create', 'rename', 'add-frame', 'edit-frame', 'remove-frame', 'reorder', 'add-candidate', 'select', 'reference', 'pin-setting', 'unpin-setting', 'undo', 'redo'] },
   name: str(120), notes: str(), frameId: id, title: str(160),
@@ -34,6 +35,7 @@ export const STORYBOARD_UPDATE_SCHEMA = obj({
 const validator = jsonSchemaToZod(STORYBOARD_UPDATE_SCHEMA)
 export interface BoardCommand {
   setting?: SettingSnapshot
+  settings?: SettingSnapshot[]
   action: string; boardId?: string; expectedRevision?: number; name?: string; notes?: string; frameId?: string; title?: string
   order?: string[]; imageId?: string; filename?: string; source?: string; dataUrl?: string
   review?: BoardFrame['review']; transition?: string; duration?: number | null; purpose?: string; remove?: boolean
@@ -83,7 +85,10 @@ export function applyBoardCommand(board: Storyboard, command: BoardCommand, imag
       const f = requireFrame()
       if (!image) throw new Error('PNG image is required')
       if (next.images.length >= STORYBOARD_LIMITS.candidates) throw new Error('Candidate limit reached')
+      if ((f.settings?.length ?? 0) + (command.settings?.length ?? 0) > 20) throw new Error('At most 20 setting snapshots per frame')
+      if (command.settings?.some((setting) => f.settings?.some(({ id }) => id === setting.id)) || new Set(command.settings?.map(({ id }) => id)).size !== (command.settings?.length ?? 0)) throw new Error('Duplicate setting snapshots')
       next.images.push(image); f.candidates.push(image.id)
+      if (command.settings?.length) f.settings = [...(f.settings ?? []), ...structuredClone(command.settings)]
       // A candidate is never a selection, including the first upload.
       break
     }

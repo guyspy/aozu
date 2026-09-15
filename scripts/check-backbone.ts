@@ -15,7 +15,7 @@ assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.h
 assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.input.properties?.expectedVersion?.type, 'number')
 assert.equal(authoring.triggers["select-experience-draft"]?.target, "select-experience-draft")
 assert.equal(authoring.triggers['inspect-workspace']?.target, 'inspect-workspace')
-assert.equal(authoring.triggers['navigate-character']?.target, 'navigate-character')
+assert.equal(authoring.triggers['navigate-workspace']?.target, 'navigate-workspace')
 assert.equal(authoring.triggers['update-character-profile']?.target, 'update-character-profile')
 assert.equal(authoring.triggers['create-local-companion']?.target, 'create-local-companion')
 assert.equal(authoring.triggers["submit-experience-candidate"]?.target, "submit-experience-candidate")

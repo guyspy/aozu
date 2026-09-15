@@ -4,7 +4,7 @@ export const WORLD_NAMESPACE = 'aozu-world-library'
 export interface LibraryGroup { id: string; name: string; description: string; updatedAt: number }
 export interface AlbumPhoto extends LibraryGroup { albumId: string; source: string; image: LibraryImage }
 export interface LibraryImage { sha256: string; filename: string; mediaType: string; width: number; height: number; size: number }
-export interface SettingImage { id: string; label: string; purpose: 'inspiration' | 'design'; photoId: string; image: LibraryImage; source: string }
+export interface SettingImage { id: string; label: string; purpose: 'inspiration' | 'design'; photoId?: string; image: LibraryImage; source: string }
 export interface LocationCondition extends LibraryGroup { images: SettingImage[] }
 export interface LocationSetting extends LibraryGroup {
   collectionId: string; parentId: string | null; tags: string[]; consistency: string
@@ -22,7 +22,8 @@ const obj = (properties: Record<string, JsonSchema>): JsonSchema => ({ type: 'ob
 const array = (items: JsonSchema, maxItems = 1000): JsonSchema => ({ type: 'array', items, maxItems })
 const group = { id, name: { type: 'string', minLength: 1, maxLength: 120 }, description: str(), updatedAt: { type: 'integer', minimum: 0 } } satisfies Record<string, JsonSchema>
 const image = obj({ sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' }, filename: str(200), mediaType: { enum: ['image/png', 'image/jpeg', 'image/webp'] }, width: { type: 'integer', minimum: 1, maximum: 4096 }, height: { type: 'integer', minimum: 1, maximum: 4096 }, size: { type: 'integer', minimum: 1, maximum: 5242880 } })
-const settingImage = obj({ id, label: str(120), purpose: { enum: ['inspiration', 'design'] }, photoId: id, image, source: str(2000) })
+const settingImageProperties = { id, label: str(120), purpose: { enum: ['inspiration', 'design'] }, photoId: id, image, source: str(2000) } satisfies Record<string, JsonSchema>
+const settingImage: JsonSchema = { type: 'object', properties: settingImageProperties, required: ['id', 'label', 'purpose', 'image', 'source'], additionalProperties: false }
 export const WORLD_LIBRARY_SCHEMA = obj({
   revision: { type: 'integer', minimum: 0 }, albums: array(obj(group)), photos: array(obj({ ...group, albumId: id, source: str(2000), image })),
   locations: array(obj({ ...group, collectionId: id, parentId: { oneOf: [id, { type: 'null' }] }, tags: array(str(40), 30), consistency: str(), images: array(settingImage, 100), conditions: array(obj({ ...group, images: array(settingImage, 100) }), 100) })),

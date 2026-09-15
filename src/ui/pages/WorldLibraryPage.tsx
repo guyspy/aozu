@@ -12,7 +12,7 @@ import { Button } from '@/ui/components/ui/button'
 import { Sheet } from '@/ui/components/ui/sheet'
 import { WorldPicture } from '@/ui/WorldPicture'
 
-type Editing = { kind: 'album' | 'photo' | 'location' | 'condition'; value: LibraryGroup | AlbumPhoto | LocationSetting | LocationCondition; snapshot: WorldLibrary }
+type Editing = { kind: 'album' | 'photo' | 'location' | 'condition'; value: LibraryGroup | AlbumPhoto | LocationSetting | LocationCondition; revision: number; isNew: boolean }
 export function WorldLibraryPage({ service, library, collections, actions }: { service: WorldLibraryService; library: WorldLibrary; collections: CharacterCollection[]; actions: ReactNode }) {
   const { t } = useTranslation(), text = (key: string) => t(`world.${key}`)
   const { collectionId, locationId, albumId, photoId } = useParams(), navigate = useNavigate()
@@ -24,35 +24,26 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
   const run = async (task: () => Promise<void>) => { setBusy(true); setError(''); try { await task() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
   const begin = (kind: Editing['kind'], value?: Editing['value']) => {
     const group = { id: crypto.randomUUID(), name: '', description: '', updatedAt: 0 }
-    setError(''); setEditing({ kind, snapshot: structuredClone(library), value: value ?? (kind === 'location' ? { ...group, collectionId: collectionId!, parentId: locationId ?? null, tags: [], consistency: '', images: [], conditions: [] } : kind === 'condition' ? { ...group, images: [] } : group) })
+    setError(''); setEditing({ kind, revision: library.revision, isNew: !value, value: value ?? (kind === 'location' ? { ...group, collectionId: collectionId!, parentId: locationId ?? null, tags: [], consistency: '', images: [], conditions: [] } : kind === 'condition' ? { ...group, images: [] } : group) })
   }
   const save = (data: FormData) => run(async () => {
     if (!editing) return
-    const { kind, snapshot, value } = editing, next = structuredClone(snapshot)
-    const updated = { ...value, name: String(data.get('name')).trim(), description: String(data.get('description') ?? ''), updatedAt: Date.now() }
-    if (kind === 'album') next.albums = [...next.albums.filter((a) => a.id !== value.id), updated]
-    if (kind === 'photo') next.photos = next.photos.map((p) => p.id === value.id ? { ...p, ...updated, albumId: String(data.get('albumId')), source: String(data.get('source')) } : p)
-    if (kind === 'location') {
-      const target = String(data.get('collectionId')), original = value as LocationSetting
-      const location = { ...original, ...updated, collectionId: target, parentId: String(data.get('parentId') ?? '') || null, consistency: String(data.get('consistency')), tags: [...new Set(String(data.get('tags')).split(/[,，]/).map((tag) => tag.trim()).filter(Boolean))] }
-      // Moving a place also moves its contained places; their local hierarchy is preserved.
-      next.locations = next.locations.map((l) => locationAncestors(snapshot, l.id).some((a) => a.id === value.id) ? { ...l, collectionId: target } : l).filter((l) => l.id !== value.id)
-      next.locations.push(location)
-    }
-    if (kind === 'condition') next.locations = next.locations.map((l) => l.id === locationId ? { ...l, conditions: [...l.conditions.filter((c) => c.id !== value.id), updated as LocationCondition], updatedAt: Date.now() } : l)
-    await service.save(next); setEditing(undefined)
-    if (kind === 'album') navigate(`/albums/${updated.id}`)
-    if (kind === 'location') navigate(`/collections/${data.get('collectionId')}/locations/${updated.id}`)
-    if (kind === 'photo') navigate(`/albums/${data.get('albumId')}/photos/${updated.id}`)
+    const { kind, value, revision, isNew } = editing, fields = { id: value.id, name: String(data.get('name')).trim(), description: String(data.get('description') ?? '') }
+    const command = kind === 'album' ? { resource: 'album' as const, action: isNew ? 'create' as const : 'update' as const, ...fields }
+      : kind === 'photo' ? { resource: 'photo' as const, action: 'update' as const, ...fields, albumId: String(data.get('albumId')), source: String(data.get('source')) }
+      : kind === 'location' ? { resource: 'location' as const, action: isNew ? 'create' as const : 'update' as const, ...fields, collectionId: String(data.get('collectionId')), parentId: String(data.get('parentId') ?? '') || null, consistency: String(data.get('consistency')), tags: String(data.get('tags')).split(/[,，]/).map((item) => item.trim()).filter(Boolean) }
+      : { resource: 'condition' as const, action: isNew ? 'create' as const : 'update' as const, locationId: locationId!, ...fields }
+    const result = await service.update(command, revision); setEditing(undefined)
+    if (kind === 'album') navigate(`/albums/${result.id}`)
+    if (kind === 'location') navigate(`/collections/${data.get('collectionId')}/locations/${result.id}`)
+    if (kind === 'photo') navigate(`/albums/${data.get('albumId')}/photos/${result.id}`)
   })
   const remove = () => run(async () => {
     if (!editing) return
-    const { snapshot, kind, value } = editing, next = structuredClone(snapshot)
-    if (kind === 'album') { if (value.id === 'default') return; next.albums = next.albums.filter((a) => a.id !== value.id); next.photos = next.photos.map((p) => p.albumId === value.id ? { ...p, albumId: 'default' } : p) }
-    if (kind === 'photo') next.photos = next.photos.filter((p) => p.id !== value.id)
-    if (kind === 'location') next.locations = next.locations.filter((l) => l.id !== value.id).map((l) => l.parentId === value.id ? { ...l, parentId: (value as LocationSetting).parentId } : l)
-    if (kind === 'condition') next.locations = next.locations.map((l) => l.id === locationId ? { ...l, conditions: l.conditions.filter((c) => c.id !== value.id) } : l)
-    await service.save(next); setEditing(undefined)
+    const { kind, value, revision } = editing
+    const command = kind === 'condition' ? { resource: 'condition' as const, action: 'delete' as const, locationId: locationId!, id: value.id }
+      : { resource: kind as 'album' | 'photo' | 'location', action: 'delete' as const, id: value.id }
+    await service.update(command, revision); setEditing(undefined)
     if (kind === 'album') navigate('/albums')
     if (kind === 'photo') navigate(`/albums/${albumId}`)
     if (kind === 'location') navigate(`/collections/${collectionId}/locations${(value as LocationSetting).parentId ? `/${(value as LocationSetting).parentId}` : ''}`)
@@ -63,10 +54,10 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
   const settingImages = (images: SettingImage[], conditionId = '') => <section className="world-grid">
     {images.map((image) => <WorkspaceCard key={image.id} className="world-card" aspect="4 / 3" label={image.label}
       meta={<>{text(image.purpose)}<br />{image.source}</>}
-      action={<Button variant="ghost" size="sm" className="world-card-remove" disabled={busy} onClick={() => void run(async () => { const next = structuredClone(library), l = next.locations.find((l) => l.id === locationId)!; const target = conditionId ? l.conditions.find((c) => c.id === conditionId)! : l; target.images = target.images.filter((i) => i.id !== image.id); l.updatedAt = Date.now(); await service.save(next) })}>{text('remove')}</Button>}>
+      action={<Button variant="ghost" size="sm" className="world-card-remove" disabled={busy} onClick={() => void run(async () => { await service.update({ resource: 'reference', action: 'delete', locationId: locationId!, conditionId: conditionId || undefined, id: image.id }, library.revision) })}>{text('remove')}</Button>}>
       <WorldPicture service={service} hash={image.image.sha256} alt={image.label} />
     </WorkspaceCard>)}
-    <WorkspaceAddCard className="world-card" aspect="4 / 3" label={text('addReference')} onClick={() => setReference({ snapshot: structuredClone(library), locationId: locationId ?? '', conditionId, photoId: '' })} />
+    <WorkspaceAddCard className="world-card" aspect="4 / 3" label={text('addReference')} onClick={() => setReference({ snapshot: library, locationId: locationId ?? '', conditionId, photoId: '' })} />
   </section>
   if ((albumId && !album) || (photoId && !photo) || (locationId && (!place || place.collectionId !== collectionId)) || (collectionId && !collections.some((c) => c.id === collectionId))) return <Workspace className="world-workspace"><p role="alert">404</p></Workspace>
   const locations = library.locations.filter((l) => l.collectionId === collectionId && (tag ? l.tags.includes(tag) : l.parentId === (locationId ?? null)))
@@ -86,12 +77,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     </WorkspaceScroll></WorkspaceSurface>
     <Sheet open={Boolean(editing)} onOpenChange={(open) => { if (!open && !busy) setEditing(undefined) }}><WorkspaceSheet title={text('edit')}  aria-describedby={undefined} closeLabel={text('close')} onEscapeKeyDown={(e) => { if (busy) e.preventDefault() }} onPointerDownOutside={(e) => { if (busy) e.preventDefault() }}>{editing && <form key={editing.value.id} className="world-form" onSubmit={(e) => { e.preventDefault(); void save(new FormData(e.currentTarget)) }}><label>{text('name')}<input name="name" defaultValue={editing.value.name} maxLength={120} required disabled={busy} autoFocus /></label><label>{text('description')}<textarea name="description" defaultValue={editing.value.description} maxLength={8000} rows={4} disabled={busy} /></label>{editing.kind === 'location' && <><label>{text('collection')}<select name="collectionId" value={(editing.value as LocationSetting).collectionId} onChange={(e) => setEditing({ ...editing, value: { ...editing.value as LocationSetting, collectionId: e.target.value, parentId: null } })} disabled={busy}>{collections.map((c) => <option key={c.id} value={c.id}>{groupName(c.id)}</option>)}</select></label><label>{text('parent')}<select name="parentId" value={(editing.value as LocationSetting).parentId ?? ''} onChange={(e) => setEditing({ ...editing, value: { ...editing.value as LocationSetting, parentId: e.target.value || null } })} disabled={busy}><option value="">{text('root')}</option>{library.locations.filter((l) => l.collectionId === (editing.value as LocationSetting).collectionId && !locationAncestors(library, l.id).some((a) => a.id === editing.value.id)).map((l) => <option key={l.id} value={l.id}>{groupName(l.collectionId)} / {locationAncestors(library, l.id).map((a) => a.name).join(' / ')}</option>)}</select></label><label>{text('tags')}<input name="tags" defaultValue={(editing.value as LocationSetting).tags.join(', ')} maxLength={1200} disabled={busy} /></label><label>{text('consistency')}<textarea name="consistency" defaultValue={(editing.value as LocationSetting).consistency} maxLength={8000} rows={6} disabled={busy} /></label></>}{editing.kind === 'photo' && <><label>{text('album')}<select name="albumId" defaultValue={(editing.value as AlbumPhoto).albumId} disabled={busy}>{library.albums.map((a) => <option key={a.id} value={a.id}>{albumName(a)}</option>)}</select></label><label>{text('source')}<textarea name="source" defaultValue={(editing.value as AlbumPhoto).source} maxLength={2000} disabled={busy} /></label></>}<Button disabled={busy}>{text('save')}</Button>{error && <p role="alert" className="story-error">{error}</p>}<Button type="button" variant="ghost" disabled={busy} onClick={() => setEditing(undefined)}>{text('cancel')}</Button>{editing.value.name && !(editing.kind === 'album' && editing.value.id === 'default') && <details><summary>{text('remove')}</summary><p>{text('removeHint')}</p><Button type="button" variant="destructive" disabled={busy} onClick={() => void remove()}>{text('remove')}</Button></details>}</form>}</WorkspaceSheet></Sheet>
     <Sheet open={Boolean(reference)} onOpenChange={(open) => { if (!open && !busy) setReference(undefined) }}><WorkspaceSheet title={text('addReference')}  aria-describedby={undefined} closeLabel={text('close')}>{reference && <form className="world-form" onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); void run(async () => {
-      const next = structuredClone(reference.snapshot), l = next.locations.find((l) => l.id === String(data.get('locationId'))), p = next.photos.find((p) => p.id === String(data.get('photoId')))
-      if (!l || !p) throw new Error('Choose a location and image')
-      const target = reference.conditionId ? l.conditions.find((c) => c.id === reference.conditionId) : l
-      if (!target) throw new Error('Condition no longer exists')
-      target.images.push({ id: crypto.randomUUID(), label: String(data.get('label')).trim(), purpose: data.get('purpose') as SettingImage['purpose'], photoId: p.id, image: { ...p.image }, source: `${p.name} · ${p.source}`.slice(0, 2000) }); l.updatedAt = Date.now()
-      await service.save(next); setReference(undefined)
+      await service.update({ resource: 'reference', action: 'create', locationId: String(data.get('locationId')), conditionId: reference.conditionId || undefined, photoId: String(data.get('photoId')), label: String(data.get('label')).trim(), purpose: data.get('purpose') as SettingImage['purpose'] }, reference.snapshot.revision); setReference(undefined)
     }) }}><label>{text('chooseLocation')}<select name="locationId" required defaultValue={reference.locationId}><option value="">—</option>{library.locations.map((l) => <option key={l.id} value={l.id}>{groupName(l.collectionId)} / {locationAncestors(library, l.id).map((a) => a.name).join(' / ')}</option>)}</select></label><label>{text('chooseImage')}<select name="photoId" required value={reference.photoId} onChange={(e) => setReference({ ...reference, photoId: e.target.value })}><option value="">—</option>{library.photos.map((p) => <option key={p.id} value={p.id}>{albumName(library.albums.find((a) => a.id === p.albumId)!)} / {p.name}</option>)}</select></label>{reference.photoId && <WorldPicture service={service} hash={library.photos.find((p) => p.id === reference.photoId)?.image.sha256} alt={text('chooseImage')} />}<label>{text('label')}<input name="label" required maxLength={120} /></label><label>{text('images')}<select name="purpose"><option value="inspiration">{text('inspiration')}</option><option value="design">{text('design')}</option></select></label><Button disabled={busy}>{text('save')}</Button>{error && <p role="alert" className="story-error">{error}</p>}</form>}</WorkspaceSheet></Sheet>
   </Workspace>
 }

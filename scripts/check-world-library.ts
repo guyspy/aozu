@@ -1,7 +1,7 @@
 import { createIndexedDbCharacterCollectionRepository } from '../src/adapters/indexeddb/character-collection-repository.ts'
 import assert from 'node:assert/strict'
 import 'fake-indexeddb/auto'
-import { createWorldLibraryService } from '../src/core/application/world-library.ts'
+import { createWorldLibraryService, validateAlbumComposition } from '../src/core/application/world-library.ts'
 import { locationAncestors, validateWorldLibrary, type LocationSetting } from '../src/core/domain/world-library.ts'
 import { createStoryboardService } from '../src/core/application/storyboard.ts'
 import { exportLibraryArchive, importLibraryArchive } from '../src/core/application/library-archive.ts'
@@ -12,6 +12,12 @@ globalThis.createImageBitmap = (async () => ({ width: 1, height: 1, close() {} }
 const service = createWorldLibraryService(), boards = createStoryboardService()
 try {
   assert.ok(compileAuthoringBackbone().schemas['world-library'])
+  const composedLocation = { id: 'field', parentId: null, collectionId: 'default', name: 'Field', description: '', consistency: '', updatedAt: 1, tags: [], images: [], conditions: [{ id: 'rain', name: 'Rain', description: '', updatedAt: 1, images: [] }] }
+  assert.match(validateAlbumComposition({ characterSources: [{ characterId: 'hero', revision: 2, sha256: 'a'.repeat(64) }], sourceLocationId: 'field', sourceConditionId: 'rain', prompt: 'Hero repairs the Field in Rain' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: 'a'.repeat(64) }], [composedLocation]), /Hero.*Field.*Rain/)
+  assert.doesNotThrow(() => validateAlbumComposition({ characterSources: [{ characterId: 'hero-real', revision: 1, sha256: 'b'.repeat(64) }], prompt: 'Hero｜Real crosses an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }, { id: 'hero-real', name: 'Hero｜Real', revision: 1, sha256: 'b'.repeat(64) }], [composedLocation]))
+  assert.match(validateAlbumComposition({ prompt: 'An undefined traveler crosses an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }], [composedLocation]), /undefined traveler/)
+  assert.throws(() => validateAlbumComposition({ prompt: 'Hero repairs an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }], [composedLocation]), /requires a Character reference/)
+  assert.throws(() => validateAlbumComposition({ characterSources: [{ characterId: 'hero', revision: 1, sha256: 'a'.repeat(64) }], prompt: 'Hero repairs a bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: 'a'.repeat(64) }], [composedLocation]), /changed/)
   let library = await service.load()
   const location = (id: string, parentId: string | null): LocationSetting => ({ id, parentId, collectionId: 'default', name: id, description: '', consistency: '', updatedAt: 1, tags: [], images: [], conditions: [] })
   library.locations = [location('city', null), location('house', 'city'), location('room', 'house')]
@@ -28,6 +34,11 @@ try {
   const file = new File([Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=', 'base64'))], 'room.png', { type: 'image/png' })
   library = await service.upload(library, 'reference', [file])
   const photo = library.photos[0]
+  const photoCount = library.photos.length
+  const direct = await service.uploadSetting(library, 'room', file, 'Room design', 'design', undefined, 'Direct setting asset')
+  library = direct.library
+  assert.equal(library.photos.length, photoCount, 'A direct Location image does not create an Album photo')
+  assert.equal(library.locations[2].images.find((image) => image.id === direct.id)?.photoId, undefined)
   library.locations[2].images.push({ id: 'reference-image', photoId: photo.id, image: photo.image, label: 'Layout', purpose: 'design', source: 'Reference album' })
   library.locations[2].conditions.push({ id: 'night', name: 'Night', description: 'Warm light', updatedAt: 1, images: [] })
   library.folders.push({ id: 'episode', name: 'Episode one', description: '', synopsis: 'Return home', direction: 'Warm', collectionIds: ['default'], updatedAt: 1 })
@@ -38,22 +49,25 @@ try {
   await assert.rejects(boards.update({ action: 'add-frame', boardId: board.id, expectedRevision: board.revision, title: 'Invalid photo' }, new Blob(['bad'], { type: 'image/png' })))
   assert.equal((await boards.get(board.id)).frames.length, 0, 'Invalid photo does not leave an empty frame')
   board = await boards.update({ action: 'add-frame', boardId: board.id, expectedRevision: board.revision, title: 'Room' }, file)
+  board = await boards.update({ action: 'add-candidate', boardId: board.id, expectedRevision: board.revision, frameId: board.frames[0].id, filename: 'room.png', settings: [{ id: 'room-snapshot', kind: 'location', sourceId: 'room', revision: library.revision, name: 'Room', details: 'Direct setting' }] }, file)
+  assert.equal(board.frames[0].settings?.[0].sourceId, 'room', 'Candidate stores its defined setting refs atomically')
   const setting = { id: 'pinned', kind: 'location', sourceId: 'room', revision: library.revision, name: 'Room at night', details: 'Warm light; same doorway' }
   board = await boards.update({ action: 'pin-setting', boardId: board.id, expectedRevision: board.revision, frameId: board.frames[0].id, setting, filename: 'room.png' }, file)
   assert.equal(board.frames[0].selected, null)
   assert.equal(board.frames[0].references.length, 1)
   library.photos = []; library.locations[2].conditions[0].description = 'Changed source'
   library = await service.save(library)
-  assert.deepEqual((await boards.get(board.id)).frames[0].settings?.[0], setting)
+  assert.deepEqual((await boards.get(board.id)).frames[0].settings?.find(({ id }) => id === setting.id), setting)
   assert.equal((await service.image(photo.image.sha256)).size, file.size, 'Removing a photo preserves an adopted setting image')
   const restoredBoard = await boards.import(await boards.export(board.id, board.revision))
-  assert.deepEqual(restoredBoard.frames[0].settings?.[0], setting)
+  assert.deepEqual(restoredBoard.frames[0].settings?.find(({ id }) => id === setting.id), setting)
   const archive = await service.export()
   library = await service.import(archive, library)
   assert.equal(library.locations.length, 6)
   const copy = library.locations.find((l) => l.name === 'room' && l.id !== 'room')!
   assert.equal(locationAncestors(library, copy.id).length, 3)
   assert.equal(copy.images[0].image.sha256, photo.image.sha256)
+  assert.equal(copy.images[0].photoId, undefined, 'Direct Location images survive archive round-trip without Album linkage')
   await assert.rejects(service.upload(library, 'default', [new File(['invalid'], 'bad.png', { type: 'image/png' })]))
   const bad = structuredClone(library); bad.boardFolders.bad = 'missing'
   await assert.rejects(service.save(bad), /folder not found/)
@@ -85,5 +99,5 @@ try {
   const importedBoards = await boards.list(), importedLibrary = await service.load()
   assert.equal(importedBoards.length, boardCount * 2)
   assert.ok(importedBoards.filter(({ id }) => !existingBoards.has(id)).some((item) => importedLibrary.boardFolders[item.id]), 'Complete archive restores storyboard folders')
-  console.log('world-library: hierarchy, cycles, CAS, albums, immutable image references, storyboard snapshots and complete additive ZIP: ok')
+  console.log('world-library: hierarchy, direct setting images, explicit Album references, CAS, storyboard snapshots and complete additive ZIP: ok')
 } finally { globalThis.createImageBitmap = original; service.dispose(); boards.dispose() }

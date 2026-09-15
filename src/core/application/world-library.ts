@@ -2,7 +2,113 @@ import { strToU8, zipSync } from 'fflate'
 import { createWorldLibraryRepository } from '../../adapters/indexeddb/world-library-repository.ts'
 import { inspectSceneImage } from '../../adapters/browser/scene-image.ts'
 import { readSafeZip, parseZipJson } from '../../adapters/zip/archive.ts'
-import { libraryImages, validateWorldLibrary, type AlbumPhoto, type WorldLibrary, type LibraryImage } from '../domain/world-library.ts'
+import { libraryImages, locationAncestors, validateWorldLibrary, type AlbumPhoto, type WorldLibrary, type LibraryImage, type LocationSetting, type SettingImage, type StoryFolder } from '../domain/world-library.ts'
+
+type GroupPatch = { name?: string; description?: string }
+export type AlbumCharacterSource = { characterId: string; revision: number; sha256: string }
+export type AlbumCompositionInput = { characterSources?: AlbumCharacterSource[]; sourceLocationId?: string; sourceConditionId?: string; prompt?: string; name?: string; description?: string }
+
+export function validateAlbumComposition(input: AlbumCompositionInput, characters: { id: string; name: string; revision: number; sha256: string }[], locations: LocationSetting[]) {
+  const prompt = input.prompt?.trim(); if (!prompt) throw new Error('Album photos require the composition prompt')
+  const sources = input.characterSources ?? []
+  if (new Set(sources.map(({ characterId }) => characterId)).size !== sources.length) throw new Error('Character sources must be unique')
+  const names = sources.map((source) => {
+    const character = characters.find(({ id }) => id === source.characterId); if (!character) throw new Error('Character source not found')
+    if (character.revision !== source.revision || character.sha256 !== source.sha256) throw new Error(`${character.name} changed or its Appearance hash is incorrect; inspect_character_contract again`)
+    return character.name
+  })
+  const text = `${input.name ?? ''}\n${input.description ?? ''}\n${prompt}`
+  const referencedNames = characters.filter(({ id }) => sources.some(({ characterId }) => characterId === id)).map(({ name }) => name)
+  const missingCharacter = [...characters].sort((a, b) => b.name.length - a.name.length).find(({ id, name }) => name && text.includes(name) && !sources.some(({ characterId }) => characterId === id) && !referencedNames.some((referenced) => referenced.includes(name) && text.includes(referenced)))
+  if (missingCharacter) throw new Error(`${missingCharacter.name} is defined in AOZU and requires a Character reference`)
+  const location = input.sourceLocationId ? locations.find(({ id }) => id === input.sourceLocationId) : undefined
+  if (input.sourceLocationId && !location) throw new Error('Source Location not found')
+  const mentionedLocation = locations.find(({ name }) => name && text.includes(name))
+  if (mentionedLocation && mentionedLocation.id !== input.sourceLocationId) throw new Error(`${mentionedLocation.name} is defined in AOZU and requires a Location reference`)
+  const condition = input.sourceConditionId && location ? location.conditions.find(({ id }) => id === input.sourceConditionId) : undefined
+  if (input.sourceConditionId && !condition) throw new Error('Source Condition not found in the selected Location')
+  const mentionedCondition = locations.flatMap((item) => item.conditions.map((candidate) => ({ location: item, condition: candidate }))).find(({ condition: candidate }) => candidate.name && text.includes(candidate.name))
+  if (mentionedCondition && (mentionedCondition.location.id !== input.sourceLocationId || mentionedCondition.condition.id !== input.sourceConditionId)) throw new Error(`${mentionedCondition.condition.name} is defined in AOZU and requires a Condition reference`)
+  return [`Characters: ${names.join(', ')}`, location && `Location: ${location.name}`, condition && `Condition: ${condition.name}`, `Prompt: ${prompt}`].filter(Boolean).join('; ').slice(0, 2000)
+}
+
+export type WorldLibraryCommand =
+  | ({ resource: 'album'; action: 'create' | 'update' | 'delete'; id?: string } & GroupPatch)
+  | ({ resource: 'photo'; action: 'update' | 'delete'; id: string; albumId?: string; source?: string } & GroupPatch)
+  | ({ resource: 'location'; action: 'create' | 'update' | 'delete'; id?: string; collectionId?: string; parentId?: string | null; tags?: string[]; consistency?: string } & GroupPatch)
+  | ({ resource: 'condition'; action: 'create' | 'update' | 'delete'; locationId: string; id?: string } & GroupPatch)
+  | ({ resource: 'reference'; action: 'create' | 'delete'; locationId: string; conditionId?: string; id?: string; photoId?: string; label?: string; purpose?: SettingImage['purpose'] })
+  | ({ resource: 'folder'; action: 'create' | 'update' | 'delete'; id?: string; synopsis?: string; direction?: string; collectionIds?: string[] } & GroupPatch)
+  | { resource: 'storyboard-folder'; action: 'move'; boardId: string; folderId?: string | null }
+
+const requiredName = (name: string | undefined) => {
+  const value = name?.trim()
+  if (!value) throw new Error('Name is required')
+  return value
+}
+
+export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLibraryCommand): { library: WorldLibrary; id: string | null } {
+  const library = structuredClone(current), now = Date.now(), patch = command as GroupPatch
+  const group = (fallback?: { name: string; description: string }) => ({
+    name: patch.name === undefined ? fallback?.name ?? requiredName(patch.name) : requiredName(patch.name),
+    description: patch.description ?? fallback?.description ?? '', updatedAt: now,
+  })
+  if (command.resource === 'album') {
+    if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(); library.albums.push({ id, ...group() }); return { library, id } }
+    const album = library.albums.find((item) => item.id === command.id); if (!album) throw new Error('Album not found')
+    if (command.action === 'update') Object.assign(album, group(album))
+    else { if (album.id === 'default') throw new Error('The default Album cannot be deleted'); library.albums = library.albums.filter((item) => item.id !== album.id); library.photos.forEach((photo) => { if (photo.albumId === album.id) photo.albumId = 'default' }) }
+    return { library, id: album.id }
+  }
+  if (command.resource === 'photo') {
+    const photo = library.photos.find((item) => item.id === command.id); if (!photo) throw new Error('Photo not found')
+    if (command.action === 'delete') library.photos = library.photos.filter((item) => item.id !== photo.id)
+    else Object.assign(photo, group(photo), command.albumId === undefined ? {} : { albumId: command.albumId }, command.source === undefined ? {} : { source: command.source })
+    return { library, id: photo.id }
+  }
+  if (command.resource === 'location') {
+    if (command.action === 'create') {
+      const id = command.id ?? crypto.randomUUID(), location: LocationSetting = { id, ...group(), collectionId: command.collectionId ?? 'default', parentId: command.parentId ?? null, tags: command.tags ?? [], consistency: command.consistency ?? '', images: [], conditions: [] }
+      library.locations.push(location); return { library, id }
+    }
+    const location = library.locations.find((item) => item.id === command.id); if (!location) throw new Error('Location not found')
+    if (command.action === 'delete') library.locations = library.locations.filter((item) => item.id !== location.id).map((item) => item.parentId === location.id ? { ...item, parentId: location.parentId } : item)
+    else {
+      const collectionId = command.collectionId ?? location.collectionId
+      for (const item of library.locations) if (locationAncestors(library, item.id).some((ancestor) => ancestor.id === location.id)) item.collectionId = collectionId
+      Object.assign(location, group(location), { collectionId }, command.parentId === undefined ? {} : { parentId: command.parentId }, command.tags === undefined ? {} : { tags: [...new Set(command.tags.map((tag) => tag.trim()).filter(Boolean))] }, command.consistency === undefined ? {} : { consistency: command.consistency })
+    }
+    return { library, id: location.id }
+  }
+  if (command.resource === 'condition') {
+    const location = library.locations.find((item) => item.id === command.locationId); if (!location) throw new Error('Location not found')
+    if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(); location.conditions.push({ id, ...group(), images: [] }); location.updatedAt = now; return { library, id } }
+    const condition = location.conditions.find((item) => item.id === command.id); if (!condition) throw new Error('Condition not found')
+    if (command.action === 'delete') location.conditions = location.conditions.filter((item) => item.id !== condition.id)
+    else Object.assign(condition, group(condition))
+    location.updatedAt = now; return { library, id: condition.id }
+  }
+  if (command.resource === 'reference') {
+    const location = library.locations.find((item) => item.id === command.locationId); if (!location) throw new Error('Location not found')
+    const target = command.conditionId ? location.conditions.find((item) => item.id === command.conditionId) : location
+    if (!target) throw new Error('Condition not found')
+    if (command.action === 'delete') { if (!target.images.some((item) => item.id === command.id)) throw new Error('Reference not found'); target.images = target.images.filter((item) => item.id !== command.id); location.updatedAt = now; return { library, id: command.id! } }
+    const photo = library.photos.find((item) => item.id === command.photoId); if (!photo) throw new Error('Photo not found')
+    const id = command.id ?? crypto.randomUUID(); target.images.push({ id, label: requiredName(command.label), purpose: command.purpose ?? 'inspiration', photoId: photo.id, image: { ...photo.image }, source: `${photo.name} · ${photo.source}`.slice(0, 2000) }); location.updatedAt = now
+    return { library, id }
+  }
+  if (command.resource === 'folder') {
+    if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(), folder: StoryFolder = { id, ...group(), synopsis: command.synopsis ?? '', direction: command.direction ?? '', collectionIds: command.collectionIds ?? [] }; library.folders.push(folder); return { library, id } }
+    const folder = library.folders.find((item) => item.id === command.id); if (!folder) throw new Error('Folder not found')
+    if (command.action === 'delete') { library.folders = library.folders.filter((item) => item.id !== folder.id); for (const [boardId, folderId] of Object.entries(library.boardFolders)) if (folderId === folder.id) delete library.boardFolders[boardId] }
+    else Object.assign(folder, group(folder), command.synopsis === undefined ? {} : { synopsis: command.synopsis }, command.direction === undefined ? {} : { direction: command.direction }, command.collectionIds === undefined ? {} : { collectionIds: command.collectionIds })
+    return { library, id: folder.id }
+  }
+  if (command.folderId && !library.folders.some((item) => item.id === command.folderId)) throw new Error('Folder not found')
+  if (command.folderId) library.boardFolders[command.boardId] = command.folderId
+  else delete library.boardFolders[command.boardId]
+  return { library, id: command.folderId ?? null }
+}
 
 export function createWorldLibraryService() {
   const repository = createWorldLibraryRepository()
@@ -35,7 +141,7 @@ export function createWorldLibraryService() {
     for (const group of [incoming.albums, incoming.photos, incoming.locations, incoming.folders]) for (const item of group) remap.set(item.id, crypto.randomUUID())
     for (const album of incoming.albums) next.albums.push({ ...album, id: remap.get(album.id)! })
     for (const photo of incoming.photos) next.photos.push({ ...photo, id: remap.get(photo.id)!, albumId: remap.get(photo.albumId)! })
-    for (const location of incoming.locations) next.locations.push({ ...location, id: remap.get(location.id)!, parentId: location.parentId ? remap.get(location.parentId)! : null, collectionId: preserveCollections ? location.collectionId : 'default', images: location.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })), conditions: location.conditions.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })) })) })
+    for (const location of incoming.locations) next.locations.push({ ...location, id: remap.get(location.id)!, parentId: location.parentId ? remap.get(location.parentId)! : null, collectionId: preserveCollections ? location.collectionId : 'default', images: location.images.map((i) => ({ ...i, ...(i.photoId ? { photoId: remap.get(i.photoId) ?? i.photoId } : {}) })), conditions: location.conditions.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, ...(i.photoId ? { photoId: remap.get(i.photoId) ?? i.photoId } : {}) })) })) })
     for (const folder of incoming.folders) next.folders.push({ ...folder, id: remap.get(folder.id)!, collectionIds: preserveCollections ? folder.collectionIds : [] })
     return { library: changed(await repository.save(next, blobs)), idMap: Object.fromEntries(remap) }
   }
@@ -45,15 +151,33 @@ export function createWorldLibraryService() {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     dispose() { channel?.close(); listeners.clear() },
     async save(library: WorldLibrary) { return changed(await repository.save(library)) },
-    async upload(library: WorldLibrary, albumId: string, files: File[]) {
-      const next = structuredClone(library), blobs = new Map<string, Blob>()
+    async update(command: WorldLibraryCommand, expectedRevision: number) {
+      const current = await repository.load()
+      if (current.revision !== expectedRevision) throw new Error('Library changed elsewhere; inspect and try again')
+      const result = applyWorldLibraryCommand(current, command)
+      return { library: changed(await repository.save(result.library)), id: result.id }
+    },
+    async upload(library: WorldLibrary, albumId: string, files: File[], reference?: { locationId: string; conditionId?: string; label: string; purpose: SettingImage['purpose'] }, metadata?: { name?: string; description?: string; source?: string }) {
+      let next = structuredClone(library); const blobs = new Map<string, Blob>()
       if (!files.length || files.length > 100) throw new Error('Choose 1–100 images')
+      if (reference && files.length !== 1) throw new Error('A Location reference requires exactly one image')
+      if (metadata && files.length !== 1) throw new Error('Photo metadata requires exactly one image')
       for (const file of files) {
         const image = await inspect(file, file.name)
-        const photo: AlbumPhoto = { id: crypto.randomUUID(), name: file.name, description: '', source: '', updatedAt: Date.now(), albumId, image }
+        const photo: AlbumPhoto = { id: crypto.randomUUID(), name: metadata?.name?.trim() || file.name, description: metadata?.description ?? '', source: metadata?.source ?? '', updatedAt: Date.now(), albumId, image }
         next.photos.push(photo); blobs.set(image.sha256, file)
       }
+      if (reference) next = applyWorldLibraryCommand(next, { resource: 'reference', action: 'create', ...reference, photoId: next.photos.at(-1)!.id }).library
       return changed(await repository.save(next, blobs))
+    },
+    async uploadSetting(library: WorldLibrary, locationId: string, file: File, label: string, purpose: SettingImage['purpose'], conditionId?: string, source = '') {
+      const next = structuredClone(library), location = next.locations.find((item) => item.id === locationId)
+      if (!location) throw new Error('Location not found')
+      const target = conditionId ? location.conditions.find((item) => item.id === conditionId) : location
+      if (!target) throw new Error('Condition not found')
+      const image = await inspect(file, file.name), id = crypto.randomUUID()
+      target.images.push({ id, label: requiredName(label), purpose, image, source: source.slice(0, 2000) }); location.updatedAt = Date.now()
+      return { library: changed(await repository.save(next, new Map([[image.sha256, file]]))), id }
     },
     async png(image: LibraryImage) {
       const blob = await repository.image(image.sha256)
