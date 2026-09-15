@@ -28,7 +28,7 @@ export const zhTW: Messages = {
     referencesTitle: '補充角色設定',
   },
   common: { close: '關閉', productName: 'AOZU', back: '返回', cancel: '取消', language: '語言' },
-  navigation: { primary: '主要導覽', home: '首頁', notFound: '找不到這個頁面' },
+  navigation: { primary: '主要導覽', library: '資料庫導覽', home: '首頁', notFound: '找不到這個頁面' },
   startup: {
     loading: '正在載入本機資料…',
     error: '無法載入本機資料，請重新整理後再試一次。',

@@ -1,4 +1,4 @@
-import { Workspace, WorkspaceActions, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
+import { Workspace, WorkspaceActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
 import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, Redo2Icon, ScalingIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
@@ -349,7 +349,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
           </TabsTrigger>)}
         </TabsList>}
 
-        <TabsContent value={category.id} className="workbench-content min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <TabsContent value={category.id} className="workbench-content workspace-scroll">
         {!selectedVariant && <>
           <div className="variant-grid">
             <WorkspaceCard className={`variant-card ${!hasSelection(category.group) ? 'is-selected' : ''}`} label={t('characterDraft.none')}
@@ -476,7 +476,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         </div>
       </WorkspaceSurface>
 
-  const profile = (stacked: boolean) => <WorkspaceSurface id="character-profile" className="character-profile-panel">
+  const profile = (stacked: boolean) => <WorkspaceSurface id="character-profile" className="character-profile-panel"><WorkspaceScroll>
           {error && stacked && <p role="alert" className="text-sm text-destructive">{error}</p>}
           {profileForm ? <>
             <div className="character-profile-heading"><div><span>{t('characterDraft.profile.title')}</span><strong>{draft.name}</strong></div></div>
@@ -503,7 +503,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
             <div><h3>{t('characterDraft.profile.backstory')}</h3><p className="character-profile-backstory">{draft.backstory || t('characterDraft.profile.noBackstory')}</p></div>
             <div className="character-profile-attributes"><h3>{t('characterDraft.profile.attributes')}</h3><dl><div><dt>{t('modelSheet.height')}</dt><dd>{draft.modelSheet?.heightCm === undefined ? t('modelSheet.unknownHeight') : `${draft.modelSheet.heightCm} cm`}</dd></div>{Object.entries(draft.attributes ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'boolean' ? value ? t('characterDraft.profile.yes') : t('characterDraft.profile.no') : value}</dd></div>)}</dl></div>
           </>}
-        </WorkspaceSurface>
+        </WorkspaceScroll></WorkspaceSurface>
 
   const appearanceControls = <CharacterAppearances key={`${draft.id}:${draft.activeAppearanceId ?? ''}`} draft={draft}
     manage={!isModelSheet && !isProfile && !selectedVariant} busy={Boolean(busy) || saveStatus !== 'saved' || Boolean(local || profileForm)}
@@ -519,15 +519,15 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     {saveFeedback}
   </CharacterAppearances>
 
-  return <div className="draft-workshop-shell">
-    <Workspace className="draft-workshop mx-auto flex h-full w-full max-w-6xl flex-col p-[0.85rem] sm:p-6"
+  return <>
+    <Workspace header={<WorkspaceTabs label={t('modelSheet.mode')} active={activeMode}
+        items={[{ id: 'expressions', label: t('modelSheet.appearance') }, { id: 'profile', label: t('characterDraft.profile.title') }, { id: 'model-sheet', label: t('modelSheet.title') }] as const}
+        onSelect={(mode) => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{characterActions}</WorkspaceTabs>} className="draft-workshop"
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={isProfile ? 'profile' : undefined}
       data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
-      <WorkspaceTabs label={t('modelSheet.mode')} active={activeMode}
-        items={[{ id: 'expressions', label: t('modelSheet.appearance') }, { id: 'profile', label: t('characterDraft.profile.title') }, { id: 'model-sheet', label: t('modelSheet.title') }] as const}
-        onSelect={(mode) => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{characterActions}</WorkspaceTabs>
+
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {isModelSheet ? <>
         <CharacterModelSheet draft={draft} edit={edit} commit={commit} revert={revert} busy={Boolean(busy)} error={error} saveFeedback={saveFeedback}
@@ -535,12 +535,12 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
           referenceId={variantId} openReference={(id) => { revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet${id ? `/${encodeURIComponent(id)}` : ''}`) }}
           upload={(id, file, metadata) => void runBusy('reference', async () => { await replaceReference(id, file, metadata); revert(); navigate(`/characters/${encodeURIComponent(draft.id)}/model-sheet/${encodeURIComponent(id)}`) })} />
       </> :
-      <WorkspaceSplit className="mt-2 min-h-0 flex-1 sm:mt-3" openKey={`${characterId}:${activeMode}`} defaultAsideOpen={isProfile}
+      <WorkspaceSplit openKey={`${characterId}:${activeMode}`} defaultAsideOpen={isProfile}
         asideLabel={t(isProfile ? 'characterDraft.profile.title' : 'characterDraft.customizeTitle')}
         aside={(stacked) => isProfile ? profile(stacked) : workbench(stacked)}>
       <WorkspaceSurface className="character-stage-panel">
         <div className="character-stage-preview">
-        <div className="min-w-0 shrink-0">{appearanceControls}</div>
+        <WorkspaceToolbar><div className="min-w-0 flex-1">{appearanceControls}</div></WorkspaceToolbar>
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
@@ -598,5 +598,5 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         }}>{t('characters.delete')}</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  </div>
+  </>
 }

@@ -3,7 +3,8 @@ import { createElement as h, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { createApplication } from '/src/bootstrap.ts'
-import { Workspace, WorkspaceToolbar, WorkspaceScroll } from '/src/ui/Workspace.tsx'
+import { Workspace, WorkspaceToolbar, WorkspaceScroll, WorkspaceSheet } from '/src/ui/Workspace.tsx'
+import { Sheet } from '/src/ui/components/ui/sheet.tsx'
 import { AppRoutes } from '/src/ui/routes/AppRoutes.tsx'
 import i18n from '/src/ui/i18n.ts'
 import '/src/index.css'
@@ -13,7 +14,7 @@ await i18n.changeLanguage('en')
 const result = document.querySelector('#result'), wait = () => new Promise((resolve) => setTimeout(resolve, 30))
 const check = (value, message) => { if (!value) throw new Error(message) }
 const ready = async (predicate) => { for (let i = 0; i < 1200; i++) { if (await predicate()) return; await wait() } throw new Error(`Timed out: ${predicate}`) }
-const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label)
+const button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label || b.getAttribute('aria-label') === label)
 const enter = (input, value) => { Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) }
 let route, navigate
 function Location() { const location = useLocation(), go = useNavigate(); useEffect(() => { route = location.pathname; navigate = go }, [location, go]); return null }
@@ -40,14 +41,17 @@ if (new URLSearchParams(location.search).has('responsive')) {
   createRoot(document.querySelector('#root')).render(h(MemoryRouter, { initialEntries: ['/'] }, h(Location), h(AppRoutes, { application: app })))
   await ready(() => document.querySelector('.world-home-grid'))
   check(document.querySelectorAll('.world-home-card').length === 3, 'Home must have three areas')
-  check(document.querySelector('main.workspace-panel > .workspace-scroll'), 'Home uses shared panel and inner scroll')
+  check(document.querySelector('main.workspace-panel > .workspace-body > .workspace-scroll'), 'Home uses shared panel and inner scroll')
   check(getComputedStyle(document.querySelector('.workspace-scroll')).scrollbarWidth === 'none', 'Shared scroll hides scrollbar')
   await ready(() => [...document.querySelectorAll('.home-seal img')].every((img) => img.complete && img.naturalWidth > 0))
   check(document.querySelectorAll('.home-seal img').length === 3, 'Home must load three brand icons')
   document.querySelector('a[href="/collections"]').click()
   await ready(() => route === '/collections' && document.querySelector('.collection-cover:not(.workspace-add-card)'))
+  button('Albums').click(); await ready(() => route === '/albums' && button('Albums')?.getAttribute('aria-current') === 'page')
+  button('Storyboards').click(); await ready(() => route === '/storyboards' && button('Storyboards')?.getAttribute('aria-current') === 'page')
+  button('Collections').click(); await ready(() => route === '/collections' && document.querySelector('.collection-cover:not(.workspace-add-card)'))
   document.querySelector(`a[href="/collections/${collection.id}"]`).click()
-  await ready(() => document.querySelector('.workspace-tabs'))
+  await ready(() => route === `/collections/${collection.id}` && button('Locations'))
   button('Locations').click()
   await ready(() => document.querySelector('.world-card:not(.workspace-add-card)'))
   document.querySelector(`a[href="/collections/${collection.id}/locations/city"]`).click()
@@ -79,8 +83,8 @@ if (new URLSearchParams(location.search).has('responsive')) {
   await ready(() => button('Use in storyboard'))
   check(document.querySelector('.app-breadcrumb [aria-current="page"]').textContent.length > 0, 'Named current photo or storyboard crumb')
   button('Use in storyboard').click()
-  await ready(() => document.querySelector('.story-add-card'))
-  document.querySelector('.story-add-card .workspace-card-open').click()
+  await ready(() => document.querySelector('.bookshelf-grid .workspace-add-card'))
+  document.querySelector('.bookshelf-grid .workspace-add-card .workspace-card-open').click()
   await ready(() => document.querySelector('.book-profile-form input[name="name"]'))
   enter(document.querySelector('.book-profile-form input[name="name"]'), 'Arrival')
   document.querySelector('.book-profile-form').requestSubmit()
@@ -103,12 +107,12 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(document.querySelector('#root').scrollHeight <= document.querySelector('#root').clientHeight + 1, 'Storyboard scroll stays inside panel')
   check(document.querySelector('.story-paper').clientHeight > 80, 'Short windows retain usable paper height')
   navigate('/storyboards')
-  await ready(() => button('Create folder'))
-  button('Create folder').click()
-  await ready(() => document.querySelector('.world-form'))
-  enter(document.querySelector('.world-form input[name="name"]'), 'Episode one')
-  document.querySelector('.world-form').requestSubmit()
-  await ready(() => route.includes('/folders/') && !document.querySelector('[role="dialog"]'))
+  await ready(() => button('Folder'))
+  world = await app.worldLibrary.load()
+  const folder = { id: crypto.randomUUID(), name: 'Episode one', description: '', synopsis: '', direction: '', collectionIds: [], updatedAt: Date.now() }
+  await app.worldLibrary.save({ ...world, folders: [...world.folders, folder] })
+  navigate(`/storyboards/folders/${folder.id}`)
+  await ready(() => route.includes('/folders/'))
   check(document.querySelector('.app-breadcrumb [aria-current="page"]').textContent === 'Episode one', 'Folder breadcrumb name')
   document.querySelector('.app-breadcrumb a[href="/storyboards"]').click()
   await ready(() => route === '/storyboards')
@@ -140,6 +144,16 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(scroll.clientHeight > 0 && scroll.scrollHeight > scroll.clientHeight, 'Nested panel owns inner scroll')
   scroll.scrollTop = 200
   check(scroll.scrollTop === 200, 'Nested scroll responds')
+  nested.render(h(Sheet, { open: true }, h(WorkspaceSheet, { title: 'Paper test', surface: 'paper', 'aria-describedby': undefined }, h('div', { style: { height: 1600 } }, 'Long drawing'))))
+  await ready(() => document.querySelector('.workspace-sheet [data-workspace-surface="paper"]'))
+  const paper = document.querySelector('.workspace-sheet [data-workspace-surface="paper"]')
+  const title = document.querySelector('.workspace-sheet-title')
+  const titleTop = title.getBoundingClientRect().top
+  check(!document.querySelector('#root').contains(paper), 'Sheet must exercise portal styling')
+  check(getComputedStyle(paper).backgroundColor === 'rgb(247, 246, 242)', 'Portal paper retains shared material')
+  check(getComputedStyle(paper).scrollbarWidth === 'none' && paper.scrollHeight > paper.clientHeight, 'Portal owns hidden inner scroll')
+  paper.scrollTop = 200
+  check(paper.scrollTop === 200 && title.getBoundingClientRect().top === titleTop, 'Sheet title remains fixed while paper scrolls')
   nested.unmount(); wrapper.remove()
   result.textContent = 'PASS: home, collections, nested locations, conditions, album references, album-to-board, folders, parent navigation and logo home'
 } catch (e) { result.textContent = `FAIL: ${e.message}`; console.error(e) }

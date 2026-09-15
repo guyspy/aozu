@@ -1,3 +1,4 @@
+import './workspace.css'
 import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { PanelRightOpenIcon, PlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -6,11 +7,14 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/components/u
 import { Link } from 'react-router'
 import { cn } from '@/ui/lib/utils'
 
-/** The split stacks below this content width: the former 900px window breakpoint minus the panel's 24px padding. */
+/** Minimum content width for a usable preview and 22rem inspector. */
 const SPLIT_MIN_WIDTH = 852
 
-export function Workspace({ className, ...props }: ComponentProps<'main'>) {
-  return <main className={cn('workspace-panel', className)} {...props} />
+export function Workspace({ header, className, children, ...props }: ComponentProps<'main'> & { header?: ReactNode }) {
+  return <main className={cn('workspace-panel', className)} {...props}>
+    {header}
+    <div className="workspace-body">{children}</div>
+  </main>
 }
 /** A full-column sheet inside a workspace. `paper` renders it as artwork on a desk rather than app chrome. */
 export function WorkspaceSurface({ surface, className, ...props }: ComponentProps<'section'> & { surface?: 'paper' }) {
@@ -19,18 +23,26 @@ export function WorkspaceSurface({ surface, className, ...props }: ComponentProp
 export function WorkspaceToolbar({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('workspace-toolbar', className)} {...props} />
 }
-export function WorkspaceScroll({ className, ...props }: ComponentProps<'div'>) {
-  return <div tabIndex={0} className={cn('workspace-scroll', className)} {...props} />
+export function WorkspaceScroll({ surface, className, ...props }: ComponentProps<'div'> & { surface?: 'paper' }) {
+  return <div tabIndex={0} data-workspace-surface={surface} className={cn('workspace-scroll', className)} {...props} />
 }
 export function WorkspaceAdd({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('workspace-add', className)} {...props} />
+}
+
+/** Same document surface in a Radix portal; content alone scrolls. */
+export function WorkspaceSheet({ children, title, surface, className, ...props }: Omit<ComponentProps<typeof SheetContent>, 'title'> & { title: ReactNode; surface?: 'paper' }) {
+  return <SheetContent className={cn('workspace-sheet', className)} {...props}>
+    <SheetTitle className="workspace-sheet-title">{title}</SheetTitle>
+    <WorkspaceScroll surface={surface}>{children}</WorkspaceScroll>
+  </SheetContent>
 }
 
 /**
  * One tile in a grid: a preview of a fixed shape, its name, and optional secondary text or a corner control.
  * Pass the grid's own card class for that grid's frame; `to` makes the tile a link, `onClick` a button.
  */
-export function WorkspaceCard({ label, meta, action, aspect = '1', to, onClick, className, children, ...props }: Omit<ComponentProps<'button'>, 'children'> & {
+export function WorkspaceCard({ label, meta, action, aspect = '1', to, onClick, role, className, children, ...props }: Omit<ComponentProps<'button'>, 'children'> & {
   label: ReactNode
   meta?: ReactNode
   action?: ReactNode
@@ -43,7 +55,7 @@ export function WorkspaceCard({ label, meta, action, aspect = '1', to, onClick, 
     <span className="workspace-card-label">{label}</span>
     {meta !== undefined && <span className="workspace-card-meta">{meta}</span>}
   </>
-  return <div className={cn('workspace-card', className)}>
+  return <div role={role} className={cn('workspace-card', className)}>
     {to ? <Link to={to} className="workspace-card-open" aria-label={props['aria-label']} title={props.title}>{body}</Link>
       : onClick ? <button type="button" className="workspace-card-open" onClick={onClick} {...props}>{body}</button>
       : <span className="workspace-card-open" {...props}>{body}</span>}
@@ -52,8 +64,9 @@ export function WorkspaceCard({ label, meta, action, aspect = '1', to, onClick, 
 }
 
 /** The "add one" tile that closes a grid; the same card with a plus where the preview would be. */
-export function WorkspaceAddCard({ label, className, ...props }: Omit<ComponentProps<'button'>, 'children'> & { label: string; aspect?: string }) {
+export function WorkspaceAddCard({ label, className, watermark, ...props }: Omit<ComponentProps<'button'>, 'children'> & { label: string; aspect?: string; watermark?: ReactNode }) {
   return <WorkspaceCard aria-label={label} title={label} label={label} className={cn('workspace-add-card', className)} {...props}>
+    {watermark && <span className="workspace-add-watermark">{watermark}</span>}
     <PlusIcon className="size-8" />
   </WorkspaceCard>
 }
@@ -87,8 +100,8 @@ export function WorkspaceTabs<Id extends string>({ label, items, active, onSelec
  * Stacked, the aside moves into a drawer and the split renders its trigger; `aside` receives that state.
  */
 export function WorkspaceSplit({ aside, asideLabel, defaultAsideOpen = false, openKey, className, children, ...props }: Omit<ComponentProps<'div'>, 'children'> & {
-  aside: ReactNode | ((stacked: boolean) => ReactNode)
-  asideLabel: string
+  aside?: ReactNode | ((stacked: boolean) => ReactNode)
+  asideLabel?: string
   defaultAsideOpen?: boolean
   /** Reopening state resets to `defaultAsideOpen` whenever this changes, for example on a different document or tab. */
   openKey?: string
@@ -114,18 +127,18 @@ export function WorkspaceSplit({ aside, asideLabel, defaultAsideOpen = false, op
   }, [])
   const content = typeof aside === 'function' ? aside(stacked) : aside
 
-  return <Sheet open={stacked && open} onOpenChange={setOpen}>
-    <div ref={split} data-split={stacked ? 'stacked' : 'wide'} data-aside={!stacked ? 'inline' : open ? 'drawer-open' : 'drawer-closed'}
+  return <Sheet open={Boolean(aside) && stacked && open} onOpenChange={setOpen}>
+    <div ref={split} data-split={!aside ? 'single' : stacked ? 'stacked' : 'wide'} data-aside={!stacked ? 'inline' : open ? 'drawer-open' : 'drawer-closed'}
       className={cn('workspace-split', className)} {...props}>
-      {stacked && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="workspace-split-trigger"
+      {aside && stacked && <SheetTrigger asChild><Button type="button" size="icon" variant="outline" className="workspace-split-trigger"
         aria-label={asideLabel} title={asideLabel}><PanelRightOpenIcon /></Button></SheetTrigger>}
-      {children}
-      {stacked
-        ? <SheetContent className="workspace-aside-drawer gap-0 p-0" closeLabel={t('common.close')} aria-describedby={undefined}>
+      <div className="workspace-main">{children}</div>
+      {aside && (stacked
+        ? <SheetContent className="workspace-aside-drawer" closeLabel={t('common.close')} aria-describedby={undefined}>
           <SheetTitle className="sr-only">{asideLabel}</SheetTitle>
           {content}
         </SheetContent>
-        : content}
+        : content)}
     </div>
   </Sheet>
 }

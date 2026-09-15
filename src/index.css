@@ -243,45 +243,12 @@ body::before {
   color: #4b2e1c;
 }
 
-#root .workspace-panel::before {
-  position: absolute;
-  inset: 0.75rem;
-  z-index: -1;
-  border: 1px solid rgb(125 77 35 / 34%);
-  border-radius: 1.5rem;
-  background:
-    linear-gradient(104deg, rgb(255 249 224 / 42%), transparent 38%),
-    radial-gradient(ellipse at 78% 18%, rgb(226 181 76 / 12%), transparent 32%),
-    radial-gradient(ellipse at 22% 84%, rgb(105 60 27 / 9%), transparent 35%),
-    rgb(232 209 160 / 38%);
-  box-shadow:
-    inset 0 1px rgb(255 248 219 / 68%),
-    inset 0 0 4rem rgb(91 51 27 / 8%),
-    0 1.2rem 3rem rgb(72 39 20 / 8%),
-    0 0 2rem rgb(232 187 83 / 9%);
-  content: "";
-}
-
-#root main :is(h1, h2, h3) {
+:is(.workspace-panel, .workspace-sheet, .workspace-aside-drawer) :is(h1, h2, h3) {
   color: #6a411f;
   letter-spacing: 0.02em;
 }
 
-/* Cards: any bordered rounded-2xl panel becomes a parchment scroll. */
-#root main :is(article, section).rounded-2xl.border,
-#root main section.workspace-surface,
-#root main button.rounded-2xl.border {
-  border: 1px solid rgb(128 79 35 / 40%);
-  background-color: rgb(244 225 181 / 58%);
-  box-shadow: inset 0 0 0 4px rgb(255 246 216 / 14%), 0 0.7rem 1.6rem rgb(63 36 18 / 7%);
-}
-
-#root main button.rounded-2xl.border[aria-pressed="true"] {
-  border-color: #9a681d;
-  box-shadow: 0 0 0 3px rgb(177 124 40 / 18%), inset 0 0 0 4px rgb(255 246 216 / 18%);
-}
-
-#root :is(input, textarea, select) {
+:is(.workspace-panel, .workspace-sheet, .workspace-aside-drawer) :is(input, textarea, select) {
   border-color: rgb(112 70 38 / 45%);
   background-color: rgb(249 233 194 / 58%);
 }
@@ -317,39 +284,7 @@ body::before {
    Book opening: kicker, hero rule, and the wax seal
    --------------------------------------------------------------------------- */
 
-.forge-kicker {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin-bottom: 0.65rem;
-  color: #95651f;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-
-.forge-kicker svg {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.forge-kicker .aozu-icon {
-  width: 2.15rem;
-  height: 2.15rem;
-}
-
 /* Collections use the existing parchment, card portraits, and book seal. */
-.book-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
-.book-switcher { display: flex; align-items: center; gap: 0.6rem; max-width: 100%; text-align: left; }
-.book-switcher h1 { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-heading); font-size: clamp(1.25rem, 3vw, 1.875rem); font-weight: 700; }
-.book-switcher > svg:first-child { width: 1.5rem; height: 1.5rem; flex-shrink: 0; }
-.book-menu { z-index: 60; width: min(20rem, calc(100vw - 2rem)); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; padding: 0.4rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--popover); color: var(--popover-foreground); box-shadow: 0 0.5rem 1.5rem #321a1933; }
-.book-menu-item { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0.5rem 0.75rem; border-radius: 0.4rem; cursor: pointer; overflow-wrap: anywhere; outline: none; }
-.book-menu-item[data-highlighted] { background: var(--accent); color: var(--accent-foreground); }
-.book-menu-item > svg { width: 1rem; height: 1rem; flex-shrink: 0; }
-.book-menu-item > span:last-child { margin-left: auto; }
-.book-world { border-block: 1px solid var(--border); padding: 0.75rem 0; }
-.book-world summary { display: flex; align-items: center; gap: 0.5rem; width: fit-content; cursor: pointer; font-size: 0.875rem; font-weight: 600; }
-.book-page { overflow: clip; }
 .book-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: clamp(0.75rem, 2vw, 1.5rem); }
 .book-character-card { transform-origin: 50% 125%; position: relative; min-width: 0; padding: 0.55rem; border: 1px solid #a8773c; border-radius: 0.85rem; background: linear-gradient(145deg, #f5e2b2, #e2bc77); box-shadow: inset 0 0 0 4px #83532622, 0 0.2rem 0.5rem #45250f15; }
 .book-character-card .workspace-card-open { align-items: center; gap: 0.6rem; text-align: center; }
@@ -357,7 +292,6 @@ body::before {
 .book-character-card .workspace-card-preview > * { width: 100%; }
 .book-character-card .workspace-card-preview [role="img"] { border: 0; border-radius: 0; background-color: transparent; }
 .book-character-card .workspace-card-label { color: #4e2d19; font-size: 0.95rem; }
-.book-card-action { position: absolute; bottom: 0.35rem; right: 0.35rem; }
 .bookshelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 1.5rem; }
 .collection-cover { display: flex; min-width: 0; min-height: 19rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; border: 1px solid #986637; border-left: 0.5rem solid #644126; border-radius: 0.4rem 1rem 1rem 0.4rem; background: linear-gradient(120deg, #79522e, #51361f); color: #f3d899; text-align: center; box-shadow: inset 0 0 0 5px #deb46e33, 0.25rem 0.35rem 0 #d6b374, 0.4rem 0.6rem 1rem #45250f22; }
 .collection-cover .workspace-card-open { align-items: center; justify-content: center; gap: 0.75rem; text-align: center; }
@@ -366,45 +300,14 @@ body::before {
 .collection-cover-seal.aozu-icon { width: 6rem; height: 6rem; }
 .collection-cover:hover { filter: brightness(1.08); }
 .book-empty { display: flex; min-height: 20rem; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; text-align: center; }
-.book-panel[data-slot="sheet-content"] { width: min(30rem, 100vw); max-width: none; }
-.book-panel > section { margin: 0; padding: 0; border: 0; background: none; }
 .book-profile-form { display: grid; gap: 1.25rem; }
 .book-profile-form label { display: grid; gap: 0.5rem; font-weight: 600; }
 .book-profile-form input, .book-profile-form textarea { width: 100%; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--background); color: var(--foreground); font-weight: 400; }
 .collection-cover:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 @media (max-width: 600px) {
-  .book-toolbar { flex-wrap: wrap; align-items: flex-start; gap: 0.75rem; }
-  .book-toolbar > div:last-child { margin-left: auto; }
   .book-card-grid, .bookshelf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .collection-cover { min-height: 15rem; padding: 1rem 0.75rem; }
   .collection-cover h2 { font-size: 1.1rem; }
-}
-
-.start-gate {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
-  gap: 1.15rem;
-  align-items: start;
-  padding: 1.25rem !important;
-  border: 1px solid rgb(123 74 32 / 34%) !important;
-  background: rgb(244 224 178 / 62%) !important;
-  box-shadow: inset 0 1px rgb(255 248 216 / 55%), 0 0.65rem 1.4rem rgb(70 38 18 / 7%) !important;
-}
-
-.gate-icon,
-.gate-icon .aozu-icon {
-  display: grid;
-  width: 4rem;
-  height: 4rem;
-  place-items: center;
-}
-
-.gate-action {
-  grid-column: 1 / -1;
-}
-
-.parchment-notice {
-  background: rgb(244 224 178 / 72%) !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -463,76 +366,6 @@ body::before {
    --------------------------------------------------------------------------- */
 
 /* Fills whatever the header leaves, so the editor never adds a scroll range of its own. */
-.draft-workshop-shell {
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* Tabs share the glass document's top edge; the actions beside them belong to the entire document. */
-.workspace-panel { --workspace-padding: 24px; --workspace-tab-height: 2.75rem; --workspace-edge: #ecdbb2; }
-.workspace-panel.draft-workshop { --workspace-padding: 0.85rem; }
-#root .workspace-panel:has(> .workspace-tabs-bar)::before {
-  top: calc(var(--workspace-padding) + var(--workspace-tab-height) - 1px);
-  background: linear-gradient(180deg, var(--workspace-edge), rgb(232 209 160 / 38%) 12rem);
-  box-shadow: inset 0 1px rgb(255 248 219 / 68%), 0 1.2rem 3rem rgb(72 39 20 / 8%), 0 0 2rem rgb(232 187 83 / 9%);
-}
-.workspace-tabs-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; flex-shrink: 0; }
-.workspace-tabs { display: flex; align-items: flex-end; gap: 0.2rem; min-width: 0; height: var(--workspace-tab-height); }
-.workspace-tabs .workspace-tab {
-  position: relative;
-  height: calc(var(--workspace-tab-height) - 0.35rem);
-  padding: 0.65rem 1rem;
-  border: 1px solid rgb(125 77 35 / 25%);
-  border-bottom: 0;
-  border-radius: 0.75rem 0.75rem 0 0;
-  background: rgb(192 155 91 / 18%);
-  color: #78573b;
-  box-shadow: inset 0 1px rgb(255 248 219 / 35%);
-  transform: none;
-  transition: background-color 150ms, color 150ms;
-}
-.workspace-tabs .workspace-tab:hover { background: rgb(255 242 201 / 36%); }
-.workspace-tabs .workspace-tab[aria-current="page"] {
-  z-index: 1;
-  height: var(--workspace-tab-height);
-  border-color: rgb(125 77 35 / 34%);
-  background: linear-gradient(180deg, #f6eacf, var(--workspace-edge));
-  color: #4b2e1c;
-  font-weight: 700;
-  box-shadow: inset 0 1px rgb(255 252 237 / 80%);
-}
-.workspace-tab[aria-current="page"]::after { content: ''; position: absolute; inset: auto 0 -1px; height: 2px; background: var(--workspace-edge); }
-.workspace-tab:focus-visible { z-index: 2; }
-.workspace-actions { margin-left: auto; padding-bottom: 0.3rem; }
-@media (min-width: 640px) { .workspace-panel.draft-workshop { --workspace-padding: 1.5rem; } }
-@media (max-width: 639px) {
-  .workspace-tabs-bar { flex-wrap: wrap; gap: 0; }
-  .workspace-actions { margin-left: auto; padding-bottom: 0.5rem; }
-  .workspace-tabs { order: 1; width: 100%; }
-  .workspace-tabs .workspace-tab { flex: 1; padding-inline: 0.5rem; font-size: 0.75rem; }
-  /* Actions wrap above the tabs, so the backing starts one row lower. */
-  #root .workspace-panel:has(> .workspace-tabs-bar)::before { top: calc(var(--workspace-padding) + var(--workspace-tab-height) + 2.5rem - 1px); }
-}
-@media (prefers-reduced-motion: reduce) { .workspace-tabs .workspace-tab { transition: none; } }
-
-/* Columns follow the split's own width, measured by WorkspaceSplit, so a workspace stays correct inside any shell. */
-.workspace-split {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: stretch;
-}
-
-.workspace-split[data-split="wide"] { grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr); }
-
-/* Stacked, the aside lives in a drawer and its trigger overlays the split's top-right corner, claiming no row of
-   its own so the main column keeps the same geometry as a full-column workspace. Panels make room with the variable. */
-.workspace-split[data-split="stacked"] { --workspace-split-trigger: 2.75rem; }
-.workspace-split-trigger { position: absolute; z-index: 2; top: 1rem; right: 1rem; }
-.character-stage-preview > :first-child { padding-right: var(--workspace-split-trigger, 0); }
-
 .character-stage-preview {
   display: flex;
   flex: 1;
@@ -555,11 +388,6 @@ body::before {
     linear-gradient(90deg, transparent 49.9%, rgb(105 62 30 / 10%) 50%, transparent 50.1%),
     radial-gradient(circle at center 42%, rgb(255 239 187 / 30%), transparent 64%);
   box-shadow: inset 0 0 2rem rgb(83 47 23 / 5%), 0 0 1.5rem rgb(231 183 73 / 7%);
-}
-
-.character-profile-panel {
-  overflow: auto;
-  color: #5b361b;
 }
 
 .character-profile-heading {
@@ -646,7 +474,7 @@ body::before {
   letter-spacing: 0.06em;
 }
 
-.character-profile-panel > label {
+.character-profile-panel label {
   display: flex;
   margin-top: 0.8rem;
   flex-direction: column;
@@ -756,15 +584,7 @@ body::before {
   margin-top: 0.65rem;
 }
 
-.variant-card {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid rgb(128 79 35 / 40%);
-  border-radius: 0.7rem;
-  background: rgb(248 229 182 / 45%);
-  color: #6d4927;
-}
+
 
 .variant-card.is-selected {
   border-color: #aa7428;
@@ -857,7 +677,6 @@ body::before {
   position: relative;
   display: flex;
   min-height: 0;
-  flex: 1;
   flex-direction: column;
 }
 
@@ -891,25 +710,12 @@ body::before {
    Responsive
    --------------------------------------------------------------------------- */
 
-.workspace-aside-drawer {
-  width: min(26rem, calc(100vw - 2rem));
-  max-width: none;
-}
-
-.workspace-aside-drawer > :not([data-slot]) {
-  flex: 1;
-  padding: 3.25rem 1rem 1rem;
-  border: 0;
-  border-radius: 0;
-}
-
 @media (max-width: 899px) {
   .workbench-tabs {
     height: 3.5rem;
   }
 
-  #root .workbench-tabs [data-slot="tabs-trigger"],
-  .workspace-aside-drawer .workbench-tabs [data-slot="tabs-trigger"] {
+  .workbench-tabs [data-slot="tabs-trigger"] {
     flex-direction: column;
     gap: 0.1rem;
     padding-inline: 0.15rem;
@@ -921,19 +727,6 @@ body::before {
   }
 }
 
-/* Short windows scroll the editor instead of squeezing its canvas and controls to zero. */
-@media (max-height: 600px) {
-  .draft-workshop-shell {
-    flex: none;
-    height: auto;
-  }
-  .draft-workshop {
-    height: auto;
-  }
-  .draft-workshop > .workspace-split {
-    min-height: 32rem;
-  }
-}
 
 @media (max-width: 700px) {
   #root > header nav {
@@ -954,27 +747,17 @@ body::before {
 }
 
 @media (max-width: 640px) {
-  #root .workspace-panel::before {
-    inset: 0.35rem;
-    border-radius: 1rem;
-  }
-
-  .workspace-split {
-    gap: 0.5rem;
-  }
-
   .character-attribute-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .workspace-split-trigger { top: 0.5rem; right: 0.5rem; }
   .workbench-content > h3 {
     white-space: normal;
   }
 }
 
 /* One continuous drawing sheet inside the shared workshop shell. */
-.model-sheet-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+
 @media (min-width: 900px) { .model-sheet-toolbar { grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr); } }
 .model-sheet-content { padding: clamp(1rem, 3vw, 2.5rem); }
 .model-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2.5rem 1.5rem; }
@@ -985,7 +768,6 @@ body::before {
 .model-sheet-art { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 0; border-radius: 0; background: transparent; }
 .model-sheet-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; color: var(--muted-foreground); font-size: 0.875rem; background: transparent; cursor: pointer; }
 .model-sheet-state { font-size: 0.75rem; color: var(--muted-foreground); }
-.model-sheet-detail[data-side=right] { width: min(100%, 44rem); max-width: 44rem; }
 .model-sheet-calibration { position: relative; flex: none; align-self: center; background: #eee; border: 1px solid var(--border); }
 .model-sheet-guide { position: absolute; inset-inline: 0; border-top: 1px dashed #ad4617; pointer-events: none; }
 .model-sheet-guide span { position: absolute; left: 0; bottom: 0; padding: 0.05rem 0.3rem; background: #fffef2ee; color: #803012; font-size: 0.7rem; }
@@ -995,11 +777,6 @@ body::before {
 
 /* Storyboards share the library's paper palette;  originals are never cropped. */
 
-.story-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin:0 0 16px}
-
-.story-toolbar,.story-create { display:flex; gap:12px; justify-content:space-between; align-items:center; margin:20px 0; flex-wrap:wrap}
-
-.story-create input { flex:1; min-width:150px}
 :is(.story-workspace,.story-drawer) input:not([type=checkbox]):not([type=file]),:is(.story-workspace,.story-drawer) textarea,:is(.story-workspace,.story-drawer) select { border:1px solid var(--border); border-radius:8px; padding:9px 12px; background:var(--background); width:100%; font-size:14px}
 
 :is(.story-workspace,.story-drawer) label { display:grid; gap:6px; font-size:13px}
@@ -1010,6 +787,11 @@ body::before {
 .story-upload:focus-within { outline:2px solid var(--ring)}
 .story-upload input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer}
 .story-upload:has(input:disabled) { opacity:.5; pointer-events:none}
+.story-upload-icon { display:grid; width:36px; height:36px; padding:6px; place-items:center; border-style:solid; }
+.story-upload-icon .aozu-icon, .story-upload-icon .aozu-icon img { width:100%; height:100%; object-fit:contain; }
+.story-folder-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:20px; }
+.story-folder-toolbar > button { width:min(100%, 408px); }
+.story-folder-toolbar [role=alert] { margin-left:8px; }
 
 
 .story-picture { aspect-ratio:16/9; background:color-mix(in srgb,var(--muted) 65%,transparent); display:grid; place-items:center; overflow:hidden}
@@ -1035,26 +817,16 @@ body::before {
 .story-reference p { margin-top:8px}
 .story-warning { color:#936519}
 .story-error { padding:12px; border:1px solid var(--destructive); color:var(--destructive); border-radius:8px}
-.story-empty { padding:70px 24px; text-align:center; color:var(--muted-foreground); width:100%; border:1px dashed var(--border); border-radius:14px}
 .story-settings { max-width:600px; font-size:14px}
 .story-settings summary { cursor:pointer; color:var(--muted-foreground)}
 .story-settings form { margin-top:16px}
 .story-library { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:24px}
-.story-library>a { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--card)}
-.story-add-card { border:1px dashed var(--border); border-radius:14px}
-.story-library>a>div:last-child { padding:16px}
+
+
+
 .story-library h2 { font-weight:600}
 .story-library p { font-size:13px; color:var(--muted-foreground); margin-top:6px}
-.story-home-tool { display:flex; align-items:center; gap:20px; border:1px solid var(--border); background:var(--card); border-radius:16px; padding:24px; margin-bottom:32px}
-.story-home-tool>span { font-size:40px}
-.story-home-tool h2 { font-size:22px; font-weight:600}
-.story-home-tool p { font-size:13px; color:var(--muted-foreground); margin-top:5px}
-.story-home-tool strong { margin-left:auto; font-size:13px}
-
-@media(max-width:700px) { .story-heading { align-items:flex-start; flex-direction:column; gap:16px}
-.story-detail-grid { grid-template-columns:1fr}
-.story-home-tool { flex-wrap:wrap; padding:18px}
-.story-home-tool strong { margin-left:0}
+@media(max-width:700px) { .story-detail-grid { grid-template-columns:1fr}
 .story-compare { grid-template-columns:1fr}
 }
 
@@ -1068,18 +840,17 @@ body::before {
 .world-heading h1 { font-family: var(--font-heading); font-size: clamp(26px, 4vw, 36px); font-weight: 700; overflow-wrap: anywhere; }
 .world-heading p { max-width: 65ch; }
 .world-eyebrow { font-size: 12px; letter-spacing: .12em; margin-bottom: 8px; }
-.world-actions, .world-breadcrumb, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.world-breadcrumb { font-size: 14px; gap: 6px; }
-.world-breadcrumb a:hover, .world-folder-list a:hover { text-decoration: underline; }
+.world-actions, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+.world-folder-list a:hover { text-decoration: underline; }
 .world-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 18px; }
-.world-card { min-width: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--card); }
-.world-card .workspace-card-open { gap: 0; }
+
+
 .world-card .workspace-card-label { display: flex; align-items: center; gap: 8px; padding: 16px 16px 0; font-weight: 600; }
 .world-card .workspace-card-meta { padding: 4px 16px 16px; white-space: pre-wrap; }
 .world-card-remove { margin: 0 16px 16px; }
 .world-picture { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); min-width: 0; }
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
-.world-workspace > .world-picture { max-height: 65vh; margin-bottom: 20px; }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }
 .world-home-card > a:first-child { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 24px; width: 100%; flex: 1; }
@@ -1106,7 +877,6 @@ body::before {
 .world-condition summary { cursor: pointer; font-weight: 600; }
 .world-condition > p, .world-condition > .world-actions { margin: 12px 0; }
 .world-tags span, .world-folder-list a { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
-.world-panel { width: min(100vw, 520px) !important; max-width: 520px !important; }
 @media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } .world-upload { flex-wrap: wrap; } }
 
 /* Shared shadcn breadcrumb, colored with the AOZU theme tokens. */
@@ -1132,39 +902,8 @@ body::before {
 .collection-move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .collection-move-grid .collection-cover { min-height: 180px; padding: 18px 10px; overflow-wrap: anywhere; cursor: pointer; }
 .collection-move-grid .collection-cover-seal { width: 72px; height: 72px; }
-.collection-move-grid .collection-cover:disabled { opacity: .55; cursor: default; filter: none; }
-.collection-move-sheet { background: var(--background); }
-
-/* Canonical character document surface and its reusable layout slots. */
-.workspace-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; width: 100%; max-width: 1152px; min-width: 0; margin: 0 auto; padding: 24px; }
-.workspace-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; flex-shrink: 0; }
-.workspace-toolbar > :first-child { min-width: 0; }
-.workspace-surface { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; margin-top: 0.5rem; padding: 1rem; border-radius: 1rem; }
-@media (min-width: 640px) { .workspace-surface { margin-top: 0.75rem; } }
-@media (max-width: 640px) { .workspace-surface { padding: 0.5rem; } }
-#root main section.workspace-surface[data-workspace-surface="paper"] { background: #eee; color: #333; }
-.workspace-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
-.workspace-scroll::-webkit-scrollbar { display: none; }
-.workspace-scroll:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.workspace-add { display: flex; flex-wrap: wrap; gap: 12px; padding: 18px 0 6px; }
-/* One tile shape for every grid; each grid's own card class supplies the frame around it. */
-.workspace-card { position: relative; min-width: 0; }
-.workspace-card-open { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 0.5rem; border-radius: inherit; }
-.workspace-card-preview { display: grid; place-items: center; width: 100%; overflow: hidden; }
-.workspace-card-label { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-heading); font-weight: 700; }
-.workspace-card-meta { min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; font-weight: 400; color: var(--muted-foreground); }
-.workspace-card-open:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
-
-/* Adding is the same tile with a plus where the preview would be. */
-.workspace-add-card { border-style: dashed; background: rgb(248 229 182 / 30%); color: #7d5326; box-shadow: none; }
-.workspace-add-card:hover { background: rgb(248 229 182 / 55%); }
-.workspace-add-card .workspace-card-open { align-items: center; justify-content: center; text-align: center; }
-/* A collection cover's thick spine is part of the book, not of an empty slot. */
-.workspace-add-card.collection-cover { border-left-width: 1px; }
-@media (max-width: 700px) { .workspace-panel { --workspace-padding: 14px; padding: 14px; } }
-
+.collection-move-grid .collection-cover:has(:disabled) { opacity: .55; cursor: default; filter: none; }
 /* Reading order: frame on the left, camera/action notes on the right. */
-.story-workspace > .workspace-scroll { padding: 0 2px; }
 .workspace-scroll > .world-picture { max-height: 65vh; }
 
 /* A single drawing sheet owns the scroll; the document controls stay outside. */
@@ -1174,10 +913,7 @@ body::before {
 .story-document > .world-section select { width: auto; max-width: 100%; }
 .story-document > .world-section label { display: flex; align-items: center; gap: 12px; }
 .story-document > .story-settings { flex: none; max-height: 30vh; overflow: auto; scrollbar-width: none; margin-bottom: 12px; }
-.story-paper { background: #f7f6f2; border: 1px solid #c9c4ba; border-radius: 14px; padding: clamp(16px, 2vw, 28px); box-shadow: inset 0 1px 0 #fff; }
 .story-paper .story-picture { border: 1px solid #aaa69c; }
-.story-paper > .workspace-add { border-top: 1px solid #c2bdb2; }
-
 /* Storyboard rows: one drawing surface, one responsive layout definition. */
 .story-grid { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; gap: 0; }
 .story-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; min-width: 0; padding: 20px 0; border-bottom: 1px solid #c2bdb2; }

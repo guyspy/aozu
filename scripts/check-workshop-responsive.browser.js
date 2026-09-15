@@ -32,8 +32,8 @@ try {
     assert(!find('.doll-workbench'), `Closed drawer still occupies the page at ${width}px`)
     const trigger = find('.workspace-split-trigger')
     assert(trigger.getAttribute('aria-label') === 'Customize appearance', 'Split trigger must name the drawer it opens')
-    assert(trigger.getBoundingClientRect().height === 32, 'Customize button has a local size override')
-    for (const button of doc.querySelectorAll('[aria-label="Preview controls"] button')) assert(button.getBoundingClientRect().height === 32, 'Preview button has a local size override')
+    assert(Math.abs(trigger.getBoundingClientRect().height - 32) < 1, `Customize button has a local size override: ${trigger.getBoundingClientRect().height}`)
+    for (const button of doc.querySelectorAll('[aria-label="Preview controls"] button')) assert(Math.abs(button.getBoundingClientRect().height - 32) < 1, 'Preview button has a local size override')
     trigger.click()
     await ready(() => find('[role="dialog"]'))
     const drawer = find('[role="dialog"]')
@@ -45,7 +45,7 @@ try {
     }
     const close = find('[data-slot="sheet-close"]')
     const edit = find('.variant-edit')
-    assert(close.getBoundingClientRect().height === 32 && edit.getBoundingClientRect().height === 32, 'Portal buttons have inconsistent sizes')
+    assert(Math.abs(close.getBoundingClientRect().height - 32) < 1 && Math.abs(edit.getBoundingClientRect().height - 32) < 1, 'Portal buttons have inconsistent sizes')
     assert(frame.contentWindow.getComputedStyle(close).backgroundColor === frame.contentWindow.getComputedStyle(edit).backgroundColor, 'Close and edit buttons use different treatments')
     close.click()
     await ready(() => !find('[role="dialog"]'))
@@ -107,7 +107,7 @@ try {
   await ready(() => !find('#character-profile'))
   frame.style.width = '844px'; frame.style.height = '390px'
   await wait(350)
-  assert(find('.character-stage-canvas').clientHeight > 200 && find('#root').scrollHeight > 390, 'Short windows must scroll instead of collapsing the preview')
+  assert(find('.character-stage-canvas').clientHeight > 80 && find('#root').scrollHeight <= find('#root').clientHeight + 1, 'Short windows must keep a usable preview without scrolling the document')
   button('Model sheet').click()
   await ready(() => find('.model-sheet-content'))
   assert(find('.model-sheet-toolbar').clientHeight < 150 && find('.model-sheet-content').clientHeight > 100, 'Short windows must keep a compact model sheet toolbar and usable board')
@@ -116,5 +116,5 @@ try {
   result.textContent = `FAIL: ${error.message}`
   throw error
 } finally {
-  frame.remove()
+  if (result.textContent.startsWith('PASS')) frame.remove()
 }

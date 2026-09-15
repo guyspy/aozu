@@ -1,4 +1,4 @@
-import { WorkspaceScroll, WorkspaceSurface } from '@/ui/Workspace'
+import { WorkspaceScroll, WorkspaceSurface, WorkspaceToolbar, WorkspaceSheet } from '@/ui/Workspace'
 import { ImagePlusIcon } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +15,7 @@ import { Checkbox } from '@/ui/components/ui/checkbox'
 import { Card } from '@/ui/components/ui/card'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/ui/components/ui/select'
 import { Button } from '@/ui/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/ui/components/ui/sheet'
+import { Sheet, SheetDescription } from '@/ui/components/ui/sheet'
 
 export function CharacterModelSheet({ draft, edit, commit, revert, upload, appearanceSelector, busy, error, saveFeedback, referenceId: view, openReference }: {
   draft: CharacterDraft
@@ -58,10 +58,10 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
   }
 
   return <WorkspaceSurface surface="paper" className="model-sheet" aria-label={t('modelSheet.title')} data-reference-view={view}>
-    <div className="model-sheet-toolbar shrink-0">
-      <div className="min-w-0">{appearanceSelector}</div>
-    </div>
-    <WorkspaceScroll className="model-sheet-content mt-3">
+    <WorkspaceToolbar className="model-sheet-toolbar">
+      <div className="min-w-0 flex-1">{appearanceSelector}</div>
+    </WorkspaceToolbar>
+    <WorkspaceScroll className="model-sheet-content">
     <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 className="font-heading text-xl font-semibold">{t('modelSheet.fullBody')}</h2>
       <p className="text-sm text-muted-foreground">{t('modelSheet.count', { count: Object.keys(sheet.views).length })}</p>
@@ -78,9 +78,9 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     </section>
     </WorkspaceScroll>
     <Sheet open={Boolean(view && (reference || view === 'new'))} onOpenChange={(open) => { if (!open) { revert(); openReference() } }}>
-      <SheetContent className="model-sheet-detail overflow-y-auto p-5 sm:p-8" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
+      <WorkspaceSheet title={view === 'new' ? t('modelSheet.add') : `${draft.name} · ${view ? label(view) : ''}`} surface="paper" className="model-sheet-detail" closeLabel={t('common.close')} onCloseAutoFocus={(event) => { event.preventDefault(); trigger.current?.focus() }}>
         {view === 'new' && !reference && <>
-          <SheetTitle>{t('modelSheet.add')}</SheetTitle>
+
           <SheetDescription>{t('modelSheet.moreHelp')}</SheetDescription>
         <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => {
           event.preventDefault()
@@ -104,7 +104,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
           {error && <p role="alert" className="text-destructive">{error}</p>}
         </>}
         {view && reference && <>
-          <SheetTitle>{draft.name} · {label(view)}</SheetTitle>
+
           {reference.kind && <p className="model-sheet-state">{t(`modelSheet.kinds.${reference.kind}`)}</p>}
           <SheetDescription>{t(calibratable ? 'modelSheet.calibrateHelp' : 'modelSheet.moreHelp')}</SheetDescription>
           <p className="text-sm text-muted-foreground">{t('modelSheet.brief')}</p>
@@ -143,7 +143,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
             {saveFeedback}
           </form>
         </>}
-      </SheetContent>
+      </WorkspaceSheet>
     </Sheet>
   </WorkspaceSurface>
 }

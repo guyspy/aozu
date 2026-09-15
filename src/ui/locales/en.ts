@@ -6,7 +6,7 @@ export const en = {
     close: 'Close',
     language: 'Language',
   },
-  navigation: { primary: 'Primary navigation', home: 'Home', notFound: 'Page not found' },
+  navigation: { primary: 'Primary navigation', library: 'Library navigation', home: 'Home', notFound: 'Page not found' },
   startup: {
     loading: 'Loading local data…',
     error: 'Local data could not be loaded. Refresh and try again.',

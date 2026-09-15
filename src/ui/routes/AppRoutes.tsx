@@ -1,7 +1,8 @@
-import { AozuIcon } from '@/ui/AozuIcon'
+import { Workspace, WorkspaceSheet } from '@/ui/Workspace'
+import { CollectionBookCard } from '@/ui/LibraryCards'
 import { FolderInputIcon } from 'lucide-react'
 import { Button } from '@/ui/components/ui/button'
-import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
+import { Sheet } from '@/ui/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import type { CharacterCollection } from '@/core/domain/character-collection'
 import { Breadcrumbs } from '@/ui/Breadcrumbs'
@@ -18,7 +19,7 @@ import { DEFAULT_CHARACTER_COLLECTION } from '@/core/domain/character-collection
 import type { Application } from '@/bootstrap.ts'
 import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
-import { CollectionActions } from '@/ui/CollectionActions'
+import { CollectionActions, CollectionProfileAction, LibraryTransferAction } from '@/ui/CollectionActions'
 import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StoryboardPage } from '@/ui/pages/StoryboardPage'
@@ -36,15 +37,15 @@ function CharacterEditor({ application, collections, refresh, savedRevision, web
     key={characterId}
     collectionControl={characterId !== 'new' && <>
       <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={t('books.move')} onClick={() => { setError(''); setMoving(true) }}><FolderInputIcon /></Button></TooltipTrigger><TooltipContent>{t('books.move')}</TooltipContent></Tooltip>
-      <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><SheetContent className="collection-move-sheet overflow-y-auto p-6" aria-describedby={undefined}><SheetTitle className="font-heading text-xl">{t('books.move')}</SheetTitle>
-        <div className="collection-move-grid mt-6">{collections.map((collection) => <button type="button" className="collection-cover" key={collection.id} disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
+      <Sheet open={moving} onOpenChange={(open) => { if (!busy) setMoving(open) }}><WorkspaceSheet title={t('books.move')}  aria-describedby={undefined}>
+        <div className="collection-move-grid mt-6">{collections.map((collection) => <CollectionBookCard key={collection.id} label={collection.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : collection.name} disabled={busy || collection.characterIds.includes(characterId)} onClick={async () => {
           setBusy(true); setError('')
           try { await application.assignCollection(characterId, collection.id); await refresh(); setMoving(false) }
           catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)) }
           finally { setBusy(false) }
-        }}><AozuIcon name="book" className="collection-cover-seal" /><span className="font-heading font-semibold">{collection.id === DEFAULT_CHARACTER_COLLECTION ? t('books.default') : collection.name}</span></button>)}</div>
+        }} />)}</div>
         {error && <p role="alert" className="mt-4 text-destructive">{error}</p>}
-      </SheetContent></Sheet>
+      </WorkspaceSheet></Sheet>
     </>}
     webmcpReady={webmcpReady}
     editor={application.editor}
@@ -112,14 +113,14 @@ export function AppRoutes({ application }: { application: Application }) {
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => document.removeEventListener('visibilitychange', refreshWhenVisible)
   }, [refresh])
-  if (loadError) return <><AppHeader webmcp={webmcp} /><main className="mx-auto max-w-4xl p-6">
+  if (loadError) return <><AppHeader webmcp={webmcp} /><Workspace>
     <p role="alert">{t('startup.error')}</p>
     <CharacterLibraryTransfer
       exportLibrary={application.exportCharacterLibrary}
       prepareLibraryImport={application.prepareCharacterLibraryImport}
       importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
     />
-  </main></>
+  </Workspace></>
   if (world.error) return <><AppHeader webmcp={webmcp} /><StatusPage>{world.error}</StatusPage></>
   if (!library || !world.library) return <><AppHeader webmcp={webmcp} /><StatusPage>{t('startup.loading')}</StatusPage></>
 
@@ -168,7 +169,6 @@ export function AppRoutes({ application }: { application: Application }) {
 
   const collectionActions = <CollectionActions
     collection={collection}
-    updateCollection={application.updateCollection}
     deleteCollection={application.deleteCollection}
     exportLibrary={application.exportCharacterLibrary}
     prepareLibraryImport={application.prepareCharacterLibraryImport}
@@ -180,15 +180,16 @@ export function AppRoutes({ application }: { application: Application }) {
     }}
     refresh={refresh}
   />
+  const collectionProfileAction = collection && <CollectionProfileAction collection={collection} updateCollection={application.updateCollection} refresh={refresh} />
   const libraryPage = <CharacterLibraryPage
     characters={library.characters}
     loadThumbnail={application.loadCharacterThumbnail}
     collections={library.collections}
-    locationCounts={Object.fromEntries(library.collections.map((c) => [c.id, world.library!.locations.filter((l) => l.collectionId === c.id).length]))}
     createCollection={async (name) => { const book = await application.createCollection(name); await refresh(); return book }}
     openCharacter={(id) => navigate(`/characters/${encodeURIComponent(id)}/expressions`)}
     refresh={refresh}
     actions={collectionActions}
+    profileAction={collectionProfileAction}
   />
   const worldPage = <WorldLibraryPage key={location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
   const storyPage = <StoryboardPage key={location.pathname} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
@@ -197,6 +198,7 @@ export function AppRoutes({ application }: { application: Application }) {
       webmcp={webmcp}
       title={documentTitle}
       onBack={backPath ? () => navigate(backPath) : undefined}
+      actions={<LibraryTransferAction exportLibrary={application.exportCharacterLibrary} prepareLibraryImport={application.prepareCharacterLibraryImport} importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }} />}
     />
     {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
     <Routes>

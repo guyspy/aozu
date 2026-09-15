@@ -7,14 +7,16 @@ import { Button } from '@/ui/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
 import type { WebMcpState } from '@/adapters/webmcp/controller.ts'
 import { LANGUAGES } from '@/ui/i18n'
+import type { ReactNode } from 'react'
 
 type AppHeaderProps = {
   webmcp: WebMcpState
   title?: string
   onBack?: () => void
+  actions?: ReactNode
 }
 
-export function AppHeader({ webmcp, title, onBack }: AppHeaderProps) {
+export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
   const { t, i18n } = useTranslation()
   const label = t(`main.webmcp.${webmcp.status}`, { count: webmcp.toolCount })
   const color = webmcp.status === 'ready' ? 'bg-emerald-500' : webmcp.status === 'registering' ? 'bg-amber-500'
@@ -35,6 +37,7 @@ export function AppHeader({ webmcp, title, onBack }: AppHeaderProps) {
           {title && <h1 className="truncate font-heading text-lg font-semibold">{title}</h1>}
         </div>
         <div className="flex items-center gap-2">
+          {actions}
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>
             <SelectTrigger size="sm" aria-label={t('common.language')}>
               <LanguagesIcon aria-hidden="true" />
@@ -53,7 +56,7 @@ export function AppHeader({ webmcp, title, onBack }: AppHeaderProps) {
               className={`size-2 rounded-full ${color}`}
               aria-hidden="true"
             />
-            {webmcp.status === 'ready' ? t('main.webmcp.readyShort', { count: webmcp.toolCount }) : 'WebMCP'}
+            WebMCP
           </span>
         </div>
       </nav>

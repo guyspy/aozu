@@ -1,4 +1,6 @@
-import { Workspace, WorkspaceAddCard, WorkspaceCard, WorkspaceSurface, WorkspaceTabs, WorkspaceToolbar, WorkspaceScroll } from '@/ui/Workspace'
+import { WorkspaceSheet, Workspace, WorkspaceCard, WorkspaceSurface, WorkspaceTabs, WorkspaceScroll } from '@/ui/Workspace'
+import { LibraryTabs } from '@/ui/LibraryTabs'
+import { CollectionBookCard, WatermarkAddCard } from '@/ui/LibraryCards'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router'
@@ -9,7 +11,7 @@ import { AozuIcon } from '@/ui/AozuIcon'
 import { RenderStatus } from '@/ui/CharacterRenderer'
 import { useBlobUrl } from '@/ui/useBlobUrl'
 import { Button } from '@/ui/components/ui/button'
-import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
+import { Sheet } from '@/ui/components/ui/sheet'
 
 export type CharacterLibraryItem = Pick<CharacterDraft, 'id' | 'name' | 'updatedAt'> & {
   previewKey: string
@@ -42,15 +44,15 @@ function CharacterCardPortrait({ character, loadThumbnail }: { character: Charac
   </div>
 }
 
-export function CharacterLibraryPage({ characters, loadThumbnail, collections, locationCounts, createCollection, openCharacter, refresh, actions }: {
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, openCharacter, refresh, actions, profileAction }: {
   characters: CharacterLibraryItem[]
   loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
-  locationCounts: Record<string, number>
   createCollection(name: string): Promise<CharacterCollection>
   openCharacter(id: string): void
   refresh(): Promise<void>
   actions: ReactNode
+  profileAction?: ReactNode
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -91,18 +93,18 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
   }, [book?.id, hasCards])
   if (collectionId && !book) return <Navigate to={`/collections/${DEFAULT_CHARACTER_COLLECTION}`} replace />
 
-  return <Workspace className="card-library"
+  return <Workspace header={<>     {book && <WorkspaceTabs label={t('world.collection')} active={isProfile ? 'profile' : 'characters'}
+      items={[{ id: 'characters', label: t('world.characters') }, { id: 'locations', label: t('world.locations') }, { id: 'profile', label: t('books.profile') }]}
+      onSelect={(id) => navigate(`/collections/${book.id}${id === 'characters' ? '' : `/${id}`}`)}>{actions}</WorkspaceTabs>}
+    {!book && <LibraryTabs active="collections" />}
+ </>} className="card-library"
     data-workspace-view={book ? 'collection' : 'collections'} data-collection-id={book?.id}
     data-panel={isProfile ? 'profile' : creating ? 'create' : undefined} data-has-uncommitted-input={creating}>
 
-    {book && <WorkspaceTabs label={t('world.collection')} active={isProfile ? 'profile' : 'characters'}
-      items={[{ id: 'characters', label: t('world.characters') }, { id: 'locations', label: t('world.locations') }, { id: 'profile', label: t('books.profile') }]}
-      onSelect={(id) => navigate(`/collections/${book.id}${id === 'characters' ? '' : `/${id}`}`)}>{actions}</WorkspaceTabs>}
-    {!book && <WorkspaceToolbar className="book-toolbar">{actions}</WorkspaceToolbar>}
     <WorkspaceSurface className="book-page" aria-label={book ? nameOf(book) : t('books.shelf')}>
     <WorkspaceScroll>
     {book && isProfile ? <div className="book-profile flex flex-col gap-4" aria-label={t('books.profile')}>
-      <div className="min-w-0"><span className="text-sm text-muted-foreground">{t('books.profile')}</span><h2 className="font-heading text-2xl font-semibold">{nameOf(book)}</h2></div>
+      <div className="character-profile-heading"><div className="min-w-0"><span>{t('books.profile')}</span><h2>{nameOf(book)}</h2></div>{profileAction}</div>
       <p className="whitespace-pre-wrap text-sm leading-7">{book.description || t('books.noDescription')}</p>
       <div><h3 className="font-heading text-lg font-semibold">{t('books.world')}</h3>
         <p className="mt-2 whitespace-pre-wrap text-sm leading-7">{book.backstory || t('books.noWorld')}</p></div>
@@ -112,21 +114,18 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
             label={character.name} aria-label={`${t('characters.edit')} ${character.name}`} onClick={() => openCharacter(character.id)}>
             <CharacterCardPortrait character={character} loadThumbnail={loadThumbnail} />
           </WorkspaceCard>)}
-          <WorkspaceAddCard role="listitem" className="book-character-card" aspect="2 / 3" label={t('characters.new')} onClick={() => navigate('/characters/new/expressions')} />
+          <WatermarkAddCard role="listitem" className="book-character-card" aspect="2 / 3" label={t('characters.new')} icon="book" onClick={() => navigate('/characters/new/expressions')} />
         </div> : <div className="book-empty"><AozuIcon name="book" className="size-20" /><h2 className="font-heading text-xl">{t('books.empty')}</h2><p className="max-w-sm text-sm text-muted-foreground">{t(book.id === DEFAULT_CHARACTER_COLLECTION ? 'books.emptyDefault' : 'books.emptyCustom')}</p><Button variant="outline" onClick={() => book.id === DEFAULT_CHARACTER_COLLECTION ? navigate('/characters/new/expressions') : navigate(`/collections/${DEFAULT_CHARACTER_COLLECTION}`)}>{t(book.id === DEFAULT_CHARACTER_COLLECTION ? 'characters.new' : 'books.browseDefault')}</Button></div>}
     </> : <section className="bookshelf-grid" aria-label={t('books.shelf')}>
       <h1 className="sr-only">{t('books.shelf')}</h1>
-      {collections.map((value) => <WorkspaceCard key={value.id} to={`/collections/${value.id}`} className="collection-cover"
-        label={nameOf(value)} meta={`${t('books.characterCount', { count: value.characterIds.length })} · ${t('world.locations')} ${locationCounts[value.id] ?? 0}`}>
-        <AozuIcon name="book" className="collection-cover-seal" />
-      </WorkspaceCard>)}
-      <WorkspaceAddCard className="collection-cover" label={t('books.create')} onClick={createBook} />
+      {collections.map((value) => <CollectionBookCard key={value.id} to={`/collections/${value.id}`} label={nameOf(value)} />)}
+      <WatermarkAddCard className="collection-cover" label={t('books.create')} icon="collections" onClick={createBook} />
     </section>}
     </WorkspaceScroll>
     </WorkspaceSurface>
     <Sheet open={creating} onOpenChange={(open) => { if (!open && !busy) setCreating(false) }}>
-      <SheetContent className="book-panel overflow-y-auto p-5 sm:p-6" closeLabel={t('common.close')} aria-describedby={undefined} onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }} onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}>
-        <SheetTitle className="pr-8 text-xl">{t('books.create')}</SheetTitle>
+      <WorkspaceSheet title={t('books.create')}  closeLabel={t('common.close')} aria-describedby={undefined} onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }} onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}>
+
         <form className="book-profile-form" onSubmit={(event) => {
           event.preventDefault()
           void (async () => {
@@ -141,7 +140,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, l
           <div className="flex justify-end gap-2"><Button variant="ghost" type="button" disabled={busy} onClick={() => setCreating(false)}>{t('common.cancel')}</Button><Button disabled={busy || !name.trim()} type="submit">{t(busy ? 'data.busy' : 'books.create')}</Button></div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </form>
-      </SheetContent>
+      </WorkspaceSheet>
     </Sheet>
   </Workspace>
 }

@@ -4,7 +4,7 @@ export const zhCN: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: '关闭', productName: 'AOZU', back: '返回', cancel: '取消', language: '语言' },
-  navigation: { primary: '主导航', home: '首页', notFound: '找不到这个页面' },
+  navigation: { primary: '主导航', library: '资料库导航', home: '首页', notFound: '找不到这个页面' },
   startup: {
     loading: '正在加载本地数据…',
     error: '无法加载本地数据，请刷新后重试。',

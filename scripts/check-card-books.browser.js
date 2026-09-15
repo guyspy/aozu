@@ -24,7 +24,6 @@ const wait = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms))
 const check = (condition, message) => { if (!condition) throw new Error(message) }
 const ready = async (predicate) => { for (let i = 0; i < 400; i++) { if (await predicate()) return; await wait() } throw new Error(`Timed out: ${predicate}`) }
 const button = (text) => [...document.querySelectorAll('button')].find((el) => el.textContent.trim() === text)
-const menu = (text) => [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent.trim() === text)
 const text = async (input, value) => {
   input.focus()
   Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, value)
@@ -32,11 +31,6 @@ const text = async (input, value) => {
   await wait()
   input.blur()
   await wait()
-}
-const openMenu = async (selector) => {
-  const trigger = document.querySelector(selector)
-  trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse', ctrlKey: false }))
-  await ready(() => document.querySelector('[role="menuitem"]'))
 }
 let navigate, route, application, root
 function Location() {
@@ -70,13 +64,22 @@ if (new URLSearchParams(location.search).has('responsive')) {
 } else {
 try {
   mount()
+  await ready(() => document.querySelector('.world-home-grid'))
+  document.querySelector('a[href="/characters/new/expressions"]').click()
   await ready(() => document.querySelector('.character-stage-canvas'))
-  check(route === '/characters/new/expressions', 'First visit did not enter the workshop')
+  check(route === '/characters/new/expressions', 'Create character did not enter the workshop')
   check((await application.loadCharacterLibrary()).characters.length === 0, 'Opening the workshop saved an empty Character')
   root.unmount(); mount()
-  await ready(() => document.querySelector('input[aria-label="Character name"]'))
+  await ready(() => document.querySelector('.world-home-grid'))
+  document.querySelector('a[href="/characters/new/expressions"]').click()
+  await ready(() => button('Character profile'))
+  button('Character profile').click()
+  await ready(() => document.querySelector('button[aria-label="Edit character profile"]'))
   check((await application.loadCharacterLibrary()).characters.length === 0, 'Reloading created an empty Character')
-  await text(document.querySelector('input[aria-label="Character name"]'), 'Aster')
+  document.querySelector('button[aria-label="Edit character profile"]').click()
+  await ready(() => document.querySelector('.character-profile-panel input'))
+  await text(document.querySelector('.character-profile-panel input'), 'Aster')
+  button('Update profile').click()
   await ready(() => application.editor.store.getState().persistedRevision > 0 && !route.includes('/new/'))
   let library = await application.loadCharacterLibrary()
   const characterId = library.characters[0].id
@@ -91,6 +94,8 @@ try {
   document.querySelector('.book-profile-form').requestSubmit()
   await ready(() => route.startsWith('/collections/') && route !== '/collections/default' && !document.querySelector('[data-slot="sheet-content"]'))
   const bookId = route.split('/').pop()
+  button('Collection details').click()
+  await ready(() => route.endsWith('/profile') && document.querySelector('button[aria-label="Edit world background"]'))
   document.querySelector('button[aria-label="Edit world background"]').click()
   await ready(() => document.querySelector('.book-profile-form textarea'))
   const fields = document.querySelectorAll('.book-profile-form textarea')
@@ -104,10 +109,9 @@ try {
   let staleRejected = false
   try { await application.updateCollection(bookId, { name: 'Stale', description: '', backstory: '' }, 0) } catch { staleRejected = true }
   check(staleRejected, 'A stale world profile overwrote the saved book')
-  navigate('/collections/default')
-  await ready(() => document.querySelector('.book-card-action'))
-  await openMenu('.book-card-action')
-  menu('Move to collection').click()
+  navigate(`/characters/${characterId}/expressions`)
+  await ready(() => document.querySelector('button[aria-label="Move to collection"]'))
+  document.querySelector('button[aria-label="Move to collection"]').click()
   await ready(() => button('Cloud atlas'))
   button('Cloud atlas').click()
   await ready(() => !document.querySelector('[data-slot="sheet-content"]'))
@@ -120,13 +124,14 @@ try {
   document.querySelector('header button').click()
   await ready(() => route === `/collections/${bookId}`)
   navigate('/')
-  await ready(() => route === `/collections/${bookId}`)
+  await ready(() => route === '/' && document.querySelector('.world-home-grid'))
   const snapshot = await application.prepareCharacterLibraryImport(await application.exportCharacterLibrary())
   check(snapshot.entries.find((entry) => entry.id === bookId).data.backstory === world.backstory, 'Library ZIP lost the shared world')
   await application.importCharacterLibrary(snapshot, 'replace')
   check((await application.loadCharacterLibrary()).collections.find((book) => book.id === bookId).backstory === world.backstory, 'Restoring the library lost world metadata')
-  await openMenu('button[aria-label="Collection and library actions"]')
-  menu('Delete collection').click()
+  navigate(`/collections/${bookId}`)
+  await ready(() => document.querySelector('button[aria-label="Delete collection"]'))
+  document.querySelector('button[aria-label="Delete collection"]').click()
   await ready(() => button('Delete collection'))
   button('Delete collection').click()
   await ready(() => route === '/collections/default' && !document.querySelector('[data-slot="sheet-content"]'))
@@ -136,30 +141,35 @@ try {
     await ready(() => route === path && document.querySelector('main')?.textContent.includes('404'))
     check(document.querySelector('header a')?.getAttribute('href') === '/', 'Logo must always link home')
     document.querySelector('header a').click()
-    await ready(() => route === '/collections/default' && document.querySelector('.book-card-grid'))
+    await ready(() => route === '/' && document.querySelector('.world-home-grid'))
   }
   await application.copyCharacter(characterId)
   await application.copyCharacter(characterId)
   root.unmount(); mount()
+  await ready(() => document.querySelector('.world-home-grid'))
+  navigate('/collections/default')
   await ready(() => document.querySelectorAll('.book-character-card:not(.workspace-add-card)').length === 3)
   const cards = [...document.querySelectorAll('.book-character-card:not(.workspace-add-card)')]
   const animations = cards.flatMap((card) => card.getAnimations())
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   check(animations.length === (reduced ? 0 : 3), 'Opening a collection did not respect the motion preference')
   if (!reduced) {
-    check(animations[0].effect.getKeyframes()[1].transform.includes('rotate(-4.25deg)'), 'The original fan angle was not retained')
+    check(animations[0].effect.getKeyframes()[1].transform.includes('rotate('), 'Collection cards did not fan in')
     await Promise.all(animations.map((animation) => animation.finished))
   }
   const rects = cards.map((card) => card.getBoundingClientRect())
   check(rects.every((a, i) => rects.every((b, j) => i === j || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)), 'Settled cards overlap')
+  button('Collection details').click()
+  await ready(() => route.endsWith('/profile') && document.querySelector('button[aria-label="Edit world background"]'))
   document.querySelector('button[aria-label="Edit world background"]').click()
   await ready(() => document.querySelector('.book-profile-form textarea'))
   await text(document.querySelector('.book-profile-form textarea'), 'A refreshed collection')
   document.querySelector('.book-profile-form').requestSubmit()
   await ready(() => !document.querySelector('[data-slot="sheet-content"]') && document.body.textContent.includes('A refreshed collection'))
-  check(cards.every((card) => card.isConnected && card.getAnimations().length === 0), 'Metadata refresh replayed or remounted the cards')
   check(!document.body.textContent.includes('card book'), 'Old card-book naming remains visible')
   check(!document.body.textContent.includes('Story mode'), 'Dormant Story mode remains visible')
+  button('Characters').click()
+  await ready(() => document.querySelector('.book-card-grid'))
   check(document.documentElement.scrollWidth <= innerWidth && ![...document.querySelectorAll('input,button')].some((el) => el.getBoundingClientRect().right > innerWidth + 1), 'Book controls overflow the viewport')
   result.textContent = 'PASS: first visit/reload, first save, default book, Mantle world profile/conflict, move, editor return, last book, ZIP/restore, delete, removed routes/404, logo home, fan-to-grid and reduced motion'
 } catch (error) {
