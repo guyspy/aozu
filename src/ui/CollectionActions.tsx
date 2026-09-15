@@ -1,11 +1,10 @@
 import { WorkspaceSheet } from '@/ui/Workspace'
-import { ArchiveIcon, ImportIcon, PencilIcon, Trash2Icon } from 'lucide-react'
+import { ImportIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { DEFAULT_CHARACTER_COLLECTION, type CharacterCollection, type CharacterCollectionProfile } from '@/core/domain/character-collection'
-import { CharacterLibraryTransfer, type CharacterLibraryTransferProps } from '@/ui/CharacterLibraryTransfer'
 import { DataControls } from '@/ui/DataControls'
 import { WorkspaceActions } from '@/ui/Workspace'
 import { Button } from '@/ui/components/ui/button'
@@ -16,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/c
  * The actions that belong to a whole setting collection, for the tabs of every view of one.
  * Collection tabs live in two pages, so these travel with the collection rather than with either page.
  */
-export function CollectionActions({ collection, deleteCollection, importCharacter, refresh }: CharacterLibraryTransferProps & {
+export function CollectionActions({ collection, deleteCollection, importCharacter, refresh }: {
   collection?: CharacterCollection
   deleteCollection(id: string, version: number): Promise<void>
   importCharacter(blob: Blob): Promise<void>
@@ -35,7 +34,7 @@ export function CollectionActions({ collection, deleteCollection, importCharacte
     catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refresh() }
     finally { setBusy(false) }
   }
-  const action = (label: string, icon: typeof ArchiveIcon, click: () => void) => {
+  const action = (label: string, icon: typeof ImportIcon, click: () => void) => {
     const Icon = icon
     return <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={label} onClick={click}><Icon /></Button></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>
   }
@@ -54,15 +53,6 @@ export function CollectionActions({ collection, deleteCollection, importCharacte
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       </WorkspaceSheet>
     </Sheet>
-  </>
-}
-
-export function LibraryTransferAction(transfer: CharacterLibraryTransferProps) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  return <>
-    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button size="icon" variant="ghost" aria-label={t('library.backupTitle')} onClick={() => setOpen(true)}><ArchiveIcon /></Button></TooltipTrigger><TooltipContent>{t('library.backupTitle')}</TooltipContent></Tooltip></TooltipProvider>
-    <Sheet open={open} onOpenChange={setOpen}><WorkspaceSheet title={t('library.backupTitle')} closeLabel={t('common.close')} aria-describedby={undefined}><CharacterLibraryTransfer {...transfer} /></WorkspaceSheet></Sheet>
   </>
 }
 

@@ -1,4 +1,4 @@
-import { WorkspaceSheet, Workspace, WorkspaceActions, WorkspaceAddCard, WorkspaceScroll, WorkspaceSurface, WorkspaceToolbar } from '@/ui/Workspace'
+import { WorkspaceSheet, Workspace, WorkspaceAddCard, WorkspaceScroll, WorkspaceSurface, WorkspaceToolbar } from '@/ui/Workspace'
 import { LibraryTabs } from '@/ui/LibraryTabs'
 import { LibraryBookCard, WatermarkAddCard } from '@/ui/LibraryCards'
 import { Breadcrumbs } from '@/ui/Breadcrumbs'
@@ -18,7 +18,6 @@ import type { BoardCommand, Storyboard } from '@/core/domain/storyboard'
 import { Sheet, SheetDescription } from '@/ui/components/ui/sheet'
 import { Button } from '@/ui/components/ui/button'
 import { useBlobUrl } from '@/ui/useBlobUrl'
-import { AozuIcon } from '@/ui/AozuIcon'
 
 function Picture({ service, id, alt }: { service: StoryboardService; id?: string | null; alt: string }) {
   const [result, setResult] = useState<{ id: string; blob?: Blob; failed?: boolean }>()
@@ -93,8 +92,8 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   if (folder) crumbs.push({ label: folder.name, path: `/storyboards/folders/${folder.id}` })
   else if (folderId === 'unfiled') crumbs.push({ label: t('world.unfiled'), path: '/storyboards/folders/unfiled' })
   if (boardId) crumbs.push({ label: board?.name ?? text('working'), path: `/storyboards/${boardId}` })
-  return <><Breadcrumbs items={crumbs} /><Workspace header={<>{!boardId && <LibraryTabs active="storyboards"><WorkspaceActions><label className="story-upload story-upload-icon" aria-label={text('importZip')} title={text('importZip')}><AozuIcon name="import" /><span className="sr-only">{text('importZip')}</span><input type="file" accept=".zip" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void run(async () => { const created = await service.import(file); try { if (folderId && folderId !== 'unfiled') await worldService.save({ ...world, boardFolders: { ...world.boardFolders, [created.id]: folderId } }) } finally { navigate(`/storyboards/${created.id}${photoQuery}`) } }) }} /></label></WorkspaceActions></LibraryTabs>}
-    {board && <WorkspaceToolbar><div className="ml-auto flex flex-wrap gap-2"><Button variant="outline" disabled={busy || dirty || !board.past.length} onClick={() => void run(async () => { await update({ action: 'undo' }) })}>{text('undo')}</Button><Button variant="outline" disabled={busy || dirty || !board.future.length} onClick={() => void run(async () => { await update({ action: 'redo' }) })}>{text('redo')}</Button><Button disabled={busy || dirty} onClick={() => void run(async () => { const blob = await service.export(board.id, board.revision), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${board.name}.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000) })}>{text('export')}</Button>{uploadInput()}</div></WorkspaceToolbar>} </>} className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
+  return <><Breadcrumbs items={crumbs} /><Workspace header={<>{!boardId && <LibraryTabs active="storyboards" />}
+    {board && <WorkspaceToolbar><div className="ml-auto flex flex-wrap gap-2"><Button variant="outline" disabled={busy || dirty || !board.past.length} onClick={() => void run(async () => { await update({ action: 'undo' }) })}>{text('undo')}</Button><Button variant="outline" disabled={busy || dirty || !board.future.length} onClick={() => void run(async () => { await update({ action: 'redo' }) })}>{text('redo')}</Button>{uploadInput()}</div></WorkspaceToolbar>} </>} className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
 <WorkspaceSurface className={boardId ? 'story-document' : 'workspace-scroll'}>
     {!boardId && <h1 className="sr-only">{text('title')}</h1>}
     <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} boardId={boardId} disabled={busy || dirty} />

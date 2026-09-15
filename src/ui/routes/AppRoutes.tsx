@@ -19,7 +19,8 @@ import { DEFAULT_CHARACTER_COLLECTION } from '@/core/domain/character-collection
 import type { Application } from '@/bootstrap.ts'
 import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
-import { CollectionActions, CollectionProfileAction, LibraryTransferAction } from '@/ui/CollectionActions'
+import { CollectionActions, CollectionProfileAction } from '@/ui/CollectionActions'
+import { LibraryExplorer } from '@/ui/LibraryExplorer'
 import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StoryboardPage } from '@/ui/pages/StoryboardPage'
@@ -152,7 +153,7 @@ export function AppRoutes({ application }: { application: Application }) {
   const crumbs: Array<{ label: string; path: string }> = []
   const addCrumb = (label: string, path: string) => crumbs.push({ label, path })
   if (parts[0] === 'collections' || editing) {
-    addCrumb(t('world.collections'), '/collections')
+    addCrumb(t('library.collections'), '/collections')
     const id = editing ? characterBook : parts[1]
     const crumbCollection = library.collections.find((c) => c.id === id)
     if (crumbCollection) addCrumb(named(crumbCollection, 'world.defaultCollection'), `/collections/${id}`)
@@ -170,9 +171,6 @@ export function AppRoutes({ application }: { application: Application }) {
   const collectionActions = <CollectionActions
     collection={collection}
     deleteCollection={application.deleteCollection}
-    exportLibrary={application.exportCharacterLibrary}
-    prepareLibraryImport={application.prepareCharacterLibraryImport}
-    importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
     importCharacter={async (blob) => {
       const imported = await application.importCharacter(blob)
       await refresh()
@@ -198,7 +196,7 @@ export function AppRoutes({ application }: { application: Application }) {
       webmcp={webmcp}
       title={documentTitle}
       onBack={backPath ? () => navigate(backPath) : undefined}
-      actions={<LibraryTransferAction exportLibrary={application.exportCharacterLibrary} prepareLibraryImport={application.prepareCharacterLibraryImport} importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }} />}
+      actions={<LibraryExplorer application={application} world={world.library} collections={library.collections} characters={library.characters} refresh={refresh} />}
     />
     {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
     <Routes>

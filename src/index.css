@@ -787,8 +787,6 @@ body::before {
 .story-upload:focus-within { outline:2px solid var(--ring)}
 .story-upload input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer}
 .story-upload:has(input:disabled) { opacity:.5; pointer-events:none}
-.story-upload-icon { display:grid; width:36px; height:36px; padding:6px; place-items:center; border-style:solid; }
-.story-upload-icon .aozu-icon, .story-upload-icon .aozu-icon img { width:100%; height:100%; object-fit:contain; }
 .story-folder-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:20px; }
 .story-folder-toolbar > button { width:min(100%, 408px); }
 .story-folder-toolbar [role=alert] { margin-left:8px; }
@@ -840,9 +838,7 @@ body::before {
 .world-heading h1 { font-family: var(--font-heading); font-size: clamp(26px, 4vw, 36px); font-weight: 700; overflow-wrap: anywhere; }
 .world-heading p { max-width: 65ch; }
 .world-eyebrow { font-size: 12px; letter-spacing: .12em; margin-bottom: 8px; }
-.world-actions, .world-tags, .world-folder-list { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-
-.world-folder-list a:hover { text-decoration: underline; }
+.world-actions, .world-tags { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .world-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 18px; }
 
 
@@ -867,8 +863,6 @@ body::before {
 .world-recent a { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
 .world-recent span { font-size: 12px; }
 .world-empty { padding: 40px 16px; text-align: center; }
-.world-upload { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
-.world-upload input { width: 180px; max-width: 100%; }
 .world-form { display: grid; gap: 18px; margin-top: 24px; }
 .world-form label, .world-heading label { display: grid; gap: 8px; font-size: 14px; }
 .world-form input:not([type=checkbox]), .world-form textarea, .world-form select, .world-heading select { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--background); color: var(--foreground); }
@@ -876,8 +870,8 @@ body::before {
 .world-condition { padding: 16px; margin: 12px 0; border: 1px solid var(--border); border-radius: 12px; }
 .world-condition summary { cursor: pointer; font-weight: 600; }
 .world-condition > p, .world-condition > .world-actions { margin: 12px 0; }
-.world-tags span, .world-folder-list a { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
-@media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } .world-upload { flex-wrap: wrap; } }
+.world-tags span { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
+@media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } }
 
 /* Shared shadcn breadcrumb, colored with the AOZU theme tokens. */
 .app-breadcrumb {

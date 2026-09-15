@@ -17,6 +17,28 @@ export function createWorldLibraryService() {
     if (image.width > 4096 || image.height > 4096 || !filename || filename.length > 200) throw new Error('Images must be at most 4096 × 4096 with a filename under 200 characters')
     return { ...image, filename }
   }
+  async function importArchive(blob: Blob, current: WorldLibrary, preserveCollections: boolean) {
+    if (blob.size > 280 * 1024 * 1024) throw new Error('Archive exceeds 280 MiB')
+    const files = readSafeZip(new Uint8Array(await blob.arrayBuffer()), (path) => path === 'library.json' || /^images\/[a-f0-9]{64}$/.test(path), { archive: 280 * 1024 * 1024, expanded: 280 * 1024 * 1024, file: 5 * 1024 * 1024, files: 5000 })
+    if (!files['library.json']) throw new Error('Library manifest missing')
+    const manifest = parseZipJson<{ format: string; version: number; library: unknown }>(files['library.json'], 'world library')
+    if (manifest.format !== 'aozu-world-library' || manifest.version !== 1) throw new Error('Unsupported library archive')
+    const incoming = validateWorldLibrary(manifest.library), next = structuredClone(current), blobs = new Map<string, Blob>()
+    for (const image of libraryImages(incoming)) {
+      if (blobs.has(image.sha256)) continue
+      const bytes = files[`images/${image.sha256}`]; if (!bytes) throw new Error('Image missing from archive')
+      const blob = new Blob([bytes], { type: image.mediaType }), actual = await inspect(blob, image.filename)
+      if (['sha256', 'size', 'width', 'height'].some((field) => actual[field as keyof LibraryImage] !== image[field as keyof LibraryImage])) throw new Error('Image content does not match archive metadata')
+      blobs.set(image.sha256, blob)
+    }
+    const remap = new Map<string, string>()
+    for (const group of [incoming.albums, incoming.photos, incoming.locations, incoming.folders]) for (const item of group) remap.set(item.id, crypto.randomUUID())
+    for (const album of incoming.albums) next.albums.push({ ...album, id: remap.get(album.id)! })
+    for (const photo of incoming.photos) next.photos.push({ ...photo, id: remap.get(photo.id)!, albumId: remap.get(photo.albumId)! })
+    for (const location of incoming.locations) next.locations.push({ ...location, id: remap.get(location.id)!, parentId: location.parentId ? remap.get(location.parentId)! : null, collectionId: preserveCollections ? location.collectionId : 'default', images: location.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })), conditions: location.conditions.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })) })) })
+    for (const folder of incoming.folders) next.folders.push({ ...folder, id: remap.get(folder.id)!, collectionIds: preserveCollections ? folder.collectionIds : [] })
+    return { library: changed(await repository.save(next, blobs)), idMap: Object.fromEntries(remap) }
+  }
   return {
     async refresh() { return changed(await repository.load()) },
     load: repository.load, image: repository.image,
@@ -50,29 +72,8 @@ export function createWorldLibraryService() {
       for (const hash of new Set(libraryImages(library).map((i) => i.sha256))) files[`images/${hash}`] = new Uint8Array(await (await repository.image(hash)).arrayBuffer())
       return new Blob([zipSync(files, { level: 0 })], { type: 'application/zip' })
     },
-    async import(blob: Blob, current: WorldLibrary) {
-      if (blob.size > 280 * 1024 * 1024) throw new Error('Archive exceeds 280 MiB')
-      const files = readSafeZip(new Uint8Array(await blob.arrayBuffer()), (path) => path === 'library.json' || /^images\/[a-f0-9]{64}$/.test(path), { archive: 280 * 1024 * 1024, expanded: 280 * 1024 * 1024, file: 5 * 1024 * 1024, files: 5000 })
-      if (!files['library.json']) throw new Error('Library manifest missing')
-      const manifest = parseZipJson<{ format: string; version: number; library: unknown }>(files['library.json'], 'world library')
-      if (manifest.format !== 'aozu-world-library' || manifest.version !== 1) throw new Error('Unsupported library archive')
-      const incoming = validateWorldLibrary(manifest.library), next = structuredClone(current), blobs = new Map<string, Blob>()
-      for (const image of libraryImages(incoming)) {
-        if (blobs.has(image.sha256)) continue
-        const bytes = files[`images/${image.sha256}`]; if (!bytes) throw new Error('Image missing from archive')
-        const blob = new Blob([bytes], { type: image.mediaType }), actual = await inspect(blob, image.filename)
-        if (['sha256', 'size', 'width', 'height'].some((field) => actual[field as keyof LibraryImage] !== image[field as keyof LibraryImage])) throw new Error('Image content does not match archive metadata')
-        blobs.set(image.sha256, blob)
-      }
-      // Additive import: independent copies, no overwrite of current user records or local board assignments.
-      const remap = new Map<string, string>()
-      for (const group of [incoming.albums, incoming.photos, incoming.locations, incoming.folders]) for (const item of group) remap.set(item.id, crypto.randomUUID())
-      for (const album of incoming.albums) next.albums.push({ ...album, id: remap.get(album.id)! })
-      for (const photo of incoming.photos) next.photos.push({ ...photo, id: remap.get(photo.id)!, albumId: remap.get(photo.albumId)! })
-      for (const location of incoming.locations) next.locations.push({ ...location, id: remap.get(location.id)!, parentId: location.parentId ? remap.get(location.parentId)! : null, collectionId: 'default', images: location.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })), conditions: location.conditions.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, photoId: remap.get(i.photoId) ?? i.photoId })) })) })
-      for (const folder of incoming.folders) next.folders.push({ ...folder, id: remap.get(folder.id)!, collectionIds: [] })
-      return changed(await repository.save(next, blobs))
-    },
+    async import(blob: Blob, current: WorldLibrary) { return (await importArchive(blob, current, false)).library },
+    importPreservingCollections(blob: Blob, current: WorldLibrary) { return importArchive(blob, current, true) },
   }
 }
 export type WorldLibraryService = ReturnType<typeof createWorldLibraryService>

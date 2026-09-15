@@ -80,3 +80,21 @@
 @media (prefers-reduced-motion: reduce) { .workspace-tabs .workspace-tab { transition: none; } }
 
 .workspace-surface[data-workspace-surface="paper"] { padding: var(--panel-padding, 16px); }
+
+.library-explorer[data-slot="sheet-content"] { width: min(24rem, calc(100vw - 2rem)); max-width: none; padding: 1rem; gap: 1rem; }
+.library-explorer [data-slot="sheet-title"] { padding-right: 2.5rem; font-size: 1.25rem; }
+.library-explorer > .workspace-scroll { display: flex; flex-direction: column; gap: 1rem; }
+.library-tree-transfer { padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.library-tree { display: grid; gap: 0.25rem; }
+.library-tree details { min-width: 0; }
+.library-tree summary { display: flex; min-height: 2rem; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; }
+.library-tree details > summary::before { content: '›'; flex: none; font-size: 1.25rem; line-height: 1; transition: transform 150ms; }
+.library-tree details[open] > summary::before { transform: rotate(90deg); }
+.library-tree summary:hover, .library-tree-row:hover { background: var(--muted); }
+.library-tree summary .aozu-icon { width: 1.25rem; height: 1.25rem; }
+.library-tree-children { display: grid; gap: 0.125rem; margin-left: 0.75rem; padding-left: 0.75rem; border-left: 1px solid var(--border); }
+.library-tree-row { display: flex; min-width: 0; min-height: 2rem; align-items: center; border-radius: 0.5rem; }
+.library-tree-row.active { background: var(--muted); font-weight: 600; }
+.library-tree-row > a { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-tree-row > button { width: 2rem; height: 2rem; }
+.library-tree-actions { padding-left: 1.25rem; }

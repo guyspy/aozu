@@ -77,7 +77,7 @@ export function createStoryboardService() {
       if (!files['storyboard.json']) throw new Error('Storyboard manifest missing')
       const manifest = parseZipJson<{ format: string; version: number; board: unknown }>(files['storyboard.json'], 'storyboard')
       if (manifest.format !== 'aozu-storyboard' || manifest.version !== 1) throw new Error('Unsupported storyboard format')
-      const board = validateStoryboard(manifest.board)
+      const board = validateStoryboard(manifest.board), sourceId = board.id
       const blobs = new Map<string, Blob>(), remap = new Map<string, string>()
       for (const image of board.images) {
         const bytes = files[`images/${image.id}.png`]; if (!bytes) throw new Error('Image dependency missing')
@@ -90,7 +90,7 @@ export function createStoryboardService() {
         if (frame.selected) frame.selected = remap.get(frame.selected)!
         frame.references = frame.references.map((ref) => ({ ...ref, imageId: remap.get(ref.imageId)! }))
       }
-      return changed(await repository.create(board.name, board, blobs))
+      return { ...changed(await repository.create(board.name, board, blobs)), sourceId }
     },
   }
 }

@@ -4,6 +4,7 @@ import 'fake-indexeddb/auto'
 import { createWorldLibraryService } from '../src/core/application/world-library.ts'
 import { locationAncestors, validateWorldLibrary, type LocationSetting } from '../src/core/domain/world-library.ts'
 import { createStoryboardService } from '../src/core/application/storyboard.ts'
+import { exportLibraryArchive, importLibraryArchive } from '../src/core/application/library-archive.ts'
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
 
 const original = globalThis.createImageBitmap
@@ -71,5 +72,18 @@ try {
   library = await service.save(library)
   await assert.rejects(service.image(photo.image.sha256), /missing/, 'Unreferenced originals are reclaimed')
   assert.equal((await boards.image(board.images[0].id)).size, file.size, 'Board copies survive source cleanup')
-  console.log('world-library: hierarchy, cycles, CAS, albums, immutable image references, storyboard snapshots and additive ZIP: ok')
+  const characterArchive = new Blob(['character archive']), emptyCharacters = { entries: [], assets: [], legacyDrafts: [] }
+  const archiveServices = {
+    exportCharacters: async () => characterArchive,
+    prepareCharacters: async (blob: Blob) => { assert.equal(await blob.text(), await characterArchive.text()); return emptyCharacters },
+    importCharacters: async (snapshot: typeof emptyCharacters) => assert.equal(snapshot, emptyCharacters),
+    world: service,
+    storyboards: boards,
+  }
+  const existingBoards = new Set((await boards.list()).map(({ id }) => id)), boardCount = existingBoards.size
+  await importLibraryArchive(await exportLibraryArchive(archiveServices), archiveServices)
+  const importedBoards = await boards.list(), importedLibrary = await service.load()
+  assert.equal(importedBoards.length, boardCount * 2)
+  assert.ok(importedBoards.filter(({ id }) => !existingBoards.has(id)).some((item) => importedLibrary.boardFolders[item.id]), 'Complete archive restores storyboard folders')
+  console.log('world-library: hierarchy, cycles, CAS, albums, immutable image references, storyboard snapshots and complete additive ZIP: ok')
 } finally { globalThis.createImageBitmap = original; service.dispose(); boards.dispose() }
