@@ -109,7 +109,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     items={[{ id: 'frames', label: text('workspace') }, { id: 'details', label: text('settings') }] as const}
     onSelect={(tab) => navigate(`/storyboards/${board.id}${tab === 'details' ? '/details' : ''}`)}>{documentActions}</WorkspaceTabs> : undefined}
     className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
-<WorkspaceSurface surface={boardId ? 'paper' : undefined} className={boardId ? 'story-document' : 'workspace-scroll'}>
+<WorkspaceSurface surface={boardId && !details ? 'paper' : undefined} className={boardId ? 'story-document' : 'workspace-scroll'}>
     {!boardId && <h1 className="sr-only">{text('title')}</h1>}
     {!boardId ? <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} disabled={busy || dirty} /> : board && !details &&
       <div className="story-folder-toolbar flex min-w-0 flex-wrap items-center gap-1"><WorkspaceHistoryActions undoLabel={text('undo')} redoLabel={text('redo')} canUndo={!busy && !dirty && Boolean(board.past.length)} canRedo={!busy && !dirty && Boolean(board.future.length)}

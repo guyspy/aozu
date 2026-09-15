@@ -124,6 +124,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(storyboardActions() === scopedActions, 'Storyboard actions stay scoped to the document across tabs')
   check(document.querySelector('main.story-workspace') === storyboardWorkspace, 'Storyboard tabs preserve the mounted workspace')
   check(document.querySelector('.story-details'), 'Story details use the document surface')
+  check(!document.querySelector('.story-document').dataset.workspaceSurface, 'Story details omit the drawing paper material')
   check(!document.querySelector('.story-details form') && button('Edit story details'), 'Story details use a read-only profile view')
   button('Edit story details').click()
   await ready(() => document.querySelector('[role="dialog"] .book-profile-form'))
