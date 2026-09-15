@@ -190,7 +190,7 @@ export function AppRoutes({ application }: { application: Application }) {
     profileAction={collectionProfileAction}
   />
   const worldPage = <WorldLibraryPage key={location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
-  const storyPage = <StoryboardPage key={location.pathname} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
+  const storyPage = <StoryboardPage key={location.pathname.replace(/\/details$/, '')} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
   return <>
     <AppHeader
       webmcp={webmcp}

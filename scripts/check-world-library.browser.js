@@ -116,9 +116,11 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(document.querySelector('.story-paper').clientHeight > 80, 'Short windows retain usable paper height')
   const storyboardActions = () => [...document.querySelectorAll('main > .workspace-tabs-bar > .workspace-actions button')].map((item) => item.getAttribute('aria-label')).join(',')
   const scopedActions = storyboardActions()
+  const storyboardWorkspace = document.querySelector('main.story-workspace')
   button('Story details').click()
   await ready(() => route.endsWith('/details'))
   check(storyboardActions() === scopedActions, 'Storyboard actions stay scoped to the document across tabs')
+  check(document.querySelector('main.story-workspace') === storyboardWorkspace, 'Storyboard tabs preserve the mounted workspace')
   check(document.querySelector('.story-details'), 'Story details use the document surface')
   button('Storyboard').click()
   await ready(() => !route.endsWith('/details'))
@@ -158,9 +160,8 @@ if (new URLSearchParams(location.search).has('responsive')) {
   const scroll = wrapper.querySelector('.workspace-scroll')
   check(wrapper.scrollHeight <= wrapper.clientHeight + 1, 'Nested panel does not overflow its parent')
   check(scroll.clientHeight > 0 && scroll.scrollHeight > scroll.clientHeight, 'Nested panel owns inner scroll')
-  scroll.scrollTop = 200
-  await wait()
-  check(scroll.scrollTop === 200, 'Nested scroll responds')
+  scroll.scrollTo({ top: 200, behavior: 'instant' })
+  await ready(() => scroll.scrollTop === 200)
   nested.render(h(Sheet, { open: true }, h(WorkspaceSheet, { title: 'Paper test', surface: 'paper', 'aria-describedby': undefined }, h('div', { style: { height: 1600 } }, 'Long drawing'))))
   await ready(() => document.querySelector('.workspace-sheet [data-workspace-surface="paper"]'))
   const paper = document.querySelector('.workspace-sheet [data-workspace-surface="paper"]')
@@ -169,9 +170,9 @@ if (new URLSearchParams(location.search).has('responsive')) {
   check(!document.querySelector('#root').contains(paper), 'Sheet must exercise portal styling')
   check(getComputedStyle(paper).backgroundColor === 'rgb(247, 246, 242)', 'Portal paper retains shared material')
   check(getComputedStyle(paper).scrollbarWidth === 'none' && paper.scrollHeight > paper.clientHeight, 'Portal owns hidden inner scroll')
-  paper.scrollTop = 200
-  await wait()
-  check(paper.scrollTop === 200 && title.getBoundingClientRect().top === titleTop, 'Sheet title remains fixed while paper scrolls')
+  paper.scrollTo({ top: 200, behavior: 'instant' })
+  await ready(() => paper.scrollTop === 200)
+  check(title.getBoundingClientRect().top === titleTop, 'Sheet title remains fixed while paper scrolls')
   nested.unmount(); wrapper.remove()
   result.textContent = 'PASS: home, collections, nested locations, conditions, album references, album-to-board, folders, parent navigation and logo home'
 } catch (e) { result.textContent = `FAIL: ${e.message}`; console.error(e) }
