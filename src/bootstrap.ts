@@ -698,7 +698,10 @@ export function createApplication(document: Document) {
       path = `/collections/${exact(id, 'Collection')}/locations`
     } else if (resource === 'location') {
       const location = (await worldLibrary.load()).locations.find((item) => item.id === id); if (!location) throw new Error('Location not found')
-      path = `/collections/${encodeURIComponent(location.collectionId)}/locations/${exact(id, 'Location')}`
+      if (view && !['setting-images', 'profile', 'conditions'].includes(view)) throw new Error('Unsupported Location view')
+      if (itemId && view !== 'conditions') throw new Error('itemId requires the Conditions view')
+      if (view === 'conditions' && itemId && !location.conditions.some((condition) => condition.id === itemId)) throw new Error('Condition not found')
+      path = `/collections/${encodeURIComponent(location.collectionId)}/locations/${exact(id, 'Location')}${view && view !== 'setting-images' ? `/${view}${view === 'conditions' && itemId ? `/${encodeURIComponent(itemId)}` : ''}` : ''}`
     } else if (resource === 'albums') path = '/albums'
     else if (resource === 'album') {
       if (!(await worldLibrary.load()).albums.some((item) => item.id === id)) throw new Error('Album not found')
@@ -752,8 +755,10 @@ export function createApplication(document: Document) {
     if (input.resource === 'storyboard-folder' && input.action === 'move') await storyboards.get(String(input.boardId ?? ''))
     const { expectedRevision, ...command } = input
     const result = await worldLibrary.update(command as unknown as WorldLibraryCommand, expectedRevision)
+    const changedLocation = result.library.locations.find((item) => item.id === (command.resource === 'condition' ? input.locationId : result.id))
     const path = command.resource === 'album' ? (command.action === 'delete' ? '/albums' : `/albums/${result.id}`)
       : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${input.collectionId ?? 'default'}/locations` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
+      : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
       : command.resource === 'folder' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/folders/${result.id}`)
       : command.resource === 'storyboard-folder' ? `/storyboards/${input.boardId}` : undefined
     return { status: 'ok', data: { resource: input.resource, action: input.action, id: result.id, revision: result.library.revision }, ...(path ? { effects: { navigation: { path, mode: 'push', reason: 'Review the changed Library resource.' } } } : {}) }

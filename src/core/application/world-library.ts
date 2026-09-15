@@ -35,8 +35,8 @@ export function validateAlbumComposition(input: AlbumCompositionInput, character
 export type WorldLibraryCommand =
   | ({ resource: 'album'; action: 'create' | 'update' | 'delete'; id?: string } & GroupPatch)
   | ({ resource: 'photo'; action: 'update' | 'delete'; id: string; albumId?: string; source?: string } & GroupPatch)
-  | ({ resource: 'location'; action: 'create' | 'update' | 'delete'; id?: string; collectionId?: string; parentId?: string | null; tags?: string[]; consistency?: string } & GroupPatch)
-  | ({ resource: 'condition'; action: 'create' | 'update' | 'delete'; locationId: string; id?: string } & GroupPatch)
+  | ({ resource: 'location'; action: 'create' | 'update' | 'delete' | 'duplicate'; id?: string; collectionId?: string; parentId?: string | null; tags?: string[]; consistency?: string } & GroupPatch)
+  | ({ resource: 'condition'; action: 'create' | 'update' | 'delete' | 'duplicate'; locationId: string; id?: string } & GroupPatch)
   | ({ resource: 'reference'; action: 'create' | 'delete'; locationId: string; conditionId?: string; id?: string; photoId?: string; label?: string; purpose?: SettingImage['purpose'] })
   | ({ resource: 'folder'; action: 'create' | 'update' | 'delete'; id?: string; synopsis?: string; direction?: string; collectionIds?: string[] } & GroupPatch)
   | { resource: 'storyboard-folder'; action: 'move'; boardId: string; folderId?: string | null }
@@ -72,6 +72,12 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
       library.locations.push(location); return { library, id }
     }
     const location = library.locations.find((item) => item.id === command.id); if (!location) throw new Error('Location not found')
+    if (command.action === 'duplicate') {
+      const id = crypto.randomUUID(), used = new Set(library.locations.map(({ name }) => name)), base = `${location.name} copy`
+      let name = base; for (let suffix = 2; used.has(name); suffix++) name = `${base} ${suffix}`
+      library.locations.push({ ...structuredClone(location), id, name, parentId: location.parentId, updatedAt: now, images: location.images.map((image) => ({ ...image, id: crypto.randomUUID() })), conditions: location.conditions.map((condition) => ({ ...condition, id: crypto.randomUUID(), updatedAt: now, images: condition.images.map((image) => ({ ...image, id: crypto.randomUUID() })) })) })
+      return { library, id }
+    }
     if (command.action === 'delete') library.locations = library.locations.filter((item) => item.id !== location.id).map((item) => item.parentId === location.id ? { ...item, parentId: location.parentId } : item)
     else {
       const collectionId = command.collectionId ?? location.collectionId
@@ -84,6 +90,9 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
     const location = library.locations.find((item) => item.id === command.locationId); if (!location) throw new Error('Location not found')
     if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(); location.conditions.push({ id, ...group(), images: [] }); location.updatedAt = now; return { library, id } }
     const condition = location.conditions.find((item) => item.id === command.id); if (!condition) throw new Error('Condition not found')
+    if (command.action === 'duplicate') {
+      const id = crypto.randomUUID(); location.conditions.push({ ...structuredClone(condition), id, ...group(condition), images: condition.images.map((image) => ({ ...image, id: crypto.randomUUID() })) }); location.updatedAt = now; return { library, id }
+    }
     if (command.action === 'delete') location.conditions = location.conditions.filter((item) => item.id !== condition.id)
     else Object.assign(condition, group(condition))
     location.updatedAt = now; return { library, id: condition.id }

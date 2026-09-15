@@ -160,6 +160,7 @@ export function AppRoutes({ application }: { application: Application }) {
     if (parts[2] === 'locations') {
       addCrumb(t('world.locations'), `/collections/${id}/locations`)
       if (place) for (const ancestor of locationAncestors(world.library, place.id)) addCrumb(ancestor.name, `/collections/${id}/locations/${ancestor.id}`)
+      if (place && parts[4]) addCrumb(t(`world.${parts[4] === 'profile' ? 'locationProfile' : 'conditions'}`), location.pathname)
     }
     if (editing) addCrumb(character?.name ?? t('world.createCharacter'), location.pathname)
   } else if (parts[0] === 'albums') {
@@ -189,7 +190,7 @@ export function AppRoutes({ application }: { application: Application }) {
     actions={collectionActions}
     profileAction={collectionProfileAction}
   />
-  const worldPage = <WorldLibraryPage key={location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
+  const worldPage = <WorldLibraryPage key={place ? `location:${place.id}` : photo ? `photo:${photo.id}` : album ? `album:${album.id}` : location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
   const storyPage = <StoryboardPage key={location.pathname.replace(/\/details$/, '')} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />
   return <>
     <AppHeader
@@ -211,6 +212,9 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route path="/collections/:collectionId/profile" element={libraryPage} />
       <Route path="/collections/:collectionId/locations" element={worldPage} />
       <Route path="/collections/:collectionId/locations/:locationId" element={worldPage} />
+      <Route path="/collections/:collectionId/locations/:locationId/profile" element={worldPage} />
+      <Route path="/collections/:collectionId/locations/:locationId/conditions" element={worldPage} />
+      <Route path="/collections/:collectionId/locations/:locationId/conditions/:conditionId" element={worldPage} />
       <Route path="/collections" element={libraryPage} />
       <Route path="/collections/:collectionId" element={libraryPage} />
       <Route path="/characters/:characterId" element={<Navigate to="expressions" replace />} />

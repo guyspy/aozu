@@ -54,7 +54,17 @@ export function LibraryExplorer({ application, world, collections, characters, r
     storyboards: application.storyboards,
   }
   const go = () => setOpen(false)
-  const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)} label={place.name}><TreeLink to={`/collections/${collectionId}/locations/${place.id}`}>{text('settings')}</TreeLink>{locations(place.id, collectionId)}</TreeDetails>)
+  const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => {
+    const path = `/collections/${collectionId}/locations/${place.id}`
+    return <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)} label={place.name}>
+      <TreeLink to={path}>{text('images')}</TreeLink>
+      <TreeLink to={`${path}/profile`}>{text('locationProfile')}</TreeLink>
+      <TreeDetails initialOpen={pathname.includes(`${place.id}/conditions`)} label={text('conditions')}>
+        {place.conditions.map((condition) => <TreeLink key={condition.id} to={`${path}/conditions/${condition.id}`}>{condition.name}</TreeLink>)}
+      </TreeDetails>
+      {locations(place.id, collectionId)}
+    </TreeDetails>
+  })
   const storyboardLinks = (folder?: string) => boards.filter((board) => world.boardFolders[board.id] === folder).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>

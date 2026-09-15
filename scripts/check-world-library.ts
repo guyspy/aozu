@@ -41,6 +41,16 @@ try {
   assert.equal(library.locations[2].images.find((image) => image.id === direct.id)?.photoId, undefined)
   library.locations[2].images.push({ id: 'reference-image', photoId: photo.id, image: photo.image, label: 'Layout', purpose: 'design', source: 'Reference album' })
   library.locations[2].conditions.push({ id: 'night', name: 'Night', description: 'Warm light', updatedAt: 1, images: [] })
+  library = await service.save(library)
+  const duplicated = await service.update({ resource: 'location', action: 'duplicate', id: 'room' }, library.revision)
+  library = duplicated.library
+  const duplicatedRoom = library.locations.find((item) => item.id === duplicated.id)!
+  assert.equal(duplicatedRoom.name, 'room copy')
+  assert.notEqual(duplicatedRoom.images[0].id, library.locations.find((item) => item.id === 'room')!.images[0].id)
+  assert.notEqual(duplicatedRoom.conditions[0].id, 'night')
+  const copiedCondition = await service.update({ resource: 'condition', action: 'duplicate', locationId: duplicatedRoom.id, id: duplicatedRoom.conditions[0].id, name: 'Night copy' }, library.revision)
+  library = copiedCondition.library
+  assert.equal(library.locations.find((item) => item.id === duplicatedRoom.id)!.conditions.at(-1)?.name, 'Night copy')
   library.folders.push({ id: 'episode', name: 'Episode one', description: '', synopsis: 'Return home', direction: 'Warm', collectionIds: ['default'], updatedAt: 1 })
   let board = await boards.update({ action: 'create', name: 'A story' })
   library.boardFolders[board.id] = 'episode'
@@ -63,7 +73,7 @@ try {
   assert.deepEqual(restoredBoard.frames[0].settings?.find(({ id }) => id === setting.id), setting)
   const archive = await service.export()
   library = await service.import(archive, library)
-  assert.equal(library.locations.length, 6)
+  assert.equal(library.locations.length, 8)
   const copy = library.locations.find((l) => l.name === 'room' && l.id !== 'room')!
   assert.equal(locationAncestors(library, copy.id).length, 3)
   assert.equal(copy.images[0].image.sha256, photo.image.sha256)
