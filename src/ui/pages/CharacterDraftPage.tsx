@@ -628,8 +628,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
             {!webmcpReady && <Button type="button" size="sm" variant="ghost" onClick={() => setStartOpen(false)}>{t('characterDraft.start.continueBrowser')}</Button>}
           </div>
         </DialogContent></Dialog>}
-        {selectedVariant && selectedAsset && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
-          {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={alignmentMode === mode} variant={alignmentMode === mode ? 'secondary' : 'ghost'} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
+        {selectedVariant && <div className="alignment-switch" aria-label={t('characterDraft.alignment.label')}>
+          {(['composite', 'overlay', 'difference', 'diagnostic'] as const).map((mode) => <Button key={mode} type="button" size="sm" data-alignment-mode={mode} aria-pressed={Boolean(selectedAsset) && alignmentMode === mode} variant={selectedAsset && alignmentMode === mode ? 'secondary' : 'ghost'} disabled={!selectedAsset} onClick={() => setAlignmentMode(mode)}>{t(`characterDraft.alignment.${mode}`)}</Button>)}
         </div>}
         </div>
       </WorkspaceSurface>
