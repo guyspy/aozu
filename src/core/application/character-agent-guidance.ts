@@ -4,7 +4,7 @@ export const CHARACTER_BACKGROUND_GUIDANCE = 'Default to a two-step workflow: ge
 
 export const CHARACTER_NAVIGATION_GUIDANCE = 'AOZU itself handles effects.navigation in this browser tab; the agent must not repeat that navigation. Observe the resulting page after rendering, then call inspect_workspace again for fresh context. A successful tool result is not proof of visual correctness.'
 
-export const CHARACTER_A_POSE_GUIDANCE = 'The first Appearance body establishes a front A-pose: upright torso, neutral face, arms angled down and away from the torso, relaxed visible hands, stable feet, and the complete head-to-feet silhouette inside the canvas. This is the AOZU authoring convention, not a claim of skeleton compatibility. Preserve this pose and registration in derived outfits and expressions. Existing artwork is not automatically verified A-pose; review it visually before proposing a baseline change, which can make derived layers stale.'
+export const CHARACTER_A_POSE_GUIDANCE = 'The first Appearance body establishes a front A-pose: upright torso, neutral face, arms angled down and away from the torso, relaxed visible hands, stable feet, and the complete head-to-feet silhouette inside the canvas. This is the AOZU authoring convention, not a claim of skeleton compatibility. Preserve this pose and registration in derived outfits, hair, headwear, and expressions. Existing artwork is not automatically verified A-pose; review it visually before proposing a baseline change, which can make derived layers stale.'
 
 export const MODEL_SHEET_REVIEW = {
   requiredAfterMutation: true,
@@ -16,7 +16,7 @@ export const MODEL_SHEET_REVIEW = {
 export const CHARACTER_VISUAL_REVIEW = {
   surface: 'browser',
   modes: ['Composite', 'Overlay', 'Difference', 'Align'],
-  instruction: 'These are four browser preview buttons, not four WebMCP tools. Open the exact expression, outfit, or prop variant with artwork to reveal them; use view.alignmentControls from inspect_workspace for their localized labels and current selection. Inspect a fresh screenshot after selecting each mode. Repeat after every accepted variant asset or transform before working on the next asset. Review the canonical body in the regular Composite preview because it has no variant comparison buttons. Numerical diagnostics or an applied auto-fit do not replace visual review.',
+  instruction: 'These are four browser preview buttons, not four WebMCP tools. Open the exact expression, outfit, hair, headwear, or prop variant with artwork to reveal them; use view.alignmentControls from inspect_workspace for their localized labels and current selection. Inspect a fresh screenshot after selecting each mode. Repeat after every accepted variant asset or transform before working on the next asset. Review the canonical body in the regular Composite preview because it has no variant comparison buttons. Numerical diagnostics or an applied auto-fit do not replace visual review.',
   checks: [
     { mode: 'composite', label: 'Composite', check: 'Inspect the final composition: identity, expression, neck seam, pose, prop placement, and layer order.' },
     { mode: 'overlay', label: 'Overlay', check: 'Compare the translucent reference and candidate for doubled head contours, shifted anchors, scale, and foot-line drift.' },

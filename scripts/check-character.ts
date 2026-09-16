@@ -14,8 +14,8 @@ const pack: CharacterPack = {
   ],
   appearances: [
     { id: 'hat', layers: [
-      { asset: { packId: 'guide', packVersion: 1, assetId: 'hat-back' }, slot: 'item-back', order: 1 },
-      { asset: { packId: 'guide', packVersion: 1, assetId: 'hat-front' }, slot: 'item-front', order: 1 },
+      { asset: { packId: 'guide', packVersion: 1, assetId: 'hat-back' }, slot: 'headwear-back', order: 1 },
+      { asset: { packId: 'guide', packVersion: 1, assetId: 'hat-front' }, slot: 'headwear-front', order: 1 },
     ] },
     { id: 'default', layers: [{ asset: { packId: 'guide', packVersion: 1, assetId: 'skin' }, slot: 'character-skin', order: 1 }] },
     { id: 'happy', layers: [{ asset: { packId: 'guide', packVersion: 1, assetId: 'head' }, slot: 'expression-head', order: 1 }] },
@@ -27,7 +27,7 @@ const pack: CharacterPack = {
   ],
 }
 const inspections = new Map(pack.assets.map(({ blobId }) => [blobId, inspection]))
-assert.deepEqual(validateCharacterPack(pack, inspections).map(({ slot }) => slot), ['item-back', 'character-skin', 'expression-head', 'item-front'])
+assert.deepEqual(validateCharacterPack(pack, inspections).map(({ slot }) => slot), ['headwear-back', 'character-skin', 'expression-head', 'headwear-front'])
 assert.throws(() => validateCharacterPack({ ...pack, license: { ...pack.license, embedding: 'denied' as never } }, inspections), /embedded/)
 assert.throws(() => validateCharacterPack(pack, new Map([['skin', { ...inspection, genuineRgba: false }]])), /asset/)
 assert.throws(() => validateCharacterPack({ ...pack, assets: [...pack.assets, pack.assets[0]!] }, inspections), /Duplicate or invalid character asset ID/)

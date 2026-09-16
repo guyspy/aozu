@@ -21,7 +21,6 @@ import "./check-history.ts"
 import "./check-journal.ts"
 import "./check-portable.ts"
 import "./check-storage-persistence.ts"
-import "./check-workspace.ts"
 import "./check-character-composite.ts"
 import "./check-character-library.ts"
 

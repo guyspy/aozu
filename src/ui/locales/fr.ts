@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const fr: Messages = {
+export const fr: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "Retour",
@@ -167,7 +167,9 @@ export const fr: Messages = {
     },
     "categories": {
       "expressions": "Expressions",
-      "outfits": "Tenues",
+      "wardrobe": "Garde-robe",
+      "hair": "Coiffures",
+      "headwear": "Couvre-chefs",
       "props": "Accessoires"
     },
     "layers": {
@@ -182,13 +184,40 @@ export const fr: Messages = {
         "variantName": "Expression"
       },
       "outfit": {
-        "add": "Ajouter une tenue",
-        "variantName": "Tenue"
+        "add": "Ajouter un vêtement",
+        "variantName": "Vêtement"
+      },
+      "hair": {
+        "add": "Ajouter une coiffure",
+        "variantName": "Coiffure"
+      },
+      "headwear": {
+        "add": "Ajouter un couvre-chef",
+        "variantName": "Couvre-chef"
       },
       "prop": {
         "add": "Ajouter un accessoire",
         "variantName": "Accessoire"
       }
+    },
+    "outfitSlots": {
+      "top": "Haut",
+      "bottom": "Bas",
+      "one-piece": "Une-pièce",
+      "outerwear": "Vêtement extérieur",
+      "footwear": "Chaussures"
+    },
+    "metadata": {
+      "slot": "Emplacement de garde-robe",
+      "garmentType": "Type de vêtement",
+      "faceStyle": "Style de visage",
+      "faceStyleName": "Nom du style de visage",
+      "facialHair": "Pilosité faciale",
+      "cleanShaven": "Rasé de près",
+      "addFaceStyle": "Ajouter un style de visage",
+      "description": "Description",
+      "tags": "Étiquettes",
+      "tagsHelp": "Étiquettes séparées par des virgules"
     }
   },
   "main": {

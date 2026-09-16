@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const ptBR: Messages = {
+export const ptBR: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "Voltar",
@@ -167,7 +167,9 @@ export const ptBR: Messages = {
     },
     "categories": {
       "expressions": "Expressões",
-      "outfits": "Roupas",
+      "wardrobe": "Guarda-roupa",
+      "hair": "Penteados",
+      "headwear": "Acessórios de cabeça",
       "props": "Acessórios"
     },
     "layers": {
@@ -182,13 +184,40 @@ export const ptBR: Messages = {
         "variantName": "Expressão"
       },
       "outfit": {
-        "add": "Adicionar roupa",
-        "variantName": "Roupa"
+        "add": "Adicionar peça",
+        "variantName": "Peça"
+      },
+      "hair": {
+        "add": "Adicionar penteado",
+        "variantName": "Penteado"
+      },
+      "headwear": {
+        "add": "Adicionar acessório de cabeça",
+        "variantName": "Acessório de cabeça"
       },
       "prop": {
         "add": "Adicionar acessório",
         "variantName": "Acessório"
       }
+    },
+    "outfitSlots": {
+      "top": "Parte de cima",
+      "bottom": "Parte de baixo",
+      "one-piece": "Peça única",
+      "outerwear": "Casaco",
+      "footwear": "Calçados"
+    },
+    "metadata": {
+      "slot": "Espaço do guarda-roupa",
+      "garmentType": "Tipo de peça",
+      "faceStyle": "Estilo facial",
+      "faceStyleName": "Nome do estilo facial",
+      "facialHair": "Pelos faciais",
+      "cleanShaven": "Sem barba",
+      "addFaceStyle": "Adicionar estilo facial",
+      "description": "Descrição",
+      "tags": "Etiquetas",
+      "tagsHelp": "Etiquetas separadas por vírgulas"
     }
   },
   "main": {

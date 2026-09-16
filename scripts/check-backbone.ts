@@ -30,23 +30,24 @@ assert.ok(validateAuthoring('character-collections', { name: '', characterIds: [
 assert.equal(authoring.triggers['undo-character-change']?.target, 'undo-character-change')
 assert.equal(authoring.triggers['redo-character-change']?.target, 'redo-character-change')
 assert.equal(validateAuthoring('character-workspaces', {
-  schemaVersion: 4,
+  schemaVersion: 5,
   packId: 'character-test',
-  rigProfile: { id: 'companion-fullbody', version: 2 },
+  rigProfile: { id: 'companion-fullbody', version: 3 },
   name: 'Test',
   description: 'A calm guide.',
   backstory: 'First line.\n\nSecond line.',
   attributes: { courage: 8, nocturnal: true, calling: 'Guide' },
   variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }],
-  selected: { props: [] },
+  faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }],
+  selected: { outfits: {}, props: [] },
 }).length, 0)
 assert.ok(validateAuthoring('character-workspaces', {
-  schemaVersion: 4, packId: 'character-test', name: 'Missing rig', variants: [], selected: { props: [] },
+  schemaVersion: 5, packId: 'character-test', name: 'Missing rig', variants: [], faceStyles: [], selected: { outfits: {}, props: [] },
 }).length)
 // Mantle entry version is the only revision token; a second counter in the Character value is rejected.
 assert.ok(validateAuthoring('character-workspaces', {
-  schemaVersion: 4, revision: 0, packId: 'character-test', rigProfile: { id: 'companion-fullbody', version: 2 }, name: 'Test',
-  variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }], selected: { props: [] },
+  schemaVersion: 5, revision: 0, packId: 'character-test', rigProfile: { id: 'companion-fullbody', version: 3 }, name: 'Test',
+  variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }], faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }], selected: { outfits: {}, props: [] },
 }).length)
 assert.equal(validate('rules', {
   ruleId: 'recursive', priority: 1,

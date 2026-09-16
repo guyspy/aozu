@@ -26,8 +26,8 @@ try {
   const blob = new Blob(['fixture'], { type: 'image/png' })
   const inspection = { width: 512, height: 768, size: 7, sha256: 'a'.repeat(64), genuineRgba: true, hasTransparentPixels: true, hasVisiblePixels: true, visibleBounds: { x: 100, y: 100, width: 300, height: 600 } }
   character.variants[0]!.layers.body = { blob, filename: 'base.png', source: 'user', inspection }
-  character.variants.push({ group: 'outfit', id: 'test-outfit', label: 'Test', layers: {
-    body: { blob, filename: 'outfit.png', source: 'user', inspection, canonicalSha256: inspection.sha256 },
+  character.variants.push({ group: 'outfit', id: 'test-outfit', label: 'Test', metadata: { outfit: { slot: 'top', garmentType: 'shirt' } }, layers: {
+    front: { blob, filename: 'outfit.png', source: 'user', inspection, canonicalSha256: inspection.sha256 },
   } })
   application.editor.store.setState({ activeCharacterId: character.id, character, persistedRevision: 1 })
   assert.equal((await application.characterFitSuggestion('outfit', 'test-outfit')).status, 'aligned')

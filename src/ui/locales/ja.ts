@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const ja: Messages = {
+export const ja: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "戻る",
@@ -167,7 +167,9 @@ export const ja: Messages = {
     },
     "categories": {
       "expressions": "表情",
-      "outfits": "衣装",
+      "wardrobe": "ワードローブ",
+      "hair": "ヘアスタイル",
+      "headwear": "帽子・頭飾り",
       "props": "小道具"
     },
     "layers": {
@@ -185,10 +187,37 @@ export const ja: Messages = {
         "add": "衣装を追加",
         "variantName": "衣装"
       },
+      "hair": {
+        "add": "ヘアスタイルを追加",
+        "variantName": "ヘアスタイル"
+      },
+      "headwear": {
+        "add": "頭飾りを追加",
+        "variantName": "頭飾り"
+      },
       "prop": {
         "add": "小道具を追加",
         "variantName": "小道具"
       }
+    },
+    "outfitSlots": {
+      "top": "トップス",
+      "bottom": "ボトムス",
+      "one-piece": "ワンピース",
+      "outerwear": "アウター",
+      "footwear": "履物"
+    },
+    "metadata": {
+      "slot": "衣装スロット",
+      "garmentType": "衣装タイプ",
+      "faceStyle": "フェイススタイル",
+      "faceStyleName": "フェイススタイル名",
+      "facialHair": "ひげ",
+      "cleanShaven": "ひげなし",
+      "addFaceStyle": "フェイススタイルを追加",
+      "description": "説明",
+      "tags": "タグ",
+      "tagsHelp": "タグをカンマで区切る"
     }
   },
   "main": {

@@ -64,12 +64,13 @@ assert.ok(used.size > 100, `expected to find the UI's translation keys, found ${
 
 // Dynamic keys are built from a known set; list their resolved forms so the scan stays honest.
 const dynamic = new Set([
-  ...['expression', 'outfit', 'prop'].flatMap((group) => [`characterDraft.groups.${group}.add`, `characterDraft.groups.${group}.variantName`]),
+  ...['expression', 'outfit', 'hair', 'headwear', 'prop'].flatMap((group) => [`characterDraft.groups.${group}.add`, `characterDraft.groups.${group}.variantName`]),
   ...['merge', 'replace'].map((mode) => `library.${mode}Description`),
   ...['unsupported', 'registering', 'ready', 'failed'].map((status) => `main.webmcp.${status}`),
   ...['saving', 'saved', 'failed', 'retry', 'conflict', 'reload'].map((status) => `characterDraft.status.${status}`),
   ...['composite', 'overlay', 'difference', 'diagnostic'].map((mode) => `characterDraft.alignment.${mode}`),
-  ...['expressions', 'outfits', 'props'].map((id) => `characterDraft.categories.${id}`),
+  ...['expressions', 'wardrobe', 'hair', 'headwear', 'props'].map((id) => `characterDraft.categories.${id}`),
+  ...['top', 'bottom', 'one-piece', 'outerwear', 'footwear'].map((slot) => `characterDraft.outfitSlots.${slot}`),
   ...['front', 'three-quarter', 'side', 'back'].map((view) => `modelSheet.views.${view}`),
   ...['full-body', 'head', 'structure', 'expression', 'detail', 'style'].map((kind) => `modelSheet.kinds.${kind}`),
   ...['mask-alignment', 'visual-correlation'].map((source) => `characterDraft.transform.fitSource.${source}`),

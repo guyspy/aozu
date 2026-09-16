@@ -33,6 +33,7 @@ import {
   type CharacterVariantGroup,
   type CharacterVariantLayer,
   type CharacterVariantTransform,
+  type CharacterVariantProfilePatch,
 } from './core/domain/character.ts'
 import {
   CHARACTER_CREATION_GROUPS,
@@ -53,6 +54,7 @@ import {
   setCharacterVariantTransform,
   transformCharacterBounds,
   updateCharacterProfile,
+  updateCharacterVariantMetadata,
   saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
 import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
@@ -164,7 +166,7 @@ const CHARACTER_ASSET_POLICY = {
     mediaType: 'image/png',
     finalCanvas: { ...CHARACTER_RIG.canvas },
     visiblePixels: 'required',
-    canvasEdge: { body: 'reject', expression: 'reject', outfit: 'reject', prop: 'warning' },
+    canvasEdge: { body: 'reject', expression: 'reject', outfit: 'reject', hair: 'reject', headwear: 'reject', prop: 'warning' },
     alpha: {
       required: true,
       websiteRemovesBackground: false,
@@ -182,12 +184,13 @@ const CHARACTER_ASSET_POLICY = {
     body: { content: 'complete-character-skin', pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE },
     expression: { content: 'complete-whole-head-only', outsideHeadOwnership: 'transparent', referenceOverlap: 'required' },
     outfit: {
-      content: 'complete-dressed-character-skin',
-      clothingOnlyOverlay: 'reject',
-      referenceSilhouetteCompatibility: 'required',
-      exactCanonicalPixelCoverage: 'not-required',
-      preserve: ['pose', 'body center', 'head position', 'foot line'],
+      content: 'garment-only-transparent-overlay',
+      characterPixels: 'reject',
+      registration: 'exact-canonical-canvas',
+      layers: { back: 'only parts genuinely behind the body', front: 'visible garment surface' },
     },
+    hair: { content: 'hair-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'hair behind the head', front: 'hair over the head' } },
+    headwear: { content: 'headwear-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'parts behind the head', front: 'visible headwear' } },
     prop: { content: 'independent-transparent-overlay' },
   },
 } as const
@@ -197,7 +200,7 @@ const characterReferenceBounds = (
   frame: ReturnType<typeof characterRegistrationFrame>,
   group: CharacterVariantGroup,
 ): CharacterBounds | undefined =>
-  group === 'expression' ? frame.headEnvelope?.bounds : group === 'outfit' ? frame.bodyBounds : undefined
+  group === 'expression' ? frame.headEnvelope?.bounds : ['outfit', 'hair', 'headwear'].includes(group) ? frame.bodyBounds : undefined
 
 /** What a submission may and should ask the website to normalize, from the same geometry submission validates against. */
 const characterNormalizationContract = (alignAvailable: boolean) => ({
@@ -228,6 +231,7 @@ const CHARACTER_WEBMCP_TRIGGERS = [
   'import-library',
   'inspect-character-contract',
   'update-character-profile',
+  'update-character-variant-metadata',
   'update-character-model-sheet',
   'replace-character-asset',
   'repair-character-asset',
@@ -278,6 +282,7 @@ export function createApplication(document: Document) {
       'companion.import-library': importLibrary,
       'companion.update-collection-profile': updateCollectionProfile,
       'companion.update-character-profile': updateProfile,
+      'companion.update-character-variant-metadata': updateVariantMetadata,
       'companion.update-character-model-sheet': (input) => updateModelSheet(input),
       'companion.set-character-variant-selection': setCharacterSelection,
       'companion.create-local-companion': storyModeUnavailable,
@@ -521,11 +526,11 @@ export function createApplication(document: Document) {
   }
 
   const categoryFor = (group: CharacterVariantGroup) => group === 'expression' ? 'expressions'
-    : group === 'outfit' ? 'outfits' : group === 'prop' ? 'props' : 'expressions'
+    : group === 'outfit' ? 'wardrobe' : group === 'hair' ? 'hair' : group === 'headwear' ? 'headwear' : group === 'prop' ? 'props' : 'expressions'
   const characterPath = (characterId: string, group: CharacterVariantGroup = 'expression', variantId?: string) =>
     `/characters/${encodeURIComponent(characterId)}/${categoryFor(group)}${variantId && group !== 'body' ? `/${encodeURIComponent(variantId)}` : ''}`
   const routeSelection = (path: string) => {
-    const match = /^\/characters\/([^/]+)(?:\/(expressions|outfits|props|profile|model-sheet)(?:\/([^/]+))?)?$/.exec(path)
+    const match = /^\/characters\/([^/]+)(?:\/(expressions|wardrobe|hair|headwear|props|profile|model-sheet)(?:\/([^/]+))?)?$/.exec(path)
     if (!match) return null
     try {
       return { characterId: decodeURIComponent(match[1]!), category: match[2] ?? null, variantId: match[3] ? decodeURIComponent(match[3]) : null }
@@ -660,7 +665,9 @@ export function createApplication(document: Document) {
       .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
     const navigation = [{ destination: 'home', path: '/' }, { destination: 'albums', path: '/albums' }, { destination: 'storyboards', path: '/storyboards' }, { destination: 'characters', path: '/collections' }, ...(character ? [
       { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
-      { destination: 'character-outfits', path: characterPath(character.id, 'outfit') },
+      { destination: 'character-wardrobe', path: characterPath(character.id, 'outfit') },
+      { destination: 'character-hair', path: characterPath(character.id, 'hair') },
+      { destination: 'character-headwear', path: characterPath(character.id, 'headwear') },
       { destination: 'character-props', path: characterPath(character.id, 'prop') },
       { destination: 'character-profile', path: `/characters/${encodeURIComponent(character.id)}/profile` },
       { destination: 'character-model-sheet', path: `/characters/${encodeURIComponent(character.id)}/model-sheet` },
@@ -768,11 +775,12 @@ export function createApplication(document: Document) {
       await storyboards.get(exact(id, 'Storyboard'))
       path = `/storyboards/${exact(id, 'Storyboard')}${view === 'details' ? '/details' : ''}`
     } else if (resource === 'character') {
-      allow(['expressions', 'outfits', 'props', 'profile', 'model-sheet'], ['expressions', 'outfits', 'props', 'model-sheet'].includes(view ?? 'expressions'))
+      const variantViews = ['expressions', 'wardrobe', 'hair', 'headwear', 'props']
+      allow([...variantViews, 'profile', 'model-sheet'], [...variantViews, 'model-sheet'].includes(view ?? 'expressions'))
       const characterId = exact(id, 'Character'), character = await editor.open(id!)
       if (view === 'model-sheet' && itemId && !modelSheetReferences(characterModelSheet(character))[itemId]) throw new Error('Reference not found')
-      if (['expressions', 'outfits', 'props'].includes(view ?? 'expressions') && itemId) {
-        const group = view === 'outfits' ? 'outfit' : view === 'props' ? 'prop' : 'expression'
+      if (variantViews.includes(view ?? 'expressions') && itemId) {
+        const group = view === 'wardrobe' ? 'outfit' : view === 'hair' ? 'hair' : view === 'headwear' ? 'headwear' : view === 'props' ? 'prop' : 'expression'
         if (!character.variants.some((variant) => variant.group === group && variant.id === itemId)) throw new Error('Character variant not found')
       }
       path = `/characters/${characterId}/${view ?? 'expressions'}${itemId ? `/${encodeURIComponent(itemId)}` : ''}`
@@ -925,6 +933,23 @@ export function createApplication(document: Document) {
     }
   }
 
+  async function updateVariantMetadata(rawInput: unknown) {
+    const { characterId, expectedRevision, group, variantId, ...patch } = rawInput as CharacterVariantProfilePatch & {
+      characterId: string; expectedRevision: number; group: CharacterVariantGroup; variantId: string
+    }
+    if (!Object.keys(patch).length) throw new Error('At least one metadata field is required')
+    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing variant metadata')
+    await editor.open(characterId)
+    const changed = await editor.dispatch((character) => updateCharacterVariantMetadata(character, group, variantId, patch), expectedRevision)
+    const character = activeCharacter().character
+    return {
+      status: 'ok',
+      data: { characterId: character.id, variant: character.variants.find((item) => item.group === group && item.id === variantId), faceStyles: character.faceStyles, revision: settledRevision('Character variant metadata'), changed },
+      nextActions: characterNextActions(character),
+      effects: { navigation: { path: characterPath(character.id, group, variantId), mode: 'push', reason: 'Review the updated variant metadata.' } },
+    }
+  }
+
   async function prepareAppearanceReferences(draft: CharacterDraft, previous: CharacterDraft | null): Promise<CharacterDraft> {
     const composition = (character: CharacterDraft) => JSON.stringify(resolveCharacterDraftPlacements(character).map(({ variant, layer, transform }) =>
       [variant.layers[layer]!.inspection.sha256, transform]))
@@ -974,13 +999,13 @@ export function createApplication(document: Document) {
     const { characterId, expectedRevision, group, variantId, active, appearance } = rawInput as {
       characterId: string
       expectedRevision: number
-      group: 'expression' | 'outfit' | 'prop'
+      group: 'expression' | 'outfit' | 'hair' | 'headwear' | 'prop'
       variantId: string
       active: boolean
       appearance?: CharacterAppearanceCommand
     }
     if (appearance ? group !== undefined || variantId !== undefined || active !== undefined
-      : !['expression', 'outfit', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') throw new Error('Choose either appearance or group/variantId/active')
+      : !['expression', 'outfit', 'hair', 'headwear', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') throw new Error('Choose either appearance or group/variantId/active')
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
     await editor.open(characterId)
     const target = { group, id: variantId }
@@ -1032,7 +1057,8 @@ export function createApplication(document: Document) {
     if (!group || !group.layers.includes(input.layer) || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(input.variantId)) throw new Error('Unknown character asset target')
     if (input.group === 'body' && input.variantId !== 'base') throw new Error('The body group only supports body/base/body')
     const { asset, headRegistration, current, transform, alignmentReference, referenceTransform, editSource, editSourceTransform } = resolveCharacterAssetSources(draft, input as CharacterAssetTarget)
-    const label = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)?.label ?? input.variantId
+    const variant = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)
+    const label = variant?.label ?? input.variantId
     const registrationFrame = characterRegistrationFrame(draft)
     const allowedOperations = [
       'replace' as const,
@@ -1051,7 +1077,7 @@ export function createApplication(document: Document) {
     const placement = characterAssetPlacement(input.group, input.layer)
     const lineage = input.group === 'body' ? 'establish-canonical'
       : input.group === 'expression' ? headRegistration ? 'derive-from-head-registration' : 'establish-head-registration'
-        : input.group === 'outfit' ? 'replace-character-skin'
+        : ['outfit', 'hair', 'headwear'].includes(input.group) ? 'derive-registered-overlay-from-canonical'
           : 'place-against-current-composite'
     const editableRegion = current && input.group === 'expression' ? registrationFrame.editableRegions.expression : undefined
     const referenceBounds = characterReferenceBounds(registrationFrame, input.group)
@@ -1092,6 +1118,17 @@ export function createApplication(document: Document) {
         normalization: normalization.recommended,
       },
     }
+    const metadataRequired = !variant && ['expression', 'outfit', 'hair', 'headwear'].includes(input.group) || input.group === 'outfit' && !variant?.metadata?.outfit
+    const metadataAction = metadataRequired ? {
+      tool: 'update_character_variant_metadata',
+      required: true,
+      reason: input.group === 'outfit'
+        ? 'Create this garment with its wardrobe slot and garment type before installing pixels.'
+        : 'Create this variant metadata before installing pixels.',
+      input: { characterId: draft.id, expectedRevision: revision, group: input.group, variantId: input.variantId, label,
+        ...(input.group === 'outfit' ? { outfit: { slot: 'top', garmentType: label } } : {}),
+        ...(input.group === 'expression' ? { faceStyleId: draft.faceStyles[0]?.id } : {}) },
+    } : null
     const repairAction = current && input.group === 'expression' ? {
       tool: 'repair_character_asset',
       required: false,
@@ -1117,7 +1154,8 @@ export function createApplication(document: Document) {
       input: { characterId: draft.id, group: input.group, variantId: input.variantId, expectedRevision: revision, ...fit.transform },
     }]
     const mutationActions = repairAction ? [repairAction, replacementAction] : [replacementAction]
-    const nextActions = !current ? [replacementAction]
+    const nextActions = metadataAction ? [metadataAction]
+      : !current ? [replacementAction]
       : maskFit ? fitActions
       : fitActions.length ? [...fitActions, ...mutationActions]
       : [...mutationActions, {
@@ -1173,10 +1211,10 @@ export function createApplication(document: Document) {
         assetRole: 'whole-head',
         outside: 'transparent',
         bounds: registrationFrame.headEnvelope?.bounds ?? null,
-      } : input.group === 'outfit' ? {
-        assetRole: 'complete-character-skin',
-        referenceSilhouetteCompatibility: 'required',
-        exactCanonicalPixelCoverage: 'not-required',
+      } : ['outfit', 'hair', 'headwear'].includes(input.group) ? {
+        assetRole: `${input.group}-only-overlay`,
+        characterPixels: 'forbidden',
+        layerSemantics: input.layer === 'back' ? 'only pixels genuinely behind the canonical body/head' : 'visible overlay pixels',
       } : {
         assetRole: input.group === 'body' ? 'complete-character-skin' : 'prop-layer',
       },
@@ -1195,13 +1233,14 @@ export function createApplication(document: Document) {
           finalizeAt: { ...CHARACTER_RIG.canvas },
           rgba: true,
           realAlpha: true,
-          content: input.group === 'body' || input.group === 'outfit' ? 'complete-character'
-            : input.group === 'expression' ? 'complete-whole-head' : 'prop-layer',
+          content: input.group === 'body' ? 'complete-character'
+            : input.group === 'expression' ? 'complete-whole-head'
+              : ['outfit', 'hair', 'headwear'].includes(input.group) ? `${input.group}-only-overlay` : 'prop-layer',
         },
       },
       alignment: {
         mode: input.group === 'expression' ? 'whole-head-bounds'
-          : input.group === 'outfit' ? 'pose-frame'
+          : ['outfit', 'hair', 'headwear'].includes(input.group) ? 'pose-frame'
             : input.group === 'prop' ? 'composite-review'
               : 'establish-frame',
         transform,
@@ -1248,6 +1287,7 @@ export function createApplication(document: Document) {
             group: variant.group,
             id: variant.id,
             label: variant.label,
+            metadata: variant.metadata ?? null,
             layers: CHARACTER_CREATION_GROUPS.find(({ group }) => group === variant.group)!.layers.map((layer) => ({
               layer,
               filled: Boolean(variant.layers[layer]),
@@ -1262,6 +1302,7 @@ export function createApplication(document: Document) {
             attributes: draft.attributes ?? {},
             heightCm: draft.modelSheet?.heightCm ?? null,
             selected: draft.selected,
+            faceStyles: draft.faceStyles,
             ...describeAppearances(draft),
             revision: version,
           },
@@ -1281,14 +1322,17 @@ export function createApplication(document: Document) {
             'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
             CHARACTER_A_POSE_GUIDANCE,
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
-            'An outfit replaces the character-skin slot: replace it with the complete dressed character, never a clothing-only overlay. Preserve pose, body center, head position, and foot line. Generate props against the returned current composite.',
+            'The canonical body is bald or very short-haired, clean-shaven, neutral-faced, wearing underwear, and locked to the standard A-pose.',
+            'For a garment, generate the complete dressed character in the exact canonical pose, then semantically isolate the garment. Do not subtract pixels mechanically. Split only truly behind-body pixels into back and visible garment pixels into front; both stay on the exact 512×768 registration.',
+            'Wardrobe slots are top, bottom, one-piece, outerwear, and footwear. One garment may be active per slot; one-piece is mutually exclusive with top and bottom. Record slot, garment type, description, tags, and source hash through update_character_variant_metadata.',
+            'Hair and headwear use the same registered front/back overlay method and contain no face or body pixels. Facial hair is never an overlay: create a Face Style and bake its beard or moustache into every expression head belonging to that style. Expression heads never include hair or headwear.',
             'Generate at 1024×1536. When the inspected target recommends exact-aspect-downscale, request it during submission; otherwise finalize externally at the exact 512×768 canvas. Never crop, reframe, or stretch.',
             CHARACTER_BACKGROUND_GUIDANCE,
             'Use replace_character_asset for every outfit and any other complete finished layer; it never preserves old pixels. Use repair_character_asset only for an existing expression; transparent mask pixels are editable, opaque pixels are protected, and protectedRegionDelta must be 0.',
             'Submit only full-canvas RGBA PNG proposals, either already at 512×768 or with the explicit normalization allowed by the inspected target. The website never generates, removes backgrounds, or guesses geometry; expression repair alone uses the deterministic editable region.',
-            'Expression layers contain only the whole aligned head, including the same fixed hairstyle and facial hair; every pixel outside head ownership must be transparent.',
+            'Expression layers contain only the whole aligned head. Facial hair follows the expression through its Face Style; every pixel outside head ownership is transparent.',
             'No expression overlay means the default face baked into the body. Optional whole-head variants include happy, sad, angry, surprised, and sleepy; additional variants are allowed.',
-            'Outfits are full-body variants. Props are independent, multi-select, full-canvas overlays and may contain front and back layers. A prop may be positioned anywhere, including on the head or in a hand.',
+            'Props are independent or handheld, multi-select overlays. Never use props for clothing, hair, beards, or headwear.',
             'selected.props is the persisted bottom-to-top activation order within each front/back rig slot. Use set_character_variant_selection to add or remove variants: later-added props stack above earlier props; an already-active prop keeps its order; remove then add it to move it to the top.',
             CHARACTER_NAVIGATION_GUIDANCE,
             CHARACTER_VISUAL_REVIEW.instruction,

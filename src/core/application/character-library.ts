@@ -2,9 +2,9 @@ import { EntryDataValidator, type Entry } from '@aotter/mantle-spec'
 
 import { AUTHORING_NAMESPACE } from './authoring.ts'
 import { characterAssets } from './character-assets.ts'
-import { validateCharacterAppearances } from './character-appearances.ts'
+import { validateCharacterAppearances, validateCharacterSelection } from './character-appearances.ts'
 import { modelSheetReferences, validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
-import { validateCharacterAssetInspection } from './character-creation.ts'
+import { validateCharacterAssetInspection, validateCharacterVariantMetadata } from './character-creation.ts'
 import { CHARACTER_COLLECTIONS } from '../domain/character-collection.ts'
 import { compileAuthoringBackbone } from '../mantle/backbone.ts'
 import {
@@ -54,7 +54,7 @@ const validateAuthoringData = (collection: string, data: Record<string, unknown>
 
 /** Validate partial authoring work without requiring publishable artwork. No mutation or repair on import. */
 function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: string; updatedAt: number }), assets: Map<string, CharacterLibraryAsset>) {
-  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 4 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
+  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 5 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
     !text(draft.name) || !stamp(draft.updatedAt) || !record(draft.rigProfile) || draft.rigProfile.id !== CHARACTER_RIG.id || draft.rigProfile.version !== CHARACTER_RIG.version ||
     !Array.isArray(draft.variants) || !draft.variants.length || draft.variants.length > 100) fail('Character record')
   for (const [field, max] of [['description', 500], ['backstory', 8000]] as const) {
@@ -79,6 +79,7 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
     validateModelSheet(sheet)
     for (const { asset } of Object.values(modelSheetReferences<CharacterDraftAsset | StoredCharacterAsset>(sheet))) validateAsset(asset, true)
   }
+  try { validateCharacterVariantMetadata(draft) } catch { fail('variant metadata or Face Style') }
   const variants = new Set<string>()
   for (const variant of draft.variants) {
     if (!record(variant) || !CHARACTER_VARIANT_GROUPS.includes(variant.group) ||
@@ -94,12 +95,7 @@ function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: s
     }
   }
   if (!variants.has('body:base') || [...variants].some((key) => key.startsWith('body:') && key !== 'body:base')) fail('base body')
-  if (!record(draft.selected) || !Array.isArray(draft.selected.props) || new Set(draft.selected.props).size !== draft.selected.props.length ||
-    draft.selected.props.some((id) => typeof id !== 'string' || !variants.has(`prop:${id}`))) fail('prop selection')
-  for (const group of ['expression', 'outfit'] as const) {
-    const id = draft.selected[group]
-    if (id !== undefined && (typeof id !== 'string' || !variants.has(`${group}:${id}`))) fail('selection reference')
-  }
+  try { validateCharacterSelection(draft, draft.selected) } catch { fail('selection') }
   if (draft.headRegistration !== undefined && (!record(draft.headRegistration) || !variants.has(`expression:${draft.headRegistration.variantId}`))) fail('head registration')
 }
 

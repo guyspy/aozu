@@ -1,9 +1,9 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 
 import { mapCharacterAssets } from '../../core/application/character-assets.ts'
-import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
+import { validateCharacterAppearances, validateCharacterSelection } from '../../core/application/character-appearances.ts'
 import { validateModelSheet, validateReferenceInspection, validateReferencePng } from '../../core/application/character-model-sheet.ts'
-import { buildCharacterPack, validateCharacterAssetInspection } from '../../core/application/character-creation.ts'
+import { buildCharacterPack, validateCharacterAssetInspection, validateCharacterVariantMetadata } from '../../core/application/character-creation.ts'
 import {
   CHARACTER_VARIANT_GROUPS,
   type CharacterDraftAsset,
@@ -63,7 +63,7 @@ export async function readCharacterDraftZip(
   for (const path of Object.keys(files)) if (path.endsWith('/')) delete files[path]
   const raw = object(parseZipJson(files['draft.json']!, 'Character Draft manifest'), 'Character Draft manifest')
   if (raw.archiveVersion !== 1) throw new Error('Unsupported Character Draft archive version')
-  if (raw.schemaVersion !== 3 && raw.schemaVersion !== 4) throw new Error('Unsupported Character Draft schema version')
+  if (raw.schemaVersion !== 5) throw new Error('Unsupported Character Draft schema version')
   const sourceId = string(raw.id, 'Character Draft ID', 100)
   const packId = string(raw.packId, 'Character Pack ID', 64)
   if (!idPattern.test(packId)) throw new Error('Invalid Character Pack ID')
@@ -109,30 +109,39 @@ export async function readCharacterDraftZip(
     const rawTransform = archived.transform === undefined ? undefined : object(archived.transform, `Character Draft transform ${key}`)
     const transform = rawTransform && { x: rawTransform.x, y: rawTransform.y, scale: rawTransform.scale } as CharacterVariantTransform
     if (transform) validateCharacterVariantTransform(transform)
-    variants.push({ group, id, label, layers, ...(transform ? { transform } : {}) })
+    variants.push({ group, id, label, layers, ...(archived.metadata ? { metadata: archived.metadata as CharacterDraftVariant['metadata'] } : {}), ...(transform ? { transform } : {}) })
   }
+  if (!Array.isArray(raw.faceStyles)) throw new Error('Invalid Character Face Styles')
+  const faceStyles = raw.faceStyles as CharacterDraft['faceStyles']
+  validateCharacterVariantMetadata({ variants, faceStyles })
   if (raw.modelSheet !== undefined) validateModelSheet(raw.modelSheet as CharacterModelSheet<unknown>)
-  const appearanceContent = { variants, appearances: raw.appearances as CharacterDraft['appearances'], activeAppearanceId: raw.activeAppearanceId as string | undefined }
+  const appearanceContent = { variants, faceStyles, appearances: raw.appearances as CharacterDraft['appearances'], activeAppearanceId: raw.activeAppearanceId as string | undefined }
   validateCharacterAppearances(appearanceContent)
   const references = await mapCharacterAssets({ ...appearanceContent, variants: [], modelSheet: raw.modelSheet as CharacterModelSheet<unknown> | undefined },
     (asset, key) => readAsset(asset, `assets/${key}.png`, true))
   if (assetPaths.size) throw new Error(`Character Draft contains an unreferenced asset: ${[...assetPaths][0]}`)
 
   const selected = object(raw.selected, 'Character Draft selection')
+  const selectedOutfits = object(selected.outfits, 'Character Draft outfit selection')
   if (!Array.isArray(selected.props) || selected.props.some((id) => typeof id !== 'string') || new Set(selected.props).size !== selected.props.length) {
     throw new Error('Invalid Character Draft prop selection')
   }
   const hasVariant = (group: CharacterVariantGroup, id: unknown) => typeof id === 'string' && variants.some((variant) => variant.group === group && variant.id === id)
-  if (selected.expression !== undefined && !hasVariant('expression', selected.expression)) throw new Error('Selected Character Draft expression is missing')
-  if (selected.outfit !== undefined && !hasVariant('outfit', selected.outfit)) throw new Error('Selected Character Draft outfit is missing')
-  if (selected.props.some((id) => !hasVariant('prop', id))) throw new Error('Selected Character Draft prop is missing')
+  const characterSelection: CharacterDraft['selected'] = {
+    ...(selected.expression ? { expression: selected.expression as string } : {}),
+    outfits: selectedOutfits as CharacterDraft['selected']['outfits'],
+    ...(selected.hair ? { hair: selected.hair as string } : {}),
+    ...(selected.headwear ? { headwear: selected.headwear as string } : {}),
+    props: [...selected.props] as string[],
+  }
+  validateCharacterSelection({ variants, faceStyles }, characterSelection)
   const headRegistration = raw.headRegistration === undefined ? undefined : object(raw.headRegistration, 'Character Draft head registration')
   if (headRegistration && !hasVariant('expression', headRegistration.variantId)) throw new Error('Registered Character Draft head is missing')
 
   return {
     draft: {
       id: sourceId,
-      schemaVersion: 4,
+      schemaVersion: 5,
       packId,
       rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
       name,
@@ -140,15 +149,12 @@ export async function readCharacterDraftZip(
       ...(backstory ? { backstory } : {}),
       ...(profileAttributes && Object.keys(profileAttributes).length ? { attributes: profileAttributes } : {}),
       variants,
+      faceStyles,
       ...(references.modelSheet ? { modelSheet: references.modelSheet } : {}),
       ...(references.appearances ? { appearances: references.appearances } : {}),
       ...(appearanceContent.activeAppearanceId ? { activeAppearanceId: appearanceContent.activeAppearanceId } : {}),
       ...(headRegistration ? { headRegistration: { variantId: headRegistration.variantId as string } } : {}),
-      selected: {
-        ...(selected.expression ? { expression: selected.expression as string } : {}),
-        ...(selected.outfit ? { outfit: selected.outfit as string } : {}),
-        props: [...selected.props] as string[],
-      },
+      selected: characterSelection,
       updatedAt: Date.now(),
     },
   }

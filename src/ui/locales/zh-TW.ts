@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const zhTW: Messages = {
+export const zhTW: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "返回",
@@ -167,7 +167,9 @@ export const zhTW: Messages = {
     },
     "categories": {
       "expressions": "表情",
-      "outfits": "服裝",
+      "wardrobe": "衣櫥",
+      "hair": "髮型",
+      "headwear": "頭飾",
       "props": "道具"
     },
     "layers": {
@@ -182,13 +184,40 @@ export const zhTW: Messages = {
         "variantName": "表情"
       },
       "outfit": {
-        "add": "新增服裝",
-        "variantName": "服裝"
+        "add": "新增衣物",
+        "variantName": "衣物"
+      },
+      "hair": {
+        "add": "新增髮型",
+        "variantName": "髮型"
+      },
+      "headwear": {
+        "add": "新增頭飾",
+        "variantName": "頭飾"
       },
       "prop": {
         "add": "新增道具",
         "variantName": "道具"
       }
+    },
+    "outfitSlots": {
+      "top": "上衣",
+      "bottom": "下身",
+      "one-piece": "連身裝",
+      "outerwear": "外套",
+      "footwear": "鞋履"
+    },
+    "metadata": {
+      "slot": "衣櫥位置",
+      "garmentType": "衣物類型",
+      "faceStyle": "臉部風格",
+      "faceStyleName": "臉部風格名稱",
+      "facialHair": "鬍鬚",
+      "cleanShaven": "無鬍鬚",
+      "addFaceStyle": "新增臉部風格",
+      "description": "說明",
+      "tags": "標籤",
+      "tagsHelp": "用逗號分隔標籤"
     }
   },
   "main": {

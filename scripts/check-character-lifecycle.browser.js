@@ -77,7 +77,7 @@ try {
     await ready(() => document.querySelector('.variant-preview img[alt="Happy"]')?.naturalWidth > 0)
     const stage = document.querySelector('.character-stage-canvas canvas')
     const thumbnail = document.querySelector('.variant-preview img[alt="Happy"]')
-    editor.store.setState({ character: { ...editor.store.getState().character, selected: { props: [] } } })
+    editor.store.setState({ character: { ...editor.store.getState().character, selected: { outfits: {}, props: [] } } })
     await wait(300)
     check(stage.isConnected && document.querySelectorAll('.character-stage-canvas canvas').length === 1, 'Selection change remounted or duplicated the canvas')
     check(thumbnail.isConnected && thumbnail.complete, 'Selection change remounted or cleared a thumbnail')

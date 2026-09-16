@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const ko: Messages = {
+export const ko: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "뒤로",
@@ -167,7 +167,9 @@ export const ko: Messages = {
     },
     "categories": {
       "expressions": "표정",
-      "outfits": "의상",
+      "wardrobe": "옷장",
+      "hair": "헤어스타일",
+      "headwear": "머리 장식",
       "props": "소품"
     },
     "layers": {
@@ -185,10 +187,37 @@ export const ko: Messages = {
         "add": "의상 추가",
         "variantName": "의상"
       },
+      "hair": {
+        "add": "헤어스타일 추가",
+        "variantName": "헤어스타일"
+      },
+      "headwear": {
+        "add": "머리 장식 추가",
+        "variantName": "머리 장식"
+      },
       "prop": {
         "add": "소품 추가",
         "variantName": "소품"
       }
+    },
+    "outfitSlots": {
+      "top": "상의",
+      "bottom": "하의",
+      "one-piece": "원피스",
+      "outerwear": "겉옷",
+      "footwear": "신발"
+    },
+    "metadata": {
+      "slot": "옷장 슬롯",
+      "garmentType": "의상 유형",
+      "faceStyle": "얼굴 스타일",
+      "faceStyleName": "얼굴 스타일 이름",
+      "facialHair": "수염",
+      "cleanShaven": "수염 없음",
+      "addFaceStyle": "얼굴 스타일 추가",
+      "description": "설명",
+      "tags": "태그",
+      "tagsHelp": "쉼표로 태그 구분"
     }
   },
   "main": {

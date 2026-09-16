@@ -1,12 +1,18 @@
 export const CHARACTER_RIG = {
   id: 'companion-fullbody',
-  version: 2,
+  version: 3,
   canvas: { width: 512, height: 768 },
   slots: [
-    { id: 'item-back', order: 10, alpha: 'required' },
+    { id: 'prop-back', order: 10, alpha: 'required' },
+    { id: 'outfit-back', order: 20, alpha: 'required' },
+    { id: 'hair-back', order: 25, alpha: 'required' },
+    { id: 'headwear-back', order: 28, alpha: 'required' },
     { id: 'character-skin', order: 30, alpha: 'required' },
+    { id: 'outfit-front', order: 32, alpha: 'required' },
     { id: 'expression-head', order: 35, alpha: 'required' },
-    { id: 'item-front', order: 40, alpha: 'required' },
+    { id: 'hair-front', order: 37, alpha: 'required' },
+    { id: 'headwear-front', order: 38, alpha: 'required' },
+    { id: 'prop-front', order: 40, alpha: 'required' },
     { id: 'aura', order: 50, alpha: 'required' },
   ],
 } as const
@@ -17,28 +23,54 @@ export const CHARACTER_GENERATION_CANVAS = {
   height: CHARACTER_RIG.canvas.height * 2,
 } as const
 
-const LEGACY_CHARACTER_RIG = {
-  id: 'companion-fullbody',
-  version: 1,
-  canvas: { width: 512, height: 768 },
-  slots: [
-    { id: 'item-back', order: 10, alpha: 'required' },
-    { id: 'character-skin', order: 30, alpha: 'required' },
-    { id: 'item-front', order: 40, alpha: 'required' },
-    { id: 'aura', order: 50, alpha: 'required' },
-  ],
-} as const
-
-export const CHARACTER_VARIANT_GROUPS = ['body', 'expression', 'outfit', 'prop'] as const
+export const CHARACTER_VARIANT_GROUPS = ['body', 'expression', 'outfit', 'hair', 'headwear', 'prop'] as const
 export const CHARACTER_VARIANT_LAYERS = {
   body: ['body'],
   expression: ['head'],
-  outfit: ['body'],
+  outfit: ['back', 'front'],
+  hair: ['back', 'front'],
+  headwear: ['back', 'front'],
   prop: ['back', 'front'],
 } as const
 
 export type CharacterVariantGroup = typeof CHARACTER_VARIANT_GROUPS[number]
 export type CharacterVariantLayer = 'body' | 'head' | 'back' | 'front'
+
+export const CHARACTER_OUTFIT_SLOTS = ['top', 'bottom', 'one-piece', 'outerwear', 'footwear'] as const
+export type CharacterOutfitSlot = typeof CHARACTER_OUTFIT_SLOTS[number]
+
+export interface CharacterFacialHair {
+  type: string
+  length?: string
+  density?: string
+  color?: string
+}
+
+export interface CharacterFaceStyle {
+  id: string
+  label: string
+  description?: string
+  tags?: string[]
+  facialHair: CharacterFacialHair | null
+}
+
+export interface CharacterVariantMetadata {
+  description?: string
+  tags?: string[]
+  sourceSha256?: string
+  outfit?: { slot: CharacterOutfitSlot; garmentType: string }
+  faceStyleId?: string
+}
+
+export interface CharacterVariantProfilePatch {
+  label?: string
+  description?: string
+  tags?: string[]
+  sourceSha256?: string | null
+  outfit?: { slot: CharacterOutfitSlot; garmentType: string }
+  faceStyleId?: string
+  faceStyle?: CharacterFaceStyle
+}
 
 export interface CharacterVariantTransform {
   x: number
@@ -73,6 +105,7 @@ export interface CharacterDraftVariant {
   id: string
   group: CharacterVariantGroup
   label: string
+  metadata?: CharacterVariantMetadata
   layers: Partial<Record<CharacterVariantLayer, CharacterDraftAsset>>
   transform?: CharacterVariantTransform
 }
@@ -121,13 +154,16 @@ export interface CharacterModelSheet<Asset = CharacterDraftAsset> {
 }
 export interface CharacterAssetContent<Asset> {
   variants: Array<Omit<CharacterDraftVariant, 'layers'> & { layers: Partial<Record<CharacterVariantLayer, Asset>> }>
+  faceStyles: CharacterFaceStyle[]
   modelSheet?: CharacterModelSheet<Asset>
   appearances?: CharacterAppearance<Asset>[]
 }
 
 export interface CharacterSelection {
   expression?: string
-  outfit?: string
+  outfits: Partial<Record<CharacterOutfitSlot, string>>
+  hair?: string
+  headwear?: string
   /** Bottom to top within each prop rig slot. */
   props: string[]
 }
@@ -141,7 +177,7 @@ export interface CharacterAppearance<Asset = CharacterDraftAsset> {
 
 export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsset> {
   id: string
-  schemaVersion: 4
+  schemaVersion: 5
   packId: string
   rigProfile: { id: string; version: number }
   name: string
@@ -245,7 +281,6 @@ export function validateCharacterVariantTransform({ x, y, scale }: CharacterVari
 const rigFor = (profile: CharacterPack['rigProfile'] | undefined) => {
   if (!profile || profile.id !== CHARACTER_RIG.id) throw new Error('Unsupported character rig')
   if (profile.version === CHARACTER_RIG.version) return CHARACTER_RIG
-  if (profile.version === LEGACY_CHARACTER_RIG.version) return LEGACY_CHARACTER_RIG
   throw new Error('Unsupported character rig')
 }
 

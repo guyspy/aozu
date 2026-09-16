@@ -53,6 +53,7 @@ const runtime = await bootMantleRuntime({
       profileInput = input
       return { status: 'ok', data: input }
     },
+    'companion.update-character-variant-metadata': async (input) => ({ status: 'ok', data: input }),
     'companion.create-local-companion': async () => ({ status: 'ok', data: { bundleId: 'bundle:local' } }),
     'companion.inspect-experience-contract': async () => ({ status: 'ok', data: {} }),
     'companion.inspect-character-contract': async () => ({ status: 'ok', data: {} }),

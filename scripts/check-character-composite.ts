@@ -4,11 +4,11 @@ import { renderCharacterCompositeBlob, renderCharacterCompositeDataUrl, renderCh
 import { CHARACTER_RIG, type ResolvedCharacterLayer } from '../src/core/domain/character.ts'
 
 const layers: Array<ResolvedCharacterLayer & { blob: Blob }> = [
-  { id: 'prop-earlier-back', slot: 'item-back', slotOrder: 1, layerOrder: 1 },
-  { id: 'body-base-body', slot: 'character-skin', slotOrder: 2, layerOrder: 1 },
-  { id: 'expression-happy-head', slot: 'expression-head', slotOrder: 3, layerOrder: 1 },
-  { id: 'prop-earlier-front', slot: 'item-front', slotOrder: 4, layerOrder: 1 },
-  { id: 'prop-later-front', slot: 'item-front', slotOrder: 4, layerOrder: 2 },
+  { id: 'prop-earlier-back', slot: 'prop-back', slotOrder: 10, layerOrder: 1 },
+  { id: 'body-base-body', slot: 'character-skin', slotOrder: 30, layerOrder: 1 },
+  { id: 'expression-happy-head', slot: 'expression-head', slotOrder: 35, layerOrder: 1 },
+  { id: 'prop-earlier-front', slot: 'prop-front', slotOrder: 40, layerOrder: 1 },
+  { id: 'prop-later-front', slot: 'prop-front', slotOrder: 40, layerOrder: 2 },
 ].map((layer, index) => ({
   ...layer,
   blobId: layer.id,

@@ -1,9 +1,11 @@
 import type { EntryReader } from '@aotter/mantle-runtime'
 import { characterAssets } from './character-assets.ts'
 import { CHARACTER_BACKGROUND_GUIDANCE } from './character-agent-guidance.ts'
+import { validateCharacterSelection } from './character-appearances.ts'
 
 import {
   CHARACTER_RIG,
+  CHARACTER_OUTFIT_SLOTS,
   CHARACTER_VARIANT_GROUPS,
   CHARACTER_VARIANT_LAYERS,
   IDENTITY_CHARACTER_TRANSFORM,
@@ -14,6 +16,7 @@ import {
   type CharacterAssetTarget,
   type CharacterAtlasSource,
   type CharacterAssetInspection,
+  type CharacterAssetContent,
   type CharacterAttributeValue,
   type CharacterDraft,
   type CharacterDraftAsset,
@@ -24,6 +27,7 @@ import {
   type CharacterVariantGroup,
   type CharacterVariantLayer,
   type CharacterVariantTransform,
+  type CharacterVariantProfilePatch,
 } from '../domain/character.ts'
 import type { ValidatedStarterPackage } from '../domain/starter.ts'
 import type { StagedCandidatePreview } from './candidate.ts'
@@ -41,7 +45,9 @@ export const CHARACTER_CREATION_GROUPS: ReadonlyArray<{
 }> = [
   { group: 'body', layers: ['body'], addable: false },
   { group: 'expression', layers: ['head'], addable: true },
-  { group: 'outfit', layers: ['body'], addable: true },
+  { group: 'outfit', layers: ['back', 'front'], addable: true },
+  { group: 'hair', layers: ['back', 'front'], addable: true },
+  { group: 'headwear', layers: ['back', 'front'], addable: true },
   { group: 'prop', layers: ['back', 'front'], addable: true },
 ]
 
@@ -54,23 +60,27 @@ const variantIdPattern = /^[a-z0-9][a-z0-9_-]{0,39}$/
 const roundTransformValue = (value: number) => Math.round(value * 10_000) / 10_000
 const initialVariants = (): CharacterDraftVariant[] => [
   { group: 'body', id: 'base', label: 'Base body', layers: {} },
-  { group: 'expression', id: 'happy', label: 'Happy', layers: {} },
-  { group: 'expression', id: 'sad', label: 'Sad', layers: {} },
-  { group: 'expression', id: 'angry', label: 'Angry', layers: {} },
-  { group: 'expression', id: 'surprised', label: 'Surprised', layers: {} },
-  { group: 'expression', id: 'sleepy', label: 'Sleepy', layers: {} },
-  { group: 'outfit', id: 'outfit-1', label: 'Outfit 1', layers: {} },
+  { group: 'expression', id: 'happy', label: 'Happy', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'expression', id: 'sad', label: 'Sad', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'expression', id: 'angry', label: 'Angry', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'expression', id: 'surprised', label: 'Surprised', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'expression', id: 'sleepy', label: 'Sleepy', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'outfit', id: 'top-1', label: 'Top 1', metadata: { outfit: { slot: 'top', garmentType: 'top' } }, layers: {} },
+  { group: 'outfit', id: 'bottom-1', label: 'Bottom 1', metadata: { outfit: { slot: 'bottom', garmentType: 'bottom' } }, layers: {} },
+  { group: 'hair', id: 'hair-1', label: 'Hair 1', layers: {} },
+  { group: 'headwear', id: 'headwear-1', label: 'Headwear 1', layers: {} },
   { group: 'prop', id: 'prop-1', label: 'Prop 1', layers: {} },
 ]
 
 export const createCharacterDraft = (packId: string = `character-${crypto.randomUUID()}`, id: string = crypto.randomUUID()): CharacterDraft => ({
   id,
-  schemaVersion: 4,
+  schemaVersion: 5,
   packId,
   rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
   name: 'My Companion',
   variants: initialVariants(),
-  selected: { props: [] },
+  faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }],
+  selected: { outfits: {}, props: [] },
   updatedAt: Date.now(),
 })
 
@@ -134,6 +144,106 @@ export function updateCharacterProfile(draft: CharacterDraft, patch: CharacterPr
     ...(backstory ? { backstory } : {}),
     ...(attributes && Object.keys(attributes).length ? { attributes } : {}),
   }
+}
+
+const metadataText = (value: string | undefined, max: number, label: string) => value === undefined ? undefined : optionalProfileText(value, max, label)
+const metadataTags = (values: string[] | undefined) => {
+  if (values === undefined) return undefined
+  const tags = [...new Set(values.map((tag) => tag.trim()).filter(Boolean))]
+  if (tags.length > 20 || tags.some((tag) => tag.length > 40)) throw new Error('Variant tags are limited to 20 values of 40 characters')
+  return tags
+}
+
+export function validateCharacterVariantMetadata(content: Pick<CharacterAssetContent<unknown>, 'variants' | 'faceStyles'>): void {
+  if (!Array.isArray(content.faceStyles) || !content.faceStyles.length || content.faceStyles.length > 100) throw new Error('Invalid Face Styles')
+  const faceStyles = new Set<string>()
+  for (const value of content.faceStyles as unknown[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Face Style')
+    const style = value as Record<string, unknown>, facialHair = style.facialHair
+    if (Object.keys(style).some((key) => !['id', 'label', 'description', 'tags', 'facialHair'].includes(key)) ||
+      typeof style.id !== 'string' || !variantIdPattern.test(style.id) || faceStyles.has(style.id) || typeof style.label !== 'string' || !style.label.trim() || style.label.length > 80 ||
+      (style.description !== undefined && (typeof style.description !== 'string' || style.description.length > 500)) ||
+      (style.tags !== undefined && (!Array.isArray(style.tags) || style.tags.length > 20 || new Set(style.tags).size !== style.tags.length || style.tags.some((tag) => typeof tag !== 'string' || !tag.trim() || tag.length > 40))) ||
+      !(facialHair === null || facialHair && typeof facialHair === 'object' && !Array.isArray(facialHair) &&
+        !Object.keys(facialHair).some((key) => !['type', 'length', 'density', 'color'].includes(key)) &&
+        typeof (facialHair as Record<string, unknown>).type === 'string' && Boolean(((facialHair as Record<string, unknown>).type as string).trim()) && ((facialHair as Record<string, unknown>).type as string).length <= 80 &&
+        ['length', 'density', 'color'].every((key) => (facialHair as Record<string, unknown>)[key] === undefined ||
+          typeof (facialHair as Record<string, unknown>)[key] === 'string' && Boolean(((facialHair as Record<string, unknown>)[key] as string).trim()) && ((facialHair as Record<string, unknown>)[key] as string).length <= 80))) throw new Error('Invalid Face Style')
+    faceStyles.add(style.id)
+  }
+  for (const variant of content.variants) {
+    const metadata = variant.metadata as Record<string, unknown> | undefined
+    if (metadata !== undefined && (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) ||
+      Object.keys(metadata).some((key) => !['description', 'tags', 'sourceSha256', 'outfit', 'faceStyleId'].includes(key)) ||
+      (metadata.description !== undefined && (typeof metadata.description !== 'string' || metadata.description.length > 500)) ||
+      (metadata.tags !== undefined && (!Array.isArray(metadata.tags) || metadata.tags.length > 20 || new Set(metadata.tags).size !== metadata.tags.length || metadata.tags.some((tag) => typeof tag !== 'string' || !tag.trim() || tag.length > 40))) ||
+      (metadata.sourceSha256 !== undefined && (typeof metadata.sourceSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(metadata.sourceSha256))))) throw new Error('Invalid character variant metadata')
+    const outfit = metadata?.outfit as Record<string, unknown> | undefined
+    if (variant.group === 'outfit' && (!outfit || typeof outfit !== 'object' || Array.isArray(outfit) || Object.keys(outfit).some((key) => !['slot', 'garmentType'].includes(key)) || !CHARACTER_OUTFIT_SLOTS.includes(outfit.slot as never) || typeof outfit.garmentType !== 'string' || !outfit.garmentType.trim() || outfit.garmentType.length > 80)) throw new Error('Invalid outfit metadata')
+    if (variant.group !== 'outfit' && outfit) throw new Error('Only outfits have garment metadata')
+    if (variant.group === 'expression' ? typeof metadata?.faceStyleId !== 'string' || !faceStyles.has(metadata.faceStyleId) : metadata?.faceStyleId !== undefined) throw new Error('Invalid expression Face Style')
+  }
+}
+
+/** Shared metadata command for the editor and WebMCP. */
+export function updateCharacterVariantMetadata(
+  draft: CharacterDraft,
+  group: CharacterVariantGroup,
+  variantId: string,
+  patch: CharacterVariantProfilePatch,
+): CharacterDraft {
+  let variant = draft.variants.find((candidate) => candidate.group === group && candidate.id === variantId)
+  if (!variant) {
+    if (group === 'body' || !variantIdPattern.test(variantId) || !patch.label?.trim()) throw new Error('Character variant not found; a valid label is required to create it')
+    variant = { group, id: variantId, label: patch.label.trim(), layers: {} }
+    draft = { ...draft, variants: [...draft.variants, variant] }
+  }
+  const label = patch.label === undefined ? variant.label : patch.label.trim()
+  if (!label || label.length > 80) throw new Error('Variant name must be 1–80 characters')
+  if (patch.outfit && group !== 'outfit') throw new Error('Only outfits have garment metadata')
+  if (group === 'outfit' && !patch.outfit && !variant.metadata?.outfit) throw new Error('Outfit metadata requires a slot and garment type')
+  const outfit = patch.outfit ?? variant.metadata?.outfit
+  if (outfit && (!CHARACTER_OUTFIT_SLOTS.includes(outfit.slot) || !outfit.garmentType.trim() || outfit.garmentType.trim().length > 80)) {
+    throw new Error('Invalid outfit metadata')
+  }
+  const sourceSha256 = patch.sourceSha256 === undefined ? variant.metadata?.sourceSha256 : patch.sourceSha256 ?? undefined
+  if (sourceSha256 && !/^[0-9a-f]{64}$/.test(sourceSha256)) throw new Error('Invalid source image hash')
+  const description = metadataText(patch.description, 500, 'Variant description') ?? (patch.description === undefined ? variant.metadata?.description : undefined)
+  const tags = metadataTags(patch.tags) ?? (patch.tags === undefined ? variant.metadata?.tags : undefined)
+  let faceStyles = draft.faceStyles
+  let faceStyleId = patch.faceStyleId ?? variant.metadata?.faceStyleId
+  if (patch.faceStyleId && !draft.faceStyles.some(({ id }) => id === patch.faceStyleId)) throw new Error('Face Style not found')
+  if (patch.faceStyle) {
+    if (group !== 'expression') throw new Error('Only expressions belong to a Face Style')
+    const faceStyle = {
+      ...patch.faceStyle,
+      id: patch.faceStyle.id.trim(),
+      label: patch.faceStyle.label.trim(),
+      description: metadataText(patch.faceStyle.description, 500, 'Face Style description'),
+      tags: metadataTags(patch.faceStyle.tags),
+      facialHair: patch.faceStyle.facialHair ? {
+        ...patch.faceStyle.facialHair,
+        type: patch.faceStyle.facialHair.type.trim(),
+      } : null,
+    }
+    if (!variantIdPattern.test(faceStyle.id) || !faceStyle.label || faceStyle.label.length > 80 || (faceStyle.facialHair && !faceStyle.facialHair.type)) throw new Error('Invalid Face Style')
+    faceStyles = faceStyles.some(({ id }) => id === faceStyle.id)
+      ? faceStyles.map((item) => item.id === faceStyle.id ? faceStyle : item)
+      : [...faceStyles, faceStyle]
+    faceStyleId = faceStyle.id
+  }
+  const metadata = { ...(description ? { description } : {}), ...(tags?.length ? { tags } : {}), ...(sourceSha256 ? { sourceSha256 } : {}),
+    ...(outfit ? { outfit: { slot: outfit.slot, garmentType: outfit.garmentType.trim() } } : {}), ...(faceStyleId ? { faceStyleId } : {}) }
+  const variants = draft.variants.map((candidate) => candidate === variant ? { ...candidate, label, metadata } : candidate)
+  let selected = draft.selected
+  if (group === 'outfit' && outfit && variant.metadata?.outfit?.slot !== outfit.slot) {
+    const outfits = { ...selected.outfits }
+    for (const slot of CHARACTER_OUTFIT_SLOTS) if (outfits[slot] === variantId) delete outfits[slot]
+    selected = { ...selected, outfits }
+  }
+  const next = { ...draft, variants, faceStyles, selected }
+  validateCharacterVariantMetadata(next)
+  return next
 }
 
 const boundsCenter = ({ x, y, width, height }: NonNullable<CharacterAssetInspection['visibleBounds']>) => ({
@@ -278,9 +388,9 @@ export function createCharacterDraftFromStarter(loaded: ValidatedStarterPackage,
     if (!appearance) throw new Error(`Starter appearance not found: ${reference.appearanceId}`)
     for (const layer of appearance.layers) {
       if (layer.slot === 'character-skin') put('body', 'base', 'Base body', 'body', layer.asset.assetId)
-      else if (layer.slot === 'item-back' || layer.slot === 'item-front') {
+      else if (layer.slot === 'prop-back' || layer.slot === 'prop-front') {
         const id = propId(appearance.id)
-        put('prop', id, appearance.id, layer.slot === 'item-back' ? 'back' : 'front', layer.asset.assetId)
+        put('prop', id, appearance.id, layer.slot === 'prop-back' ? 'back' : 'front', layer.asset.assetId)
       }
     }
   }
@@ -296,33 +406,6 @@ export function createCharacterDraftFromStarter(loaded: ValidatedStarterPackage,
   return draft
 }
 
-type LegacyRole = 'body-base' | 'head-neutral' | 'head-happy' | 'body-outfit' | 'prop-back' | 'prop-front'
-type CharacterDraftV4 = CharacterDraft & { revision?: number; published?: { version: number; revision: number } }
-type CharacterDraftV3 = Omit<CharacterDraft, 'schemaVersion' | 'rigProfile'> & {
-  schemaVersion: 3
-  approvedAt?: number
-}
-type CharacterDraftV2 = Omit<CharacterDraftV3, 'schemaVersion' | 'variants' | 'selected'> & {
-  schemaVersion: 2
-  variants: Array<Omit<CharacterDraftVariant, 'group'> & { group: CharacterVariantGroup | 'headwear' }>
-  selected: { expression: string; outfit?: string; headwear?: string; prop?: string }
-}
-type LegacyCharacterDraft = Omit<CharacterDraftV3, 'schemaVersion' | 'variants' | 'selected'> & {
-  assets: Partial<Record<LegacyRole, CharacterDraftAsset>>
-  selectedBody: 'body-base' | 'body-outfit'
-  selectedExpression: 'head-neutral' | 'head-happy'
-}
-
-const withoutDefaultExpression = (draft: CharacterDraft): CharacterDraft => {
-  const hasNeutral = draft.variants.some(({ group, id }) => group === 'expression' && id === 'neutral')
-  if (!hasNeutral && draft.selected.expression !== 'neutral') return draft
-  return {
-    ...draft,
-    variants: draft.variants.filter(({ group, id }) => group !== 'expression' || id !== 'neutral'),
-    selected: { ...draft.selected, expression: draft.selected.expression === 'neutral' ? undefined : draft.selected.expression },
-  }
-}
-
 const withHeadRegistration = (draft: CharacterDraft): CharacterDraft => {
   const canonicalSha256 = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body?.inspection.sha256
   const current = (variant: CharacterDraftVariant) => Boolean(canonicalSha256)
@@ -336,68 +419,9 @@ const withHeadRegistration = (draft: CharacterDraft): CharacterDraft => {
   return withoutRegistration as CharacterDraft
 }
 
-export function migrateCharacterDraft(draft: CharacterDraftV4 | CharacterDraftV3 | CharacterDraftV2 | LegacyCharacterDraft): CharacterDraft {
-  if ('schemaVersion' in draft && draft.schemaVersion === 4) {
-    // Legacy `revision` and `published` metadata is dropped on hydration; the Mantle entry version is the only revision.
-    if (!('published' in draft) && !('revision' in draft)) return withHeadRegistration(withoutDefaultExpression(draft))
-    const { published: _published, revision: _revision, ...character } = draft
-    return withHeadRegistration(withoutDefaultExpression(character))
-  }
-  if ('schemaVersion' in draft && draft.schemaVersion === 3) {
-    const { approvedAt: _approvedAt, ...legacy } = draft
-    const upgraded: CharacterDraft = {
-      ...legacy,
-      schemaVersion: 4,
-      rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
-    }
-    return withHeadRegistration(withoutDefaultExpression(upgraded))
-  }
-  if ('schemaVersion' in draft && draft.schemaVersion === 2) {
-    const { approvedAt: _approvedAt, ...legacy } = draft
-    const usedPropIds = new Set(draft.variants.filter(({ group }) => group === 'prop').map(({ id }) => id))
-    const migratedHeadwearIds = new Map<string, string>()
-    let nextHatId = 1
-    const variants = draft.variants.map((variant): CharacterDraftVariant => {
-      if (variant.group !== 'headwear') return variant as CharacterDraftVariant
-      let id = variant.id
-      while (usedPropIds.has(id)) id = `hat-${nextHatId++}`
-      usedPropIds.add(id)
-      migratedHeadwearIds.set(variant.id, id)
-      return { ...variant, group: 'prop', id }
-    })
-    return withHeadRegistration(withoutDefaultExpression({
-      ...legacy,
-      schemaVersion: 4,
-      rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
-      variants,
-      selected: {
-        ...(draft.selected.expression !== 'neutral' ? { expression: draft.selected.expression } : {}),
-        ...(draft.selected.outfit ? { outfit: draft.selected.outfit } : {}),
-        props: [draft.selected.headwear ? migratedHeadwearIds.get(draft.selected.headwear) : undefined, draft.selected.prop]
-          .filter((id): id is string => Boolean(id)),
-      },
-    }))
-  }
-  const legacy = draft as LegacyCharacterDraft
-  const next: CharacterDraft = {
-    ...createCharacterDraft(legacy.packId, legacy.id),
-    name: legacy.name,
-    updatedAt: legacy.updatedAt,
-    selected: {
-      ...(legacy.selectedExpression === 'head-happy' ? { expression: 'happy' } : {}),
-      ...(legacy.selectedBody === 'body-outfit' ? { outfit: 'outfit-1' } : {}),
-      props: (legacy.assets['prop-back'] || legacy.assets['prop-front']) ? ['prop-1'] : [],
-    },
-  }
-  const copy = (group: CharacterVariantGroup, id: string, layer: CharacterVariantLayer, asset?: CharacterDraftAsset) => {
-    if (asset) next.variants.find((variant) => variant.group === group && variant.id === id)!.layers[layer] = asset
-  }
-  copy('body', 'base', 'body', legacy.assets['body-base'])
-  copy('expression', 'happy', 'head', legacy.assets['head-happy'])
-  copy('outfit', 'outfit-1', 'body', legacy.assets['body-outfit'])
-  copy('prop', 'prop-1', 'back', legacy.assets['prop-back'])
-  copy('prop', 'prop-1', 'front', legacy.assets['prop-front'])
-  return withHeadRegistration(next)
+export function migrateCharacterDraft(draft: CharacterDraft): CharacterDraft {
+  if (draft.schemaVersion !== 5) throw new Error('Unsupported Character Draft schema version')
+  return withHeadRegistration(draft)
 }
 
 const characterContentJson = (draft: CharacterDraft) => {
@@ -525,6 +549,9 @@ export function saveCharacterDraftAsset(
     ...(derived && previousCanonical ? { canonicalSha256: previousCanonical } : {}),
   }
   const existing = draft.variants.find((variant) => variant.group === target.group && variant.id === target.variantId)
+  if (!existing && ['expression', 'outfit', 'hair', 'headwear'].includes(target.group)) {
+    throw new Error('Create the variant metadata before installing its asset')
+  }
   const variants = existing
     ? draft.variants.map((variant) => variant === existing
       ? { ...variant, label: target.label.trim(), layers: { ...variant.layers, [target.layer]: asset }, transform: undefined }
@@ -602,7 +629,7 @@ export function resolveCharacterAssetSources(
     transform,
     alignmentReference: input.group === 'expression' && headRegistration?.variant.id !== input.variantId
       ? expressionReference
-      : input.group === 'outfit' ? canonical : undefined,
+      : ['outfit', 'hair', 'headwear'].includes(input.group) ? canonical : undefined,
     referenceTransform: input.group === 'expression' ? headRegistration?.transform : undefined,
     editSource: current && input.group === 'expression' ? asset : undefined,
     editSourceTransform: current && input.group === 'expression' ? transform : undefined,
@@ -627,8 +654,17 @@ export function activateCharacterVariant(
   if (target.group === 'body') return draft
   if (target.group === 'expression') return draft.selected.expression === target.id
     ? draft : { ...draft, selected: { ...draft.selected, expression: target.id } }
-  if (target.group === 'outfit') return draft.selected.outfit === target.id
-    ? draft : { ...draft, selected: { ...draft.selected, outfit: target.id } }
+  if (target.group === 'outfit') {
+    const variant = findVariant(draft, 'outfit', target.id)
+    const slot = variant?.metadata?.outfit?.slot
+    if (!slot) throw new Error('Outfit metadata requires a slot')
+    const outfits = { ...draft.selected.outfits, [slot]: target.id }
+    if (slot === 'one-piece') { delete outfits.top; delete outfits.bottom }
+    else if (slot === 'top' || slot === 'bottom') delete outfits['one-piece']
+    return draft.selected.outfits[slot] === target.id ? draft : { ...draft, selected: { ...draft.selected, outfits } }
+  }
+  if (target.group === 'hair' || target.group === 'headwear') return draft.selected[target.group] === target.id
+    ? draft : { ...draft, selected: { ...draft.selected, [target.group]: target.id } }
   return draft.selected.props.includes(target.id)
     ? draft : { ...draft, selected: { ...draft.selected, props: [...draft.selected.props, target.id] } }
 }
@@ -641,6 +677,12 @@ export function deactivateCharacterVariant(
   if (target.group === 'body') return draft
   if (target.group === 'prop') return draft.selected.props.includes(target.id)
     ? { ...draft, selected: { ...draft.selected, props: draft.selected.props.filter((id) => id !== target.id) } } : draft
+  if (target.group === 'outfit') {
+    const slot = findVariant(draft, 'outfit', target.id)?.metadata?.outfit?.slot
+    if (!slot || draft.selected.outfits[slot] !== target.id) return draft
+    const outfits = { ...draft.selected.outfits }; delete outfits[slot]
+    return { ...draft, selected: { ...draft.selected, outfits } }
+  }
   return draft.selected[target.group] === target.id
     ? { ...draft, selected: { ...draft.selected, [target.group]: undefined } } : draft
 }
@@ -649,6 +691,8 @@ export function clearCharacterVariantSelection(draft: CharacterDraft, group: Cha
   if (group === 'body') return draft
   if (group === 'prop') return draft.selected.props.length
     ? { ...draft, selected: { ...draft.selected, props: [] } } : draft
+  if (group === 'outfit') return Object.keys(draft.selected.outfits).length
+    ? { ...draft, selected: { ...draft.selected, outfits: {} } } : draft
   return draft.selected[group] === undefined
     ? draft : { ...draft, selected: { ...draft.selected, [group]: undefined } }
 }
@@ -676,23 +720,40 @@ const selectedCharacterVariants = <V extends VariantMetadata>(
   preview?: Pick<CharacterDraftVariant, 'group' | 'id'>,
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ) => {
-  const outfitId = preview?.group === 'outfit' ? preview.id : draft.selected.outfit
-  const outfit = !(exclude?.group === 'outfit' && exclude.id === outfitId) && outfitId && hasCurrentCharacterLayer(draft, 'outfit', outfitId, 'body')
-    ? findVariant(draft, 'outfit', outfitId) : undefined
+  const previewOutfit = preview?.group === 'outfit' ? findVariant(draft, 'outfit', preview.id) : undefined
+  const previewSlot = previewOutfit?.metadata?.outfit?.slot
+  const outfitSelection = { ...draft.selected.outfits }
+  if (previewOutfit && previewSlot) {
+    outfitSelection[previewSlot] = previewOutfit.id
+    if (previewSlot === 'one-piece') { delete outfitSelection.top; delete outfitSelection.bottom }
+    else if (previewSlot === 'top' || previewSlot === 'bottom') delete outfitSelection['one-piece']
+  }
+  const outfitIds = CHARACTER_OUTFIT_SLOTS.map((slot) => outfitSelection[slot]).filter((id): id is string => Boolean(id))
+  const outfits = outfitIds
+    .filter((id) => exclude?.group !== 'outfit' || exclude.id !== id)
+    .map((id) => findVariant(draft, 'outfit', id))
+    .filter((variant): variant is V => Boolean(variant && (hasCurrentCharacterLayer(draft, 'outfit', variant.id, 'front') || hasCurrentCharacterLayer(draft, 'outfit', variant.id, 'back'))))
   const expressionId = preview?.group === 'expression' ? preview.id : draft.selected.expression
   const expression = expressionId && !(exclude?.group === 'expression' && exclude.id === expressionId) && hasCurrentCharacterLayer(draft, 'expression', expressionId, 'head')
     ? findVariant(draft, 'expression', expressionId) : undefined
+  const single = (group: 'hair' | 'headwear') => {
+    const id = preview?.group === group ? preview.id : draft.selected[group]
+    return id && !(exclude?.group === group && exclude.id === id) &&
+      (hasCurrentCharacterLayer(draft, group, id, 'front') || hasCurrentCharacterLayer(draft, group, id, 'back'))
+      ? findVariant(draft, group, id) : undefined
+  }
   const props = selectedPropIds(draft, preview)
     .filter((id) => exclude?.group !== 'prop' || exclude.id !== id)
     .map((id) => findVariant(draft, 'prop', id))
-  return [outfit ?? findVariant(draft, 'body', 'base'), expression, ...props]
+  return [findVariant(draft, 'body', 'base'), ...outfits, expression, single('hair'), single('headwear'), ...props]
     .filter((variant): variant is V => Boolean(variant && Object.keys(variant.layers).some((layer) => isCharacterDraftAssetCurrent(draft, variant, layer as CharacterVariantLayer))))
 }
 
 export const characterAssetPlacement = (group: CharacterVariantGroup, layer: CharacterVariantLayer, propOrder = 1) => {
-  if (group === 'body' || group === 'outfit') return { slot: 'character-skin', order: 1 }
+  if (group === 'body') return { slot: 'character-skin', order: 1 }
   if (group === 'expression') return { slot: 'expression-head', order: 1 }
-  return { slot: layer === 'back' ? 'item-back' : 'item-front', order: propOrder }
+  if (group === 'outfit' || group === 'hair' || group === 'headwear') return { slot: `${group}-${layer}`, order: 1 }
+  return { slot: layer === 'back' ? 'prop-back' : 'prop-front', order: propOrder }
 }
 
 /** Resolve paint order from metadata so library cards need only the PNGs actually painted. */
@@ -761,6 +822,7 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
   if (!draft.name.trim()) throw new Error('Companion name is required')
   if (!hasCurrentCharacterLayer(draft, 'body', 'base', 'body')) throw new Error('Base body is required')
   const keys = new Set<string>()
+  validateCharacterVariantMetadata(draft)
   const propOrders = characterPropOrders(draft)
   for (const variant of draft.variants) {
     if (variant.transform) validateCharacterVariantTransform(variant.transform)
@@ -772,6 +834,7 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
     ) throw new Error('Invalid character variant')
     keys.add(variantKey(variant))
   }
+  validateCharacterSelection(draft, draft.selected)
   const pack: CharacterPack = {
     id: draft.packId,
     version,

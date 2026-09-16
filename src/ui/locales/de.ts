@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const de: Messages = {
+export const de: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "Zurück",
@@ -167,7 +167,9 @@ export const de: Messages = {
     },
     "categories": {
       "expressions": "Gesichtsausdrücke",
-      "outfits": "Outfits",
+      "wardrobe": "Garderobe",
+      "hair": "Frisuren",
+      "headwear": "Kopfbedeckungen",
       "props": "Requisiten"
     },
     "layers": {
@@ -182,13 +184,40 @@ export const de: Messages = {
         "variantName": "Ausdruck"
       },
       "outfit": {
-        "add": "Outfit hinzufügen",
-        "variantName": "Ausrüstung"
+        "add": "Kleidungsstück hinzufügen",
+        "variantName": "Kleidungsstück"
+      },
+      "hair": {
+        "add": "Frisur hinzufügen",
+        "variantName": "Frisur"
+      },
+      "headwear": {
+        "add": "Kopfbedeckung hinzufügen",
+        "variantName": "Kopfbedeckung"
       },
       "prop": {
         "add": "Requisite hinzufügen",
         "variantName": "Requisite"
       }
+    },
+    "outfitSlots": {
+      "top": "Oberteil",
+      "bottom": "Unterteil",
+      "one-piece": "Einteiler",
+      "outerwear": "Oberbekleidung",
+      "footwear": "Schuhe"
+    },
+    "metadata": {
+      "slot": "Garderobenplatz",
+      "garmentType": "Kleidungsart",
+      "faceStyle": "Gesichtsstil",
+      "faceStyleName": "Name des Gesichtsstils",
+      "facialHair": "Gesichtsbehaarung",
+      "cleanShaven": "Glattrasiert",
+      "addFaceStyle": "Gesichtsstil hinzufügen",
+      "description": "Beschreibung",
+      "tags": "Tags",
+      "tagsHelp": "Tags durch Kommas trennen"
     }
   },
   "main": {

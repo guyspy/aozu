@@ -8,7 +8,6 @@ import { CharacterRevisionConflict } from '../src/core/application/ports.ts'
 
 let row: Entry | null = null
 let now = 1
-let writes = 0
 let assetReads: string[] = []
 const assets = new Map<string, Map<string, Blob>>()
 const runtime = {
@@ -17,7 +16,6 @@ const runtime = {
     async readById(id: string) { return row?.id === id ? row : null },
   },
   async invokeProcedure({ procedure, input }: { procedure: string; input: Record<string, unknown> }) {
-    writes++
     if (procedure === 'create-character-workspace') {
       row = { id: 'workspace-1', collection: 'character-workspaces', status: 'published', version: 1, data: structuredClone(input), createdAt: now, updatedAt: now++ }
       return { ok: true as const, data: row }
@@ -96,34 +94,22 @@ metadata.variants.find((variant) => variant.id === 'happy')!.layers.head!.canoni
 assetReads = []
 assert.equal((await repository.getPreview(created.character.id)).length, 1)
 assert.deepEqual(assetReads, ['a'.repeat(64)])
-// An outfit still validates against canonical metadata without reading the hidden body PNG.
-metadata.variants.push({ group: 'outfit', id: 'uniform', label: 'Uniform', layers: { body: {
+// A garment overlay validates against canonical metadata and keeps the body visible.
+metadata.variants.push({ group: 'outfit', id: 'uniform', label: 'Uniform', metadata: { outfit: { slot: 'top', garmentType: 'uniform' } }, layers: { front: {
   ...metadata.variants.find((variant) => variant.id === 'sad')!.layers.head!,
 } } })
-metadata.selected.outfit = 'uniform'
+metadata.selected.outfits.top = 'uniform'
 assetReads = []
-assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['outfit-uniform-body'])
-assert.deepEqual(assetReads, ['c'.repeat(64)])
+assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['body-base-body', 'outfit-uniform-front'])
+assert.deepEqual(assetReads.sort(), ['a'.repeat(64), 'c'.repeat(64)])
 // A stale outfit falls back to the body without ever reading the stale PNG.
-metadata.variants.at(-1)!.layers.body!.canonicalSha256 = 'stale'
+metadata.variants.at(-1)!.layers.front!.canonicalSha256 = 'stale'
 assetReads = []
 assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['body-base-body'])
 assert.deepEqual(assetReads, ['a'.repeat(64)])
 // Restore the original fixture for the write/conflict checks below.
 row!.version = 1
 row!.data = structuredClone({ ...row!.data, name: draft.name })
-
-// Legacy metadata stays stored until the next real save; hydration drops it without writing.
-row!.data.revision = 4
-row!.data.published = { version: 2, revision: 4 }
-const writesBeforeRead = writes
-const read = await repository.get('workspace-1')
-assert.equal(read?.version, 1)
-assert.deepEqual(read?.character.selected.props, ['prop-2', 'prop-1'])
-assert.equal('revision' in read!.character, false)
-assert.equal('published' in read!.character, false)
-assert.equal(row!.data.revision, 4)
-assert.equal(writes, writesBeforeRead)
 
 // A write reports the revision and updatedAt of the same settled entry snapshot.
 const saved = await repository.put({ ...created.character, name: 'Boar' }, created.version)

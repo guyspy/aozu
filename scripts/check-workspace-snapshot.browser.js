@@ -18,7 +18,7 @@ const syncView = (variantId) => {
   page.characterRevision = String(state.persistedRevision)
   if (variantId) page.variantId = variantId
   else delete page.variantId
-  location.pathname = `/characters/${page.characterId}/outfits${variantId ? `/${variantId}` : ''}`
+  location.pathname = `/characters/${page.characterId}/wardrobe${variantId ? `/${variantId}` : ''}`
 }
 const canvas = document.createElement('canvas')
 canvas.width = 512; canvas.height = 768
@@ -33,7 +33,10 @@ const add = async (group, variantId, color) => {
   context.fillStyle = color; context.fillRect(100, 100, 100, 100)
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
   const asset = await application.editor.stageAsset(blob, `${variantId}.png`, 'user')
-  await application.editor.dispatch((draft) => saveCharacterDraftAsset(draft, { group, variantId, label: variantId, layer: group === 'prop' ? 'front' : 'body' }, asset))
+  const variant = group === 'outfit'
+    ? { group, variantId, label: variantId, layer: 'front', metadata: { label: variantId, outfitSlot: 'top', garmentType: 'shirt', description: `${variantId} shirt`, tags: [] } }
+    : { group, variantId, label: variantId, layer: group === 'prop' ? 'front' : 'body' }
+  await application.editor.dispatch((draft) => saveCharacterDraftAsset(draft, variant, asset))
   check(application.editor.store.getState().saveStatus === 'saved', application.editor.store.getState().saveError)
 }
 try {
@@ -75,7 +78,7 @@ try {
   window.createImageBitmap = async (...args) => { page.previewMode = 'composite'; return decode(...args) }
   try { check((await inspect()).snapshot.reason.includes('changed while rendering'), 'View change during rendering returned stale context') }
   finally { window.createImageBitmap = decode }
-  check(location.pathname.endsWith('/outfits/green'), 'Snapshot navigated the page')
+  check(location.pathname.endsWith('/wardrobe/green'), 'Snapshot navigated the page')
   document.querySelector('#result').textContent = 'PASS: optional snapshot, preview vs applied outfit, prop transform/order, alpha, Download PNG parity, clean diagnostic mode, read-only history, empty/local/unsaved/stale/changing views'
 } catch (error) {
   document.querySelector('#result').textContent = `FAIL: ${error.stack ?? error.message}`

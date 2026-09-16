@@ -37,7 +37,7 @@ assert.equal(readWorkspaceView(viewDocument)!.collectionId, 'book')
 assert.equal(readWorkspaceView(viewDocument)!.viewedVariantId, null)
 
 const plan = compileAuthoringBackbone()
-const triggers = new Set(['inspect-workspace', 'navigate-workspace', 'inspect-character-contract', 'update-character-profile', 'replace-character-asset', 'repair-character-asset', 'set-character-variant-selection', 'set-character-variant-transform', 'undo-character-change', 'redo-character-change'])
+const triggers = new Set(['inspect-workspace', 'navigate-workspace', 'inspect-character-contract', 'update-character-profile', 'update-character-variant-metadata', 'replace-character-asset', 'repair-character-asset', 'set-character-variant-selection', 'set-character-variant-transform', 'undo-character-change', 'redo-character-change'])
 assert.equal(createAgentCapability({} as Document).isAvailable(), false)
 assert.equal(await bindMantleWebMcpTools({} as Document, plan, async () => ({ ok: true, data: null }), triggers), null)
 
@@ -63,12 +63,12 @@ let navigated: string | undefined
 const invoke = async (trigger: string, input: unknown) => ({
   ok: true as const,
   data: trigger === 'navigate-workspace'
-    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: (input as { resource: string }).resource === 'collections' ? '/collections' : '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } } }
+    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: (input as { resource: string }).resource === 'collections' ? '/collections' : '/characters/id/wardrobe/raincoat', mode: 'push', reason: 'review' } } }
     : { status: 'ok', data: { trigger, input } },
 })
 const controller = createWebMcpController(document, plan, [...triggers], invoke)
 await controller.ready
-assert.deepEqual(controller.getState(), { status: 'ready', toolCount: 10 })
+assert.deepEqual(controller.getState(), { status: 'ready', toolCount: 11 })
 assert.deepEqual([...registered.keys()].sort(), [
   'inspect_character_contract',
   'inspect_workspace',
@@ -80,6 +80,7 @@ assert.deepEqual([...registered.keys()].sort(), [
   'set_character_variant_transform',
   'undo_character_change',
   'update_character_profile',
+  'update_character_variant_metadata',
 ])
 assert.deepEqual([
   registered.get('inspect_workspace')?.annotations.readOnlyHint,
@@ -109,14 +110,14 @@ const selection = { characterId: 'id', group: 'prop', variantId: 'hat', active: 
 assert.deepEqual(await registered.get('set_character_variant_selection')!.execute(selection, {}), {
   status: 'ok', data: { trigger: 'set-character-variant-selection', input: selection },
 })
-const navigation = { resource: 'character', id: 'id', view: 'outfits', itemId: 'raincoat' }
+const navigation = { resource: 'character', id: 'id', view: 'wardrobe', itemId: 'raincoat' }
 assert.deepEqual(await registered.get('navigate_workspace')!.execute(navigation, {}), {
-  status: 'ok', data: { trigger: 'navigate-workspace', input: navigation }, effects: { navigation: { path: '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } },
+  status: 'ok', data: { trigger: 'navigate-workspace', input: navigation }, effects: { navigation: { path: '/characters/id/wardrobe/raincoat', mode: 'push', reason: 'review' } },
 })
 assert.equal(navigated, undefined)
 let navigationCount = 0
 controller.setNavigate((path) => { navigated = path; view.location.pathname = path; navigationCount++ })
-assert.equal(navigated, '/characters/id/outfits/raincoat')
+assert.equal(navigated, '/characters/id/wardrobe/raincoat')
 await registered.get('navigate_workspace')!.execute(navigation, {})
 assert.equal(navigationCount, 1, 'The website must not push the same route twice')
 await registered.get('navigate_workspace')!.execute({ resource: 'collections' }, {})

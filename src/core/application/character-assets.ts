@@ -17,6 +17,7 @@ export async function mapCharacterAssets<A, B>(content: CharacterAssetContent<A>
     return { ...sheet, views: await entries(sheet.views), ...(sheet.references ? { references: await entries(sheet.references) } : {}) }
   }
   return {
+    faceStyles: structuredClone(content.faceStyles),
     variants: await Promise.all(content.variants.map(async ({ layers, ...variant }) => ({
       ...variant,
       layers: Object.fromEntries(await Promise.all(Object.entries(layers).map(async ([layer, asset]) =>

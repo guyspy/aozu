@@ -1,15 +1,17 @@
 import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
+import { Textarea } from '@/ui/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
 import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, Trash2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
 
-import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile } from '@/core/application/character-creation.ts'
+import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile, updateCharacterVariantMetadata } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
-import { IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata } from '@/core/domain/character.ts'
+import { CHARACTER_OUTFIT_SLOTS, IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata, type CharacterOutfitSlot } from '@/core/domain/character.ts'
 import { CharacterModelSheet } from '@/ui/CharacterModelSheet'
 import { activeCharacterAppearance } from '@/core/application/character-appearances'
 import { CharacterViewport } from '@/ui/CharacterViewport'
@@ -34,12 +36,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/c
 import { DataControls } from '@/ui/DataControls'
 import { StatusPage } from '@/ui/pages/StatusPage'
 
-type CharacterCategoryId = 'expressions' | 'outfits' | 'props'
+type CharacterCategoryId = 'expressions' | 'wardrobe' | 'hair' | 'headwear' | 'props'
 type CharacterCategory = { id: CharacterCategoryId; group: CharacterVariantGroup; icon: AozuIconName }
 
 const characterCategories: CharacterCategory[] = [
   { id: 'expressions', group: 'expression', icon: 'expressions' },
-  { id: 'outfits', group: 'outfit', icon: 'outfits' },
+  { id: 'wardrobe', group: 'outfit', icon: 'outfits' },
+  { id: 'hair', group: 'hair', icon: 'expressions' },
+  { id: 'headwear', group: 'headwear', icon: 'outfits' },
   { id: 'props', group: 'prop', icon: 'props' },
 ]
 const categoryForGroup = (group: CharacterVariantGroup) => characterCategories.find((category) => category.group === group)!.id
@@ -50,7 +54,7 @@ const CharacterVariantPlaceholder = ({ group, variantId, label }: { group: Chara
   ? <img className="expression-placeholder" src={expressionPlaceholder(variantId)} alt={label ?? ''} />
   : group === 'body'
     ? <CharacterSlotPlaceholder src="/assets/character-slots/body-base.webp" label={label} />
-    : <AozuIcon name={group === 'prop' ? 'props' : 'outfits'} className="is-placeholder" />
+    : <AozuIcon name={group === 'prop' ? 'props' : group === 'hair' ? 'expressions' : 'outfits'} className="is-placeholder" />
 const variantKey = ({ group, id }: Pick<CharacterDraftVariant, 'group' | 'id'>) => `${group}:${id}`
 const describe = (error: unknown) => error instanceof Error ? error.message : String(error)
 const sameTransform = (left: CharacterVariantTransform = IDENTITY_CHARACTER_TRANSFORM, right: CharacterVariantTransform) =>
@@ -260,28 +264,35 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   const selectedId = (group: CharacterVariantGroup) => {
     if (group === 'body') return undefined
     if (group === 'expression') return draft.selected.expression
-    if (group === 'outfit') return draft.selected.outfit
+    if (group === 'hair' || group === 'headwear') return draft.selected[group]
     return undefined
   }
   const selectVariant = (variant: CharacterDraftVariant) => commit((current) => activateCharacterVariant(current, variant))
   const clearVariant = (group: CharacterVariantGroup) => commit((current) => clearCharacterVariantSelection(current, group))
-  const isSelected = (variant: CharacterDraftVariant) => variant.group === 'prop' ? draft.selected.props.includes(variant.id) : selectedId(variant.group) === variant.id
+  const isSelected = (variant: CharacterDraftVariant) => variant.group === 'prop' ? draft.selected.props.includes(variant.id)
+    : variant.group === 'outfit' ? Object.values(draft.selected.outfits).includes(variant.id)
+      : selectedId(variant.group) === variant.id
   const toggleVariant = (variant: CharacterDraftVariant) => {
     if (variant.group !== 'prop' || !isSelected(variant)) return selectVariant(variant)
     commit((current) => deactivateCharacterVariant(current, variant))
   }
-  const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length) : Boolean(selectedId(group))
+  const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length)
+    : group === 'outfit' ? Boolean(Object.keys(draft.selected.outfits).length) : Boolean(selectedId(group))
   const addVariant = (group: CharacterVariantGroup) => {
     const count = draft.variants.filter((variant) => variant.group === group).length + 1
     const variant: CharacterDraftVariant = {
       group,
       id: `${group}-${crypto.randomUUID().slice(0, 8)}`,
       label: `${t(`characterDraft.groups.${group}.variantName`)} ${count}`,
+      ...(group === 'outfit' ? { metadata: { outfit: { slot: 'top' as const, garmentType: 'top' } } }
+        : group === 'expression' ? { metadata: { faceStyleId: draft.faceStyles[0]?.id } } : {}),
       layers: {},
     }
     commit((current) => ({ ...current, variants: [...current.variants, variant] }))
     navigate(`/characters/${encodeURIComponent(draft.id)}/${categoryForGroup(group)}/${encodeURIComponent(variant.id)}`)
   }
+  const updateVariantMetadata = (variant: CharacterDraftVariant, patch: Parameters<typeof updateCharacterVariantMetadata>[3]) =>
+    commit((current) => updateCharacterVariantMetadata(current, variant.group, variant.id, patch))
   const fileInput = (variant: CharacterDraftVariant, layer: CharacterVariantLayer) => {
     const targetKey = `${variantKey(variant)}:${layer}`
     return <input className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)}
@@ -339,7 +350,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
-        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-3">
+        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-5">
           {characterCategories.map(({ id, icon }) => <TabsTrigger key={id} value={id} className="min-w-0">
             <AozuIcon name={icon} />
             <span>{t(`characterDraft.categories.${id}`)}</span>
@@ -374,7 +385,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
 
         {selectedVariant && (() => {
           const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!
-          const layeredAccessory = selectedVariant.group === 'prop'
+          const layeredAccessory = ['outfit', 'hair', 'headwear', 'prop'].includes(selectedVariant.group)
           const primaryLayer = layeredAccessory ? 'front' : group.layers[0]
           const primaryAsset = isCharacterDraftAssetCurrent(draft, selectedVariant, primaryLayer) ? selectedVariant.layers[primaryLayer] : undefined
           const behindAsset = layeredAccessory && isCharacterDraftAssetCurrent(draft, selectedVariant, 'back') ? selectedVariant.layers.back : undefined
@@ -402,6 +413,39 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
                 onKeyDown={textKeys}
               />
               {required && <span className="required-status">{t('characterDraft.required')}</span>}
+            </div>
+            <div className="mt-3 grid gap-3 rounded-lg border bg-background/50 p-3">
+              {selectedVariant.group === 'outfit' && <div className="grid grid-cols-2 gap-2">
+                <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.slot')}</span>
+                  <Select value={selectedVariant.metadata?.outfit?.slot ?? 'top'} onValueChange={(slot) => updateVariantMetadata(selectedVariant, { outfit: { slot: slot as CharacterOutfitSlot, garmentType: selectedVariant.metadata?.outfit?.garmentType ?? slot } })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CHARACTER_OUTFIT_SLOTS.map((slot) => <SelectItem key={slot} value={slot}>{t(`characterDraft.outfitSlots.${slot}`)}</SelectItem>)}</SelectContent>
+                  </Select>
+                </label>
+                <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.garmentType')}</span><Input defaultValue={selectedVariant.metadata?.outfit?.garmentType ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { outfit: { slot: selectedVariant.metadata?.outfit?.slot ?? 'top', garmentType: event.currentTarget.value } })} /></label>
+              </div>}
+              {selectedVariant.group === 'expression' && (() => {
+                const style = draft.faceStyles.find(({ id }) => id === selectedVariant.metadata?.faceStyleId) ?? draft.faceStyles[0]
+                const addFaceStyle = () => {
+                  const id = `face-${crypto.randomUUID().slice(0, 8)}`
+                  updateVariantMetadata(selectedVariant, { faceStyle: { id, label: `${t('characterDraft.metadata.faceStyle')} ${draft.faceStyles.length + 1}`, facialHair: null } })
+                }
+                return <>
+                  <div className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.faceStyle')}</span><div className="flex gap-2">
+                    <Select value={style?.id} onValueChange={(faceStyleId) => updateVariantMetadata(selectedVariant, { faceStyleId })}>
+                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger><SelectContent>{draft.faceStyles.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Button type="button" size="icon" variant="outline" title={t('characterDraft.metadata.addFaceStyle')} aria-label={t('characterDraft.metadata.addFaceStyle')} onClick={addFaceStyle}><PlusIcon /></Button>
+                  </div></div>
+                  {style && <div key={style.id} className="grid grid-cols-2 gap-2">
+                    <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.faceStyleName')}</span><Input defaultValue={style.label} onBlur={(event) => updateVariantMetadata(selectedVariant, { faceStyle: { ...style, label: event.currentTarget.value } })} /></label>
+                    <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.facialHair')}</span><Input placeholder={t('characterDraft.metadata.cleanShaven')} defaultValue={style.facialHair?.type ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { faceStyle: { ...style, facialHair: event.currentTarget.value.trim() ? { ...(style.facialHair ?? {}), type: event.currentTarget.value } : null } })} /></label>
+                  </div>}
+                </>
+              })()}
+              {selectedVariant.group !== 'body' && <>
+                <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.description')}</span><Textarea rows={2} defaultValue={selectedVariant.metadata?.description ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { description: event.currentTarget.value })} /></label>
+                <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.tags')}</span><Input placeholder={t('characterDraft.metadata.tagsHelp')} defaultValue={selectedVariant.metadata?.tags?.join(', ') ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { tags: event.currentTarget.value.split(',') })} /></label>
+              </>}
             </div>
             {(primaryAsset || behindAsset) && <TooltipProvider><div className="transform-grid" aria-label={t('characterDraft.transform.label')}>
               {([['x', MoveHorizontalIcon], ['y', MoveVerticalIcon], ['scale', ScalingIcon]] as const).map(([field, Icon]) => <Tooltip key={field}><TooltipTrigger asChild><label className="relative min-w-0 text-muted-foreground">

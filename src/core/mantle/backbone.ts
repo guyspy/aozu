@@ -12,7 +12,7 @@ import {
   PROGRESS_LOOP_IDS,
   PROGRESS_BINDING_SCHEMA,
 } from '../domain/playbook.ts'
-import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_REFERENCE_KINDS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
+import { CHARACTER_ALIGN_MODES, CHARACTER_GENERATION_CANVAS, CHARACTER_OUTFIT_SLOTS, CHARACTER_REFERENCE_KINDS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
 import { MAX_REFERENCE_BYTES, MAX_REFERENCE_DIMENSION } from '../application/character-model-sheet.ts'
 import { compileBundle } from '../bundle.ts'
 import { CHARACTER_A_POSE_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
@@ -267,9 +267,11 @@ const modelSheetSchema = objectSchema({
 }, ['views'])
 const characterSelectionSchema = objectSchema({
   expression: { type: 'string', minLength: 1, maxLength: 40 },
-  outfit: { type: 'string', minLength: 1, maxLength: 40 },
+  outfits: objectSchema(Object.fromEntries(CHARACTER_OUTFIT_SLOTS.map((slot) => [slot, { type: 'string', minLength: 1, maxLength: 40 }]))),
+  hair: { type: 'string', minLength: 1, maxLength: 40 },
+  headwear: { type: 'string', minLength: 1, maxLength: 40 },
   props: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
-}, ['props'])
+}, ['outfits', 'props'])
 
 const characterAttributesSchema: JsonSchema = {
   type: 'object',
@@ -278,7 +280,7 @@ const characterAttributesSchema: JsonSchema = {
 }
 
 const characterWorkspaceProperties = {
-  schemaVersion: { const: 4 },
+  schemaVersion: { const: 5 },
   packId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' },
   rigProfile: objectSchema({
     id: { const: CHARACTER_RIG.id },
@@ -296,6 +298,15 @@ const characterWorkspaceProperties = {
     selected: characterSelectionSchema,
     modelSheet: objectSchema(referenceSetProperties, ['views']),
   }, ['id', 'label', 'selected']) },
+  faceStyles: { type: 'array', minItems: 1, maxItems: 100, items: objectSchema({
+    id: referenceIdSchema,
+    label: { type: 'string', minLength: 1, maxLength: 80 },
+    description: { type: 'string', maxLength: 500 },
+    tags: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+    facialHair: { oneOf: [{ type: 'null' }, objectSchema({
+      type: { type: 'string', minLength: 1, maxLength: 80 }, length: { type: 'string', maxLength: 80 }, density: { type: 'string', maxLength: 80 }, color: { type: 'string', maxLength: 80 },
+    }, ['type'])] },
+  }, ['id', 'label', 'facialHair']) },
   variants: {
     type: 'array',
     minItems: 1,
@@ -304,6 +315,13 @@ const characterWorkspaceProperties = {
       id: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
       group: { enum: CHARACTER_VARIANT_GROUPS },
       label: { type: 'string', minLength: 1, maxLength: 80 },
+      metadata: objectSchema({
+        description: { type: 'string', maxLength: 500 },
+        tags: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+        sourceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+        outfit: objectSchema({ slot: { enum: CHARACTER_OUTFIT_SLOTS }, garmentType: { type: 'string', minLength: 1, maxLength: 80 } }, ['slot', 'garmentType']),
+        faceStyleId: referenceIdSchema,
+      }),
       layers: objectSchema({
         body: characterAssetDescriptorSchema,
         head: characterAssetDescriptorSchema,
@@ -316,12 +334,12 @@ const characterWorkspaceProperties = {
   headRegistration: objectSchema({ variantId: { type: 'string', minLength: 1, maxLength: 40 } }, ['variantId']),
   selected: characterSelectionSchema,
 }
-const characterWorkspaceRequired = ['schemaVersion', 'packId', 'rigProfile', 'name', 'variants', 'selected']
+const characterWorkspaceRequired = ['schemaVersion', 'packId', 'rigProfile', 'name', 'variants', 'faceStyles', 'selected']
 
 const workspaceNavigationSchema = objectSchema({
   resource: { enum: ['home', 'collections', 'collection', 'location', 'albums', 'album', 'photo', 'storyboards', 'story-book', 'storyboard', 'character'] },
   id: { type: 'string', minLength: 1, maxLength: 100 },
-  view: { enum: ['characters', 'profile', 'locations', 'setting-images', 'conditions', 'expressions', 'outfits', 'props', 'model-sheet', 'storyboard', 'details'] },
+  view: { enum: ['characters', 'profile', 'locations', 'setting-images', 'conditions', 'expressions', 'wardrobe', 'hair', 'headwear', 'props', 'model-sheet', 'storyboard', 'details'] },
   itemId: { type: 'string', minLength: 1, maxLength: 100 },
 }, ['resource'])
 
@@ -360,7 +378,7 @@ const ALL_BACKBONE_SOURCES = [
   ...[
     { name: 'inspect-storyboard', title: 'Inspect Storyboard', description: 'List standalone storyboards or read one exact revision, selected candidates, pinned reference standards and source changes. Boards may mix collections and external PNGs. Image bytes are opt-in, at most five image IDs. Actually view images before visual feedback. Stored, selected and human-confirmed are distinct. UI context is exposed through inspect_workspace. No navigation or mutation.', input: { ...objectSchema({ boardId: { type: 'string', minLength: 1 }, images: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', minLength: 1 } } }), readOnly: true } },
     { name: 'update-storyboard', title: 'Update Storyboard', description: 'Create a standalone board or mutate it using its exact expectedRevision. Actions: rename (name/notes), add-frame (title/notes), edit-frame (frameId/title/notes/review/transition/duration), remove-frame, reorder (all frame IDs exactly once), add-candidate (frameId/filename/PNG dataUrl/source/settings), select (frameId/imageId), reference (frameId/imageId/purpose or remove:true), undo, redo. Undefined subjects in candidates may be invented freely. Every defined AOZU Character, Location, Condition or Album Photo used in a candidate must be included in settings. Character settings require the exact Appearance sha256 from inspect_character_contract with scope:model-sheet and images:[appearance]; world settings use the revision from inspect_workspace. Missing or stale refs are rejected. Uploaded candidates NEVER automatically replace selections. Confirmed review requires explicit human approval, never merely successful upload. Reference pins exact image ID/hash; changes to source selection do not rewrite it. Same operations and persisted undo/redo as UI. PNG originals up to 4096×4096 and 5 MiB, at most 100 frames/500 images/128 MiB per board. Source text is provenance only. Returns navigation to affected board for visual review. No same-collection requirement. pin-setting stores the same setting snapshot (id, kind character/location/photo, sourceId, revision, name, details, optional sha256) on frameId, optionally with PNG dataUrl/filename/source/purpose; it never selects or approves an image. unpin-setting removes a snapshot by imageId. inspect_workspace exposes current location and album metadata; local location settings take precedence over ancestor context.', input: STORYBOARD_UPDATE_SCHEMA },
-    { name: 'navigate-workspace', title: 'Navigate Workspace', description: 'Open an exact AOZU resource without guessing a route. resource is home, collections, collection, location, albums, album, photo, storyboards, story-book, storyboard, or character. Supply id for one resource; Location view may be setting-images, profile, or conditions and itemId opens a Condition. Character view may be expressions, outfits, props, profile, or model-sheet and itemId opens a variant/reference. Collection view may be characters, profile, or locations (the Collection’s Location tree); storyboard view may be storyboard or details. AOZU applies the returned navigation in this tab. Re-run inspect_workspace after rendering.', input: { ...workspaceNavigationSchema, readOnly: true } },
+    { name: 'navigate-workspace', title: 'Navigate Workspace', description: 'Open an exact AOZU resource without guessing a route. resource is home, collections, collection, location, albums, album, photo, storyboards, story-book, storyboard, or character. Supply id for one resource; Location view may be setting-images, profile, or conditions and itemId opens a Condition. Character view may be expressions, wardrobe, hair, headwear, props, profile, or model-sheet and itemId opens a variant/reference. Collection view may be characters, profile, or locations (the Collection’s Location tree); storyboard view may be storyboard or details. AOZU applies the returned navigation in this tab. Re-run inspect_workspace after rendering.', input: { ...workspaceNavigationSchema, readOnly: true } },
     { name: 'update-library', title: 'Update Library', description: 'Create, update, duplicate, delete, or move AOZU library records with one revision-checked command. Resources: collection; character (move between collections or delete); album; photo; location; condition; reference (explicitly reuse a finished Album photo as Location inspiration/design); story-book; storyboard-book. Duplicate is supported for Locations and Conditions and preserves their setting images with new IDs. Use IDs and expectedRevision from inspect_workspace. Omitted update fields stay unchanged. Moving a Photo requires id and albumId and routes to the Photo in its destination Album. Deleting an Album moves its photos to My images; deleting a Location moves its children to its parent; deleting a Story Book leaves its storyboards unfiled. This does not edit storyboard frames or character artwork. AOZU itself handles effects.navigation.', input: libraryUpdateSchema },
     { name: 'export-library', title: 'Export Library Resource', description: 'Download one resource without returning a huge base64 payload. resource may be library (complete backup), world (Albums, Locations and Story Books), character, storyboard, or photo. Character/storyboard require id and exact expectedRevision. Photo requires id. Returns the filename and size after starting the browser download.', input: { ...objectSchema({ resource: { enum: ['library', 'world', 'character', 'storyboard', 'photo'] }, id: { type: 'string', minLength: 1, maxLength: 100 }, expectedRevision: { type: 'integer', minimum: 0 } }, ['resource']), readOnly: true } },
     { name: 'import-library', title: 'Import Library Resource', description: 'Import one AOZU resource from a base64 data URL. library/world/storyboard/character expect application/zip. image expects PNG, JPEG, or WebP and exactly one destination: locationId stores a direct Location or Condition setting image without creating an Album photo. albumId stores a finished composition and requires prompt. Undefined subjects may be invented freely. Every defined AOZU subject used must carry its ref: for each Character, first call inspect_character_contract with scope:model-sheet and images:[appearance], actually view it, then pass characterId/revision/sha256 in characterSources; pass sourceLocationId and optional sourceConditionId for defined settings. Missing or stale refs are rejected and AOZU derives provenance from validated sources. Optional collectionId files an imported Character. Payloads above 20 MiB should use the visible Library file control. AOZU itself handles effects.navigation.', input: objectSchema({ resource: { enum: ['library', 'world', 'character', 'storyboard', 'image'] }, dataUrl: archiveDataUrl, filename: { type: 'string', minLength: 1, maxLength: 200 }, albumId: { type: 'string', minLength: 1, maxLength: 100 }, locationId: { type: 'string', minLength: 1, maxLength: 100 }, conditionId: { type: 'string', minLength: 1, maxLength: 100 }, collectionId: { type: 'string', minLength: 1, maxLength: 100 }, name: { type: 'string', minLength: 1, maxLength: 120 }, label: { type: 'string', minLength: 1, maxLength: 120 }, description: { type: 'string', maxLength: 8000 }, source: { type: 'string', maxLength: 2000 }, purpose: { enum: ['inspiration', 'design'] }, characterSources: { type: 'array', maxItems: 10, items: objectSchema({ characterId: { type: 'string', minLength: 1, maxLength: 100 }, revision: { type: 'integer', minimum: 0 }, sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['characterId', 'revision', 'sha256']) }, sourceLocationId: { type: 'string', minLength: 1, maxLength: 100 }, sourceConditionId: { type: 'string', minLength: 1, maxLength: 100 }, prompt: { type: 'string', minLength: 1, maxLength: 8000 } }, ['resource', 'dataUrl']) },
@@ -835,7 +853,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Use scope:model-sheet for reference art, scope:appearance (default) for composited layers. Inspect character.appearances and activeAppearanceId for named combinations. Use set_character_variant_selection with appearance to create/save-as/select/rename/delete a combination; then re-inspect its model sheet. For model sheets, use referenceId (a default view or a supplemental ID), optional label/kind/viewpoint/pose, and images (up to 5 IDs: appearance, canonical, or stored reference IDs) to obtain actual source PNGs. Image bytes are opt-in for model sheets. Save-as captures the current front; create starts with no selected variants or references, keeping the shared base body and assets. fromAppearance can explicitly capture or replace the front. Supplement it with head/structure/expression/detail/style references. Follow generationGuidance for identity, source precedence and the requested study, plus the returned task-specific policy and required browser visual-review workflow. Appearance only: ${CHARACTER_A_POSE_GUIDANCE} Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits; repair_character_asset stitches only into the current expression head.`,
+      description: `Use scope:model-sheet for reference art, scope:appearance (default) for composited layers. Inspect character.appearances and activeAppearanceId for named combinations. Use set_character_variant_selection with appearance to create/save-as/select/rename/delete a combination; then re-inspect its model sheet. For model sheets, use referenceId (a default view or a supplemental ID), optional label/kind/viewpoint/pose, and images (up to 5 IDs: appearance, canonical, or stored reference IDs) to obtain actual source PNGs. Image bytes are opt-in for model sheets. Save-as captures the current front; create starts with no selected variants or references, keeping the shared base body and assets. fromAppearance can explicitly capture or replace the front. Supplement it with head/structure/expression/detail/style references. Follow generationGuidance for identity, source precedence and the requested study, plus the returned task-specific policy and required browser visual-review workflow. Appearance only: ${CHARACTER_A_POSE_GUIDANCE} Required before replacing, repairing, or aligning character art; use inspect_workspace first to identify the user's current view. Optionally name one target to receive its allowed operations, exact current asset hash, visual alignment reference, layer ownership, alpha policy, generation size (${CHARACTER_GENERATION_CANVAS.width}×${CHARACTER_GENERATION_CANVAS.height}) and final size (${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}), normalization, revision, z-order, diagnostics, and required browser visual-review workflow. Follow generationRecipe.backgroundPreparation before submission and alignment.visualReview.checks for Composite, Overlay, Difference, and Align. These are browser preview buttons, not WebMCP tools. replace_character_asset installs complete layers and is the only operation for outfits, hair, and headwear; repair_character_asset stitches only into the current expression head.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -886,6 +904,36 @@ const ALL_BACKBONE_SOURCES = [
     }),
   ),
   source(
+    'authoring/update-character-variant-metadata.yaml',
+    envelope('Procedure', 'update-character-variant-metadata', {
+      title: 'Update Character Variant Metadata',
+      description: `Name and describe one Character variant using the exact inspected revision. Outfits require a wardrobe slot and garment type; only one garment is active per slot, and one-piece is mutually exclusive with top and bottom. Expressions belong to a Face Style. Facial hair is part of that Face Style's complete expression heads, never a separate overlay. Hair and headwear are registered front/back overlays. Props are only independent or handheld objects, never clothing. Omitted fields stay unchanged. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      input: objectSchema({
+        characterId: { type: 'string', minLength: 1 },
+        expectedRevision: { type: 'integer', minimum: 0 },
+        group: { enum: CHARACTER_VARIANT_GROUPS },
+        variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
+        label: { type: 'string', minLength: 1, maxLength: 80 },
+        description: { type: 'string', maxLength: 500 },
+        tags: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+        sourceSha256: { type: ['string', 'null'], pattern: '^[0-9a-f]{64}$' },
+        outfit: objectSchema({ slot: { enum: CHARACTER_OUTFIT_SLOTS }, garmentType: { type: 'string', minLength: 1, maxLength: 80 } }, ['slot', 'garmentType']),
+        faceStyleId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
+        faceStyle: objectSchema({
+          id: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' }, label: { type: 'string', minLength: 1, maxLength: 80 },
+          description: { type: 'string', maxLength: 500 }, tags: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+          facialHair: { oneOf: [{ type: 'null' }, objectSchema({ type: { type: 'string', minLength: 1, maxLength: 80 }, length: { type: 'string', maxLength: 80 }, density: { type: 'string', maxLength: 80 }, color: { type: 'string', maxLength: 80 } }, ['type'])] },
+        }, ['id', 'label', 'facialHair']),
+      }, ['characterId', 'expectedRevision', 'group', 'variantId']),
+      output: toolResultSchema,
+      handler: { kind: 'ref', ref: 'companion.update-character-variant-metadata' },
+    }),
+  ),
+  source(
+    'authoring/update-character-variant-metadata-mcp.yaml',
+    envelope('Trigger', 'update-character-variant-metadata', { source: { kind: 'mcp', surface: 'public' }, target: { procedure: 'update-character-variant-metadata' } }),
+  ),
+  source(
     'authoring/update-character-model-sheet.yaml',
     envelope('Procedure', 'update-character-model-sheet', {
       title: 'Update Character Model Sheet',
@@ -918,7 +966,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Install one complete canonical Character layer after inspect_character_contract with scope:appearance. ${CHARACTER_A_POSE_GUIDANCE} Follow its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Supply one complete dataUrl and optional dataSha256. Do not submit a URL, attachment reference, truncated text, or JPEG/WebP bytes relabeled as PNG. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Install one complete canonical Character layer after inspect_character_contract with scope:appearance. ${CHARACTER_A_POSE_GUIDANCE} Follow its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfit, hair, and headwear assets are registered clothing/style-only overlays split into front and back; they must contain no body pixels. Props are only independent or handheld objects. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Supply one complete dataUrl and optional dataSha256. Do not submit a URL, attachment reference, truncated text, or JPEG/WebP bytes relabeled as PNG. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },
@@ -974,10 +1022,10 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-selection.yaml',
     envelope('Procedure', 'set-character-variant-selection', {
       title: 'Set Character Variant Selection',
-      description: `Activate or deactivate an existing expression, outfit, or prop using the inspected revision. Edits automatically save into the current named Appearance; no separate save/commit action is needed. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create and save-as require a new ID and label. create opens a fresh look with no selected expression/outfit/props and an empty model sheet, preserving the base body, shared variants and other looks. save-as keeps the current combination and captures its front, with other references empty; do this BEFORE editing to preserve the original. Legacy working art is exposed as a real Default Appearance without a write on read; its next edit persists that adoption. select waits for saving and restores that look; failed/conflicted saves block switching. rename changes the label. delete removes that Appearance and its references, keeps shared assets, and opens the first remaining look when deleting the active one. The last Appearance cannot be deleted. Switching or creating an Appearance starts a fresh Appearance undo session, not an undoable navigation step. Captured fronts follow composition edits; other references are retained with needsReview:true. Shared variant art affects all looks using it. selected.props is bottom-to-top activation order; deactivate then reactivate to move a prop to the top. UI and agents share one autosaving command lifecycle. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Activate or deactivate an existing expression, garment, hair, headwear, or prop using the inspected revision. One garment is active per wardrobe slot; one-piece clears top and bottom, while top or bottom clears one-piece. Edits automatically save into the current named Appearance. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create opens a fresh look with no selected variants and an empty model sheet. selected.props is bottom-to-top activation order; deactivate then reactivate to move a prop to the top. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
-        group: { enum: ['expression', 'outfit', 'prop'] },
+        group: { enum: ['expression', 'outfit', 'hair', 'headwear', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         expectedRevision: { type: 'integer', minimum: 0 },
         active: { type: 'boolean' },
@@ -998,10 +1046,10 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-transform.yaml',
     envelope('Procedure', 'set-character-variant-transform', {
       title: 'Set Character Variant Transform',
-      description: `Visually align an existing expression whole head, outfit, or prop by changing only its full-canvas translation and uniform scale. Inspect the Character in the browser first; x moves right, y moves down, and values are absolute rather than deltas. Use the exact revision from inspect_character_contract. Success opens the exact variant; follow alignment.visualReview.checks using the browser buttons Composite, Overlay, Difference, and Align, then return to Composite. Repeat after every correction before continuing. Head-anchor changes rebase current expressions; front and back prop layers share one transform. The canonical body is locked. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Visually align an existing expression whole head or registered overlay by changing only its full-canvas translation and uniform scale. Inspect first; x moves right, y moves down, and values are absolute. Front and back layers share one transform. Follow the returned visual review in Composite, Overlay, Difference, and Align, then return to Composite. The canonical body is locked. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
-        group: { enum: ['expression', 'outfit', 'prop'] },
+        group: { enum: ['expression', 'outfit', 'hair', 'headwear', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         expectedRevision: { type: 'integer', minimum: 0 },
         x: { type: 'number', minimum: -512, maximum: 512 },

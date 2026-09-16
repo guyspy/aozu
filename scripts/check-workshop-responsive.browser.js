@@ -20,7 +20,7 @@ const ready = async (check) => {
 try {
   assert(characterId, 'Supply a saved characterId in the URL; this check never edits character data')
   frame.style.width = '390px'
-  frame.src = `/characters/${encodeURIComponent(characterId)}/outfits`
+  frame.src = `/characters/${encodeURIComponent(characterId)}/wardrobe`
   await ready(() => frame.contentDocument.querySelector('.character-stage-canvas'))
   const doc = frame.contentDocument
   const find = (selector) => doc.querySelector(selector)

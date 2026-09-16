@@ -125,7 +125,9 @@ export const en = {
     },
     categories: {
       expressions: 'Expressions',
-      outfits: 'Outfits',
+      wardrobe: 'Wardrobe',
+      hair: 'Hair',
+      headwear: 'Headwear',
       props: 'Props',
     },
     layers: {
@@ -136,8 +138,15 @@ export const en = {
     },
     groups: {
       expression: { add: 'Add expression', variantName: 'Expression' },
-      outfit: { add: 'Add outfit', variantName: 'Outfit' },
+      outfit: { add: 'Add garment', variantName: 'Garment' },
+      hair: { add: 'Add hairstyle', variantName: 'Hairstyle' },
+      headwear: { add: 'Add headwear', variantName: 'Headwear' },
       prop: { add: 'Add prop', variantName: 'Prop' },
+    },
+    outfitSlots: { top: 'Top', bottom: 'Bottom', 'one-piece': 'One-piece', outerwear: 'Outerwear', footwear: 'Footwear' },
+    metadata: {
+      slot: 'Wardrobe slot', garmentType: 'Garment type', faceStyle: 'Face Style', faceStyleName: 'Face Style name',
+      facialHair: 'Facial hair', cleanShaven: 'Clean-shaven', addFaceStyle: 'Add Face Style', description: 'Description', tags: 'Tags', tagsHelp: 'Comma-separated tags',
     },
   },
   main: {

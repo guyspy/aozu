@@ -73,11 +73,11 @@ general rig: there is no rotation, warping, bone animation, or attachment
 solver. A layer remains compatible only when its source dimensions and slot
 match the selected profile.
 
-Rig version 2 supports an optional `expression-head` between `character-skin` and
-`item-front`. An expression is a full-canvas transparent layer containing the
-complete aligned head, not cropped facial features. Hair and facial hair are
-fixed identity pixels repeated consistently in body skins and head-expression
-layers; they are not separate v2 customization slots.
+Rig version 3 separates registered front/back planes for outfits, hair,
+headwear, and props. An expression is a full-canvas transparent layer containing
+the complete aligned head, not cropped facial features. Hair and headwear stay
+independent from expressions. Facial hair belongs to a named Face Style and is
+baked consistently into every expression head in that style.
 
 ### Character pack
 
@@ -134,12 +134,13 @@ rejected rather than relying on manifest insertion order.
 ### Character authoring draft
 
 The local authoring draft groups appearances by semantic intent rather than by
-PNG filename: `body`, `expression`, `outfit`, and `prop`. Each group contains
-named variants. A body or outfit variant owns one full-body layer, an expression
-owns one whole-head layer, and a prop may own both back and front layers. Props
-are multi-select, full-canvas overlays that may be positioned anywhere relative
-to the canonical character. The required base body includes the default face;
-no expression overlay means that default appearance.
+PNG filename: `body`, `expression`, `outfit`, `hair`, `headwear`, and `prop`.
+The base body is the canonical underwear-clad A-pose. Outfits, hair, headwear,
+and props are transparent, registered front/back overlays and never contain body
+pixels. Outfit variants declare one slot: `top`, `bottom`, `one-piece`,
+`outerwear`, or `footwear`. One variant may be active per slot; `one-piece` is
+mutually exclusive with `top` and `bottom`. Props remain ordered multi-select
+objects and are not used for clothing or grooming.
 
 `selected.props` persists activation order, from bottom to top within each rig
 slot. Adding a prop places it above earlier props; deactivating and adding it
@@ -151,17 +152,18 @@ Pack export assigns explicit layer orders from this selection, so its default
 composition, the workshop, and flattened PNG downloads agree.
 
 Happy, sad, angry, surprised, and sleepy are initial optional expression
-variants, not a closed expression vocabulary. Users and agents may add, name,
-populate, or remove expression overlays through the same contract. Draft schema
-changes are versioned and migrated in IndexedDB; candidate staging compiles the
-draft into the Character Pack appearances and qualified assets defined above.
+variants, not a closed expression vocabulary. Every expression names a Face
+Style; its facial-hair metadata describes the beard or moustache baked into that
+head. Draft schema changes are versioned; pre-release incompatible drafts are
+rejected instead of migrated. Candidate staging compiles the draft into the
+Character Pack appearances and qualified assets defined above.
 
 The canonical body inspection projects a small registration frame: alpha
 bounds, center, and foot line. The projection reuses persisted inspection data
-rather than storing duplicate geometry that can go stale. Expressions and
-outfits edit the canonical body; props use the current composite with the edited
-prop removed as their placement reference. These clean references are transient
-and never enter pack assets or ZIP exports.
+rather than storing duplicate geometry that can go stale. Expressions, outfits,
+hair, and headwear use the canonical body as their registration reference;
+props use the current composite with the edited prop removed. These clean
+references are transient and never enter pack assets or ZIP exports.
 
 Agents may stage a candidate and visually preflight the real compositor through
 composite, onion-skin, and target-aware alignment views before asking for user

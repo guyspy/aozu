@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { strFromU8, unzipSync, zipSync } from 'fflate'
 
-import { activateCharacterVariant, buildCharacterPack, characterDraftAtlasKey, characterHeadRegistration, characterRegistrationFrame, clearCharacterVariantSelection, copyCharacter, createCharacterDraft, deactivateCharacterVariant, hasCurrentCharacterLayer, installCharacterDraft, listInstalledCharacterPacks, loadCharacterProjection, loadInstalledCharacterPackResources, migrateCharacterDraft, migrateLegacyCharacterLibrary, resolveCharacterAssetSources, resolveCharacterDraftAtlasSources, resolveCharacterDraftLayers, reviewCharacterDraft, saveCharacterDraftAsset, setCharacterVariantTransform, updateCharacterProfile } from '../src/core/application/character-creation.ts'
+import { activateCharacterVariant, buildCharacterPack, characterDraftAtlasKey, characterHeadRegistration, characterRegistrationFrame, clearCharacterVariantSelection, copyCharacter, createCharacterDraft, deactivateCharacterVariant, hasCurrentCharacterLayer, installCharacterDraft, listInstalledCharacterPacks, loadCharacterProjection, loadInstalledCharacterPackResources, migrateCharacterDraft, resolveCharacterAssetSources, resolveCharacterDraftAtlasSources, resolveCharacterDraftLayers, reviewCharacterDraft, saveCharacterDraftAsset, setCharacterVariantTransform, updateCharacterProfile, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { highConfidenceCharacterAutoFit, measureCharacterMaskAlignment, measureProtectedRegionDelta, stitchCharacterEditPixels, suggestCharacterVisualRegistration, type CharacterAlphaMask, type CharacterVisualSample } from '../src/core/application/character-alignment.ts'
 import type { CharacterDraftAsset, CharacterVariantGroup, CharacterVariantLayer } from '../src/core/domain/character.ts'
 import { resolveCharacterComposition, validateCharacterPack } from '../src/core/domain/character.ts'
-import type { CharacterPackLibraryRecord, CharacterRecord } from '../src/core/application/ports.ts'
+import type { CharacterPackLibraryRecord } from '../src/core/application/ports.ts'
 import { exportCharacterDraftZip, readCharacterDraftZip } from '../src/adapters/zip/character-draft.ts'
 import { packCharacterAtlasFrames } from '../src/adapters/browser/character-atlas.ts'
 
@@ -35,12 +35,12 @@ const put = (group: CharacterVariantGroup, id: string, layer: CharacterVariantLa
   draft.variants.find((variant) => variant.group === group && variant.id === id)!.layers[layer] = asset
 }
 put('body', 'base', 'body')
-put('outfit', 'outfit-1', 'body')
+put('outfit', 'top-1', 'front')
 put('expression', 'happy', 'head')
 put('prop', 'prop-1', 'back')
 put('prop', 'prop-1', 'front')
 draft.variants.push({ group: 'prop', id: 'prop-2', label: 'Prop 2', layers: { back: asset, front: asset } })
-draft.selected = { expression: 'happy', outfit: 'outfit-1', props: ['prop-1', 'prop-2'] }
+draft.selected = { expression: 'happy', outfits: { top: 'top-1' }, props: ['prop-1', 'prop-2'] }
 draft.headRegistration = { variantId: 'happy' }
 draft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform = { x: 2, y: -3, scale: 1.01 }
 
@@ -107,21 +107,27 @@ assert.deepEqual(withHeight.attributes, profiled.attributes)
 for (const heightCm of [0, -1, NaN, Infinity, 100001]) assert.throws(() => updateCharacterProfile(withHeight, { heightCm }), /height/)
 assert.equal(updateCharacterProfile(profiled, { name: 'Profiled' }), profiled)
 assert.throws(() => updateCharacterProfile(profiled, { attributes: { mood: 'calm', ' mood ': 'bold' } }), /must be unique/)
-const migratedPublishedCharacter = migrateCharacterDraft({
-  ...draft,
-  revision: 7,
-  published: { version: 3, revision: 7 },
+const withDress = updateCharacterVariantMetadata(draft, 'outfit', 'dress', {
+  label: 'Field dress', description: 'One-piece field uniform', tags: ['field', 'uniform'], outfit: { slot: 'one-piece', garmentType: 'dress' },
 })
-assert.equal('published' in migratedPublishedCharacter, false)
-assert.equal('revision' in migratedPublishedCharacter, false)
+const dressed = activateCharacterVariant(withDress, { group: 'outfit', id: 'dress' })
+assert.deepEqual(dressed.selected.outfits, { 'one-piece': 'dress' })
+assert.deepEqual(activateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' }).selected.outfits, { top: 'top-1' })
+const dressAsset = draft.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')!.layers.front!
+const dressedWithAsset = { ...dressed, variants: dressed.variants.map((variant) => variant.group === 'outfit' && variant.id === 'dress' ? { ...variant, layers: { front: dressAsset } } : variant) }
+assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ slot }) => slot.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front'])
+assert.throws(() => updateCharacterVariantMetadata(draft, 'expression', 'happy', { faceStyle: { id: 'invalid', label: 'Invalid', facialHair: { type: 'x'.repeat(81) } } }), /Invalid Face Style/)
+const bearded = updateCharacterVariantMetadata(draft, 'expression', 'happy', {
+  faceStyle: { id: 'bearded', label: 'Bearded', facialHair: { type: 'full beard', color: 'black' } },
+})
+assert.equal(bearded.faceStyles.at(-1)?.facialHair?.type, 'full beard')
 assert.equal('revision' in restored.draft, false)
-assert.equal(await migratedPublishedCharacter.variants[0]!.layers.body!.blob.text(), 'sprite')
-assert.deepEqual(pack.defaultComposition.map(({ appearanceId }) => appearanceId), ['outfit-outfit-1', 'expression-happy', 'prop-prop-1', 'prop-prop-2'])
+assert.deepEqual(pack.defaultComposition.map(({ appearanceId }) => appearanceId), ['body-base', 'outfit-top-1', 'expression-happy', 'prop-prop-1', 'prop-prop-2'])
 assert.deepEqual(
   validateCharacterPack(pack, new Map(pack.assets.map(({ blobId }) => [blobId, inspection]))).map(({ slot }) => slot),
-  ['item-back', 'item-back', 'character-skin', 'expression-head', 'item-front', 'item-front'],
+  ['prop-back', 'prop-back', 'character-skin', 'outfit-front', 'expression-head', 'prop-front', 'prop-front'],
 )
-assert.deepEqual(resolveCharacterDraftLayers(draft).map(({ layerOrder }) => layerOrder), [1, 2, 1, 1, 1, 2])
+assert.deepEqual(resolveCharacterDraftLayers(draft).map(({ layerOrder }) => layerOrder), [1, 2, 1, 1, 1, 1, 2])
 // Activation order, including reverse creation order, must survive preview and portable export.
 const clearedProps = clearCharacterVariantSelection(draft, 'prop')
 assert.equal(clearCharacterVariantSelection(clearedProps, 'prop'), clearedProps)
@@ -129,7 +135,7 @@ const secondPropFirst = activateCharacterVariant(clearedProps, { group: 'prop', 
 const reversedProps = activateCharacterVariant(secondPropFirst, { group: 'prop', id: 'prop-1' })
 assert.deepEqual(reversedProps.selected.props, ['prop-2', 'prop-1'])
 assert.equal(activateCharacterVariant(reversedProps, { group: 'prop', id: 'prop-2' }), reversedProps)
-const reversedLayerIds = ['prop-prop-2-back', 'prop-prop-1-back', 'outfit-outfit-1-body', 'expression-happy-head', 'prop-prop-2-front', 'prop-prop-1-front']
+const reversedLayerIds = ['prop-prop-2-back', 'prop-prop-1-back', 'body-base-body', 'outfit-top-1-front', 'expression-happy-head', 'prop-prop-2-front', 'prop-prop-1-front']
 assert.deepEqual(resolveCharacterDraftLayers(reversedProps).map(({ id }) => id), reversedLayerIds)
 assert.deepEqual(resolveCharacterDraftLayers(reversedProps, { group: 'prop', id: 'prop-2' }).map(({ id }) => id), reversedLayerIds)
 assert.deepEqual(resolveCharacterDraftLayers(secondPropFirst, { group: 'prop', id: 'prop-1' }).map(({ id }) => id), reversedLayerIds)
@@ -139,8 +145,8 @@ assert.deepEqual(readdedProp.selected.props, ['prop-1', 'prop-2'])
 assert.equal(deactivateCharacterVariant(clearedProps, { group: 'prop', id: 'prop-2' }), clearedProps)
 assert.deepEqual(draft.selected.props, ['prop-1', 'prop-2'])
 assert.throws(() => activateCharacterVariant(draft, { group: 'prop', id: 'missing' }), /not found/)
-assert.throws(() => resolveCharacterDraftLayers({ ...draft, selected: { props: ['prop-1', 'prop-1'] } }), /Duplicate selected/)
-assert.throws(() => buildCharacterPack({ ...draft, selected: { props: ['missing'] } }), /prop is missing/)
+assert.throws(() => resolveCharacterDraftLayers({ ...draft, selected: { ...draft.selected, props: ['prop-1', 'prop-1'] } }), /Duplicate selected/)
+assert.throws(() => buildCharacterPack({ ...draft, selected: { ...draft.selected, props: ['missing'] } }), /prop is missing/)
 const reversedPack = buildCharacterPack(reversedProps)
 assert.deepEqual(resolveCharacterComposition(reversedPack, reversedPack.defaultComposition).map(({ blobId }) => blobId), reversedLayerIds)
 const reversedRestored = await readCharacterDraftZip(await exportCharacterDraftZip(reversedProps), async () => inspection)
@@ -149,7 +155,7 @@ assert.deepEqual(resolveCharacterDraftLayers(reversedRestored.draft).map(({ id }
 assert.deepEqual(resolveCharacterDraftLayers(draft).find(({ slot }) => slot === 'expression-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 assert.deepEqual(resolveCharacterDraftAtlasSources(draft).find(({ id }) => id === 'expression-happy-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 const atlasKey = characterDraftAtlasKey(draft)
-assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { expression: undefined, outfit: undefined, props: [] } }), atlasKey)
+assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { outfits: {}, props: [] } }), atlasKey)
 assert.equal('revision' in archivedDraft, false)
 const movedAtlasDraft = structuredClone(draft)
 movedAtlasDraft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform!.x += 1
@@ -166,13 +172,13 @@ const raincoatAsset = {
   inspection: { ...inspection, sha256: 'b'.repeat(64) },
 }
 const raincoatDraft = structuredClone(draft)
-raincoatDraft.variants.find(({ group, id }) => group === 'outfit' && id === 'outfit-1')!.layers.body = raincoatAsset
-const raincoatSources = resolveCharacterAssetSources(raincoatDraft, { group: 'outfit', variantId: 'outfit-1', layer: 'body' })
+raincoatDraft.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')!.layers.front = raincoatAsset
+const raincoatSources = resolveCharacterAssetSources(raincoatDraft, { group: 'outfit', variantId: 'top-1', layer: 'front' })
 assert.equal(raincoatSources.current, true)
 assert.equal(raincoatSources.editSource, undefined)
 assert.equal(raincoatSources.alignmentReference?.filename, 'sprite.png')
 raincoatAsset.canonicalSha256 = 'c'.repeat(64)
-assert.equal(resolveCharacterAssetSources(raincoatDraft, { group: 'outfit', variantId: 'outfit-1', layer: 'body' }).current, false)
+assert.equal(resolveCharacterAssetSources(raincoatDraft, { group: 'outfit', variantId: 'top-1', layer: 'front' }).current, false)
 const fallbackRegistration = characterRegistrationFrame({
   ...draft,
   headRegistration: undefined,
@@ -193,7 +199,7 @@ const library = {
 }
 const firstInstalled = await installCharacterDraft(library, async () => inspection, draft)
 assert.equal(firstInstalled.id, pack.id)
-assert.equal((await listInstalledCharacterPacks(library, async () => inspection))[0]?.layers.length, 6)
+assert.equal((await listInstalledCharacterPacks(library, async () => inspection))[0]?.layers.length, 7)
 await assert.rejects(() => installCharacterDraft(library, async () => inspection, draft), /already installed/)
 const secondVersion = await installCharacterDraft(library, async () => inspection, draft, 2)
 assert.equal(secondVersion.version, 2)
@@ -224,69 +230,6 @@ const incompleteArchive = unzipSync(new Uint8Array(await (await exportCharacterD
 assert.ok(incompleteArchive['draft.json'])
 assert.equal(incompleteArchive['character-pack.json'], undefined)
 assert.equal(installed.length, 3)
-
-const legacySource = {
-  id: 'current', packId: 'legacy', name: 'Legacy', updatedAt: 1,
-  assets: { 'body-base': asset, 'head-neutral': asset, 'head-happy': asset, 'prop-front': asset },
-  selectedBody: 'body-base', selectedExpression: 'head-happy',
-} as unknown as Parameters<typeof migrateCharacterDraft>[0]
-const migrated = migrateCharacterDraft(legacySource)
-assert.equal(migrated.id, 'current')
-assert.equal(migrated.updatedAt, 1)
-assert.deepEqual(migrateCharacterDraft(legacySource), migrated)
-assert.equal(migrated.schemaVersion, 4)
-assert.equal(migrated.selected.expression, 'happy')
-assert.deepEqual(migrated.selected.props, ['prop-1'])
-assert.equal(migrated.variants.find(({ group, id }) => group === 'prop' && id === 'prop-1')!.layers.front, asset as CharacterDraftAsset)
-
-// If the entry save committed but legacy cleanup failed, retry may remove only byte-identical legacy work.
-const pendingLegacy = new Map([[legacySource.id, legacySource]])
-const migratedRows: CharacterRecord[] = []
-let failLegacyDelete = true
-const legacyRepository = {
-  async list() { return [...pendingLegacy.values()] },
-  async delete(id: string) {
-    if (failLegacyDelete) { failLegacyDelete = false; throw new Error('Legacy cleanup interrupted') }
-    pendingLegacy.delete(id)
-  },
-}
-const migratedRepository = {
-  async list() { return [...migratedRows] },
-  async create(character: typeof draft) {
-    const record = { character: { ...structuredClone(character), id: 'mantle-id', updatedAt: 99 }, version: 1 }
-    migratedRows.push(record)
-    return record
-  },
-}
-await assert.rejects(() => migrateLegacyCharacterLibrary(legacyRepository, migratedRepository), /cleanup interrupted/)
-assert.equal(migratedRows.length, 1)
-assert.equal(pendingLegacy.size, 1)
-await migrateLegacyCharacterLibrary(legacyRepository, migratedRepository)
-assert.equal(migratedRows.length, 1)
-assert.equal(pendingLegacy.size, 0)
-pendingLegacy.set(legacySource.id, { ...legacySource, name: 'Conflicting legacy work' })
-await assert.rejects(() => migrateLegacyCharacterLibrary(legacyRepository, migratedRepository), /legacy Character was kept/)
-assert.equal(pendingLegacy.size, 1)
-pendingLegacy.set(legacySource.id, legacySource)
-migratedRows[0]!.character.variants[0]!.layers.body!.blob = new Blob(['broken'], { type: 'image/png' })
-await assert.rejects(() => migrateLegacyCharacterLibrary(legacyRepository, migratedRepository), /legacy Character was kept/)
-assert.equal(pendingLegacy.size, 1)
-assert.equal(migratedRows.length, 1)
-
-const migratedV2 = migrateCharacterDraft({
-  id: 'current', schemaVersion: 2, packId: 'v2', name: 'V2', updatedAt: 2,
-  variants: [
-    { group: 'headwear', id: 'prop-1', label: 'Hat', layers: { front: asset } },
-    { group: 'prop', id: 'prop-1', label: 'Wand', layers: { front: asset } },
-  ],
-  selected: { expression: 'neutral', headwear: 'prop-1', prop: 'prop-1' },
-  approvedAt: 1,
-} as unknown as Parameters<typeof migrateCharacterDraft>[0])
-assert.equal(migratedV2.schemaVersion, 4)
-assert.equal('approvedAt' in migratedV2, false)
-assert.deepEqual(migratedV2.variants.map(({ group, id }) => `${group}:${id}`), ['prop:hat-1', 'prop:prop-1'])
-assert.deepEqual(migratedV2.selected.props, ['hat-1', 'prop-1'])
-assert.equal(migratedV2.selected.expression, undefined)
 
 const state = {
   id: 'character:base', collection: 'character-states', status: 'published' as const, version: 1, createdAt: 1, updatedAt: 1,

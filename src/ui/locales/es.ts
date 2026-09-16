@@ -1,6 +1,6 @@
 import type { Messages } from './en.ts'
 
-export const es: Messages = {
+export const es: Messages= {
   "common": {
     "productName": "AOZU",
     "back": "Atrás",
@@ -167,7 +167,9 @@ export const es: Messages = {
     },
     "categories": {
       "expressions": "Expresiones",
-      "outfits": "Atuendos",
+      "wardrobe": "Vestuario",
+      "hair": "Peinados",
+      "headwear": "Accesorios de cabeza",
       "props": "Accesorios"
     },
     "layers": {
@@ -182,13 +184,40 @@ export const es: Messages = {
         "variantName": "Expresión"
       },
       "outfit": {
-        "add": "Añadir atuendo",
-        "variantName": "Atuendo"
+        "add": "Añadir prenda",
+        "variantName": "Prenda"
+      },
+      "hair": {
+        "add": "Añadir peinado",
+        "variantName": "Peinado"
+      },
+      "headwear": {
+        "add": "Añadir accesorio de cabeza",
+        "variantName": "Accesorio de cabeza"
       },
       "prop": {
         "add": "Añadir accesorio",
         "variantName": "Accesorio"
       }
+    },
+    "outfitSlots": {
+      "top": "Parte superior",
+      "bottom": "Parte inferior",
+      "one-piece": "Una pieza",
+      "outerwear": "Abrigo",
+      "footwear": "Calzado"
+    },
+    "metadata": {
+      "slot": "Espacio de vestuario",
+      "garmentType": "Tipo de prenda",
+      "faceStyle": "Estilo facial",
+      "faceStyleName": "Nombre del estilo facial",
+      "facialHair": "Vello facial",
+      "cleanShaven": "Afeitado",
+      "addFaceStyle": "Añadir estilo facial",
+      "description": "Descripción",
+      "tags": "Etiquetas",
+      "tagsHelp": "Etiquetas separadas por comas"
     }
   },
   "main": {
