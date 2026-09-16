@@ -9,6 +9,7 @@ import type { WorldLibrary } from '@/core/domain/world-library'
 import type { CharacterLibraryItem } from '@/ui/pages/CharacterLibraryPage'
 import { exportLibraryArchive, importLibraryArchive } from '@/core/application/library-archive'
 import { AozuIcon } from '@/ui/AozuIcon'
+import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
 import { DataControls } from '@/ui/DataControls'
 import { WorkspaceScroll } from '@/ui/Workspace'
 import { Button } from '@/ui/components/ui/button'
@@ -36,25 +37,24 @@ function TreeDetails({ initialOpen, label, children }: { initialOpen: boolean; l
   return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>{label}</summary><TreeChildren>{children}</TreeChildren></details>
 }
 
-export function LibraryExplorer({ application, world, collections, characters, refresh }: {
+type ExplorerProps = {
   application: Application
   world: WorldLibrary
   collections: CharacterCollection[]
   characters: CharacterLibraryItem[]
   refresh(): Promise<void>
-}) {
+}
+
+/**
+ * Mounted only while the drawer is open, so no route change pays for the storyboard read
+ * or for building the tree behind a closed drawer.
+ */
+function ExplorerBody({ application, world, collections, characters, refresh, close }: ExplorerProps & { close(): void }) {
   const { t } = useTranslation(), text = (key: string) => t(`world.${key}`), { pathname } = useLocation()
-  const [open, setOpen] = useState(false), [boards, setBoards] = useState<Awaited<ReturnType<Application['storyboards']['list']>>>([]), [error, setError] = useState('')
+  const [boards, setBoards] = useState<Awaited<ReturnType<Application['storyboards']['list']>>>([]), [error, setError] = useState('')
   const loadBoards = useCallback(() => application.storyboards.list().then(setBoards, (caught) => setError(String(caught))), [application])
   useEffect(() => { void loadBoards(); return application.storyboards.subscribe(() => void loadBoards()) }, [application, loadBoards])
-  const services = {
-    exportCharacters: application.exportCharacterLibrary,
-    prepareCharacters: application.prepareCharacterLibraryImport,
-    importCharacters: (snapshot: Awaited<ReturnType<Application['prepareCharacterLibraryImport']>>) => application.importCharacterLibrary(snapshot, 'merge'),
-    world: application.worldLibrary,
-    storyboards: application.storyboards,
-  }
-  const go = () => setOpen(false)
+  const services = application.archiveServices()
   const locations = (parentId: string | null, collectionId: string): ReactNode => world.locations.filter((place) => place.collectionId === collectionId && place.parentId === parentId).map((place) => {
     const path = `/collections/${collectionId}/locations/${place.id}`
     return <TreeDetails key={place.id} initialOpen={pathname.includes(place.id)} label={place.name}>
@@ -68,37 +68,52 @@ export function LibraryExplorer({ application, world, collections, characters, r
   })
   const storyboardLinks = (book?: string) => boards.filter((board) => world.boardBooks[board.id] === book).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
+  return <WorkspaceScroll>
+    <section className="mb-3 rounded-lg border bg-muted/40 p-3" aria-label={text('localOnly')}>
+      <div className="flex items-center gap-2 font-medium"><CloudOffIcon className="size-4" />{text('localOnly')}</div>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{text('localOnlyDescription')}</p>
+    </section>
+    <section className="library-tree-transfer">
+      <DataControls exportData={() => exportLibraryArchive(services)} exportFilename="aozu-library.zip" exportLabel={text('downloadComplete')} importLabel={text('importComplete')} prepareImport={async (blob) => { await importLibraryArchive(blob, services); await refresh(); await loadBoards() }} />
+    </section>
+    {/* Characters keep their own reviewed restore, the only place that can replace rather than merge. */}
+    <section className="library-tree-transfer mt-2">
+      <CharacterLibraryTransfer
+        exportLibrary={application.exportCharacterLibrary}
+        prepareLibraryImport={application.prepareCharacterLibraryImport}
+        importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
+      />
+    </section>
+    <nav className="library-tree" aria-label={text('library')} onClick={(event) => { if ((event.target as Element).closest('a')) close() }}>
+      <TreeDetails initialOpen={pathname.startsWith('/collections') || pathname.startsWith('/characters')} label={<><AozuIcon name="collections" />{t('books.shelf')}</>}>
+        {collections.map((collection) => <TreeDetails key={collection.id} initialOpen={pathname.includes(`/collections/${collection.id}`) || collection.characterIds.some((id) => pathname.includes(id))} label={collection.id === 'default' ? t('books.default') : collection.name}>
+          <TreeLink to={`/collections/${collection.id}`}>{text('characters')}</TreeLink>
+          <TreeChildren>{characters.filter((character) => collection.characterIds.includes(character.id)).map((character) => <TreeLink key={character.id} to={`/characters/${character.id}/expressions`} action={<Button size="icon" variant="ghost" aria-label={t('data.export')} onClick={() => void application.exportCharacter(character.id).then((blob) => save(blob, `${character.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{character.name}</TreeLink>)}</TreeChildren>
+          <TreeLink to={`/collections/${collection.id}/locations`}>{text('locations')}</TreeLink><TreeChildren>{locations(null, collection.id)}</TreeChildren>
+        </TreeDetails>)}
+      </TreeDetails>
+      <TreeDetails initialOpen={pathname.startsWith('/albums')} label={<><AozuIcon name="albums" />{text('albums')}</>}>{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</TreeDetails>
+      <TreeDetails initialOpen={pathname.startsWith('/storyboards')} label={<><AozuIcon name="storyboards" />{text('storyboards')}</>}>
+        {boards.some((board) => !world.boardBooks[board.id]) && <TreeDetails initialOpen={pathname.includes('/books/unfiled') || boards.some((board) => !world.boardBooks[board.id] && pathname.includes(board.id))} label={text('unfiled')}>
+          {storyboardLinks()}
+        </TreeDetails>}
+        {world.storyBooks.map((book) => <TreeDetails key={book.id} initialOpen={pathname.includes(book.id)} label={book.name}>{storyboardLinks(book.id)}</TreeDetails>)}
+      </TreeDetails>
+    </nav>
+    {error && <p role="alert" className="story-error">{error}</p>}
+  </WorkspaceScroll>
+}
+
+export function LibraryExplorer(props: ExplorerProps) {
+  const { t } = useTranslation(), text = (key: string) => t(`world.${key}`)
+  const [open, setOpen] = useState(false)
+
   return <>
     <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}<CloudOffIcon className="size-3.5 text-muted-foreground" /></Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="library-explorer" closeLabel={t('common.close')} aria-describedby={undefined}>
         <SheetTitle>{text('library')}</SheetTitle>
-        <WorkspaceScroll>
-          <section className="mb-3 rounded-lg border bg-muted/40 p-3" aria-label={text('localOnly')}>
-            <div className="flex items-center gap-2 font-medium"><CloudOffIcon className="size-4" />{text('localOnly')}</div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{text('localOnlyDescription')}</p>
-          </section>
-          <section className="library-tree-transfer">
-            <DataControls exportData={() => exportLibraryArchive(services)} exportFilename="aozu-library.zip" exportLabel={text('downloadComplete')} importLabel={text('importComplete')} prepareImport={async (blob) => { await importLibraryArchive(blob, services); await refresh(); await loadBoards() }} />
-          </section>
-          <nav className="library-tree" aria-label={text('library')} onClick={(event) => { if ((event.target as Element).closest('a')) go() }}>
-            <TreeDetails initialOpen={pathname.startsWith('/collections') || pathname.startsWith('/characters')} label={<><AozuIcon name="collections" />{t('library.collections')}</>}>
-              {collections.map((collection) => <TreeDetails key={collection.id} initialOpen={pathname.includes(`/collections/${collection.id}`) || collection.characterIds.some((id) => pathname.includes(id))} label={collection.id === 'default' ? text('defaultCollection') : collection.name}>
-                <TreeLink to={`/collections/${collection.id}`}>{text('characters')}</TreeLink>
-                <TreeChildren>{characters.filter((character) => collection.characterIds.includes(character.id)).map((character) => <TreeLink key={character.id} to={`/characters/${character.id}/expressions`} action={<Button size="icon" variant="ghost" aria-label={t('data.export')} onClick={() => void application.exportCharacter(character.id).then((blob) => save(blob, `${character.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{character.name}</TreeLink>)}</TreeChildren>
-                <TreeLink to={`/collections/${collection.id}/locations`}>{text('locations')}</TreeLink><TreeChildren>{locations(null, collection.id)}</TreeChildren>
-              </TreeDetails>)}
-            </TreeDetails>
-            <TreeDetails initialOpen={pathname.startsWith('/albums')} label={<><AozuIcon name="albums" />{text('albums')}</>}>{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</TreeDetails>
-            <TreeDetails initialOpen={pathname.startsWith('/storyboards')} label={<><AozuIcon name="storyboards" />{text('storyboards')}</>}>
-              {boards.some((board) => !world.boardBooks[board.id]) && <TreeDetails initialOpen={pathname.includes('/books/unfiled') || boards.some((board) => !world.boardBooks[board.id] && pathname.includes(board.id))} label={text('unfiled')}>
-                {storyboardLinks()}
-              </TreeDetails>}
-              {world.storyBooks.map((book) => <TreeDetails key={book.id} initialOpen={pathname.includes(book.id)} label={book.name}>{storyboardLinks(book.id)}</TreeDetails>)}
-            </TreeDetails>
-          </nav>
-          {error && <p role="alert" className="story-error">{error}</p>}
-        </WorkspaceScroll>
+        {open && <ExplorerBody {...props} close={() => setOpen(false)} />}
       </SheetContent>
     </Sheet>
   </>

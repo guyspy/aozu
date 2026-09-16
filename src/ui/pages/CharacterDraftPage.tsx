@@ -515,7 +515,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   return <>
     <Workspace header={<WorkspaceTabs label={t('modelSheet.mode')} active={activeMode}
         items={[{ id: 'expressions', label: t('modelSheet.appearance') }, { id: 'profile', label: t('characterDraft.profile.title') }, { id: 'model-sheet', label: t('modelSheet.title') }] as const}
-        onSelect={(mode) => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{characterActions}</WorkspaceTabs>} className="draft-workshop"
+        onSelect={(mode) => { revert(); setProfileForm(undefined); navigate(`/characters/${encodeURIComponent(draft.id)}/${mode}`) }}>{characterActions}</WorkspaceTabs>}
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={isProfile ? 'profile' : undefined}

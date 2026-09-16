@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const ptBR: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Fechar', productName: 'AOZU', back: 'Voltar', cancel: 'Cancelar', language: 'Idioma' },
-  navigation: { ...en.navigation, primary: 'Navegação principal' },
+  navigation: { ...en.navigation, breadcrumb: 'Trilha de navegação', primary: 'Navegação principal' },
   startup: {
     loading: 'Carregando dados locais…',
     error: 'Não foi possível carregar os dados locais. Atualize a página e tente novamente.',
@@ -13,19 +13,15 @@ export const ptBR: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'ARQUIVO DE PERSONAGENS AOZU',
     title: 'Seus personagens',
     description: 'Crie e gerencie personagens reutilizáveis salvos neste navegador.',
     saved: 'Personagens salvos',
-    count: '{{count}} salvos',
-    more: 'Mostrar mais {{count}}',
     new: 'Criar personagem',
     gates: {
       create: 'Comece com um personagem em branco e dê forma a ele no editor ou com o ChatGPT.',
       import: 'Restaure um personagem que você exportou antes.',
     },
     edit: 'Editar',
-    copy: 'Duplicar',
     delete: 'Excluir',
     revision: 'Revisão {{revision}}',
     updated: 'Atualizado em {{updated}}',
@@ -63,7 +59,7 @@ export const ptBR: Messages = {
       add: 'Adicionar', text: 'Texto', number: 'Número', boolean: 'Sim / não', yes: 'Sim', no: 'Não', value: 'Valor', update: 'Atualizar perfil',
       attributeName: 'Nome do atributo {{index}}', attributeType: 'Tipo do atributo {{index}}', attributeValue: 'Valor do atributo {{index}}', removeAttribute: 'Remover atributo {{index}}',
       edit: 'Editar perfil do personagem',
-      noDescription: 'Ainda não há descrição.', noBackstory: 'Ainda não há história.', noAttributes: 'Ainda não há atributos.',
+      noDescription: 'Ainda não há descrição.', noBackstory: 'Ainda não há história.',
     },
     alignment: {
       label: 'Visualização do alinhamento',
@@ -108,10 +104,11 @@ export const ptBR: Messages = {
       unsupported: 'Este navegador não é compatível com WebMCP',
       registering: 'Registrando ferramentas de site WebMCP',
       ready: '{{count}} ferramentas de site WebMCP prontas',
-      readyShort: '{{count}} ferramentas',
       failed: 'Falha ao registrar as ferramentas WebMCP',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: 'Exportar personagem',
     import: 'Importar personagem',

@@ -20,6 +20,7 @@ import { AppHeader } from '@/ui/AppHeader'
 import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
 import { CollectionActions, CollectionProfileAction } from '@/ui/CollectionActions'
 import { LibraryExplorer } from '@/ui/LibraryExplorer'
+import { RecentActivity } from '@/ui/RecentActivity'
 import { CharacterDraftPage } from '@/ui/pages/CharacterDraftPage'
 import { CharacterLibraryPage } from '@/ui/pages/CharacterLibraryPage'
 import { StoryboardPage } from '@/ui/pages/StoryboardPage'
@@ -137,7 +138,7 @@ export function AppRoutes({ application }: { application: Application }) {
   // The header names the document being worked on; list pages stay on the product name.
   const documentTitle = character?.name ?? place?.name ?? photo?.name
     ?? (album ? named(album, 'world.defaultAlbum') : undefined)
-    ?? (collection ? named(collection, 'world.defaultCollection') : undefined)
+    ?? (collection ? named(collection, 'books.default') : undefined)
     ?? (parts[0] === 'storyboards' ? boardTitle : undefined)
   const boardBook = parts[0] === 'storyboards' ? world.library.boardBooks[parts[1]] : undefined
   const backPath = editing ? `/collections/${characterBook}`
@@ -152,10 +153,10 @@ export function AppRoutes({ application }: { application: Application }) {
   const crumbs: Array<{ label: string; path: string }> = []
   const addCrumb = (label: string, path: string) => crumbs.push({ label, path })
   if (parts[0] === 'collections' || editing) {
-    addCrumb(t('library.collections'), '/collections')
+    addCrumb(t('books.shelf'), '/collections')
     const id = editing ? characterBook : parts[1]
     const crumbCollection = library.collections.find((c) => c.id === id)
-    if (crumbCollection) addCrumb(named(crumbCollection, 'world.defaultCollection'), `/collections/${id}`)
+    if (crumbCollection) addCrumb(named(crumbCollection, 'books.default'), `/collections/${id}`)
     if (parts[2] === 'locations') {
       addCrumb(t('world.locations'), `/collections/${id}/locations`)
       if (place) for (const ancestor of locationAncestors(world.library, place.id)) addCrumb(ancestor.name, `/collections/${id}/locations/${ancestor.id}`)
@@ -188,6 +189,7 @@ export function AppRoutes({ application }: { application: Application }) {
     refresh={refresh}
     actions={collectionActions}
     profileAction={collectionProfileAction}
+    recent={<RecentActivity application={application} world={world.library} characters={library.characters} />}
   />
   const worldPage = <WorldLibraryPage key={place ? `location:${place.id}` : photo ? `photo:${photo.id}` : album ? `album:${album.id}` : location.pathname} actions={collectionActions} service={application.worldLibrary} library={world.library} collections={library.collections} />
   const storyPage = <StoryboardPage key={location.pathname.replace(/\/details$/, '')} setTitle={setBoardTitle} service={application.storyboards} worldService={application.worldLibrary} world={world.library} collections={library.collections} application={application} characters={library.characters} />

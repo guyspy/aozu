@@ -8,6 +8,17 @@ type GroupPatch = { name?: string; description?: string }
 export type AlbumCharacterSource = { characterId: string; revision: number; sha256: string }
 export type AlbumCompositionInput = { characterSources?: AlbumCharacterSource[]; sourceLocationId?: string; sourceConditionId?: string; prompt?: string; name?: string; description?: string }
 
+/**
+ * The first record the text names without referencing it. Longest name first, so "Central Park"
+ * answers before "Park"; a name that only appears inside a longer referenced name is not its own mention.
+ */
+export function unreferencedMention<T>(text: string, records: { name: string; referenced: boolean; value: T }[]): T | undefined {
+  const referenced = records.filter((record) => record.referenced).map(({ name }) => name)
+  return [...records].sort((left, right) => right.name.length - left.name.length)
+    .find((record) => record.name && !record.referenced && text.includes(record.name)
+      && !referenced.some((other) => other.includes(record.name) && text.includes(other)))?.value
+}
+
 export function validateAlbumComposition(input: AlbumCompositionInput, characters: { id: string; name: string; revision: number; sha256: string }[], locations: LocationSetting[]) {
   const prompt = input.prompt?.trim(); if (!prompt) throw new Error('Album photos require the composition prompt')
   const sources = input.characterSources ?? []
@@ -18,17 +29,18 @@ export function validateAlbumComposition(input: AlbumCompositionInput, character
     return character.name
   })
   const text = `${input.name ?? ''}\n${input.description ?? ''}\n${prompt}`
-  const referencedNames = characters.filter(({ id }) => sources.some(({ characterId }) => characterId === id)).map(({ name }) => name)
-  const missingCharacter = [...characters].sort((a, b) => b.name.length - a.name.length).find(({ id, name }) => name && text.includes(name) && !sources.some(({ characterId }) => characterId === id) && !referencedNames.some((referenced) => referenced.includes(name) && text.includes(referenced)))
+  const missingCharacter = unreferencedMention(text, characters.map((character) => ({ name: character.name, referenced: sources.some(({ characterId }) => characterId === character.id), value: character })))
   if (missingCharacter) throw new Error(`${missingCharacter.name} is defined in AOZU and requires a Character reference`)
   const location = input.sourceLocationId ? locations.find(({ id }) => id === input.sourceLocationId) : undefined
   if (input.sourceLocationId && !location) throw new Error('Source Location not found')
-  const mentionedLocation = locations.find(({ name }) => name && text.includes(name))
-  if (mentionedLocation && mentionedLocation.id !== input.sourceLocationId) throw new Error(`${mentionedLocation.name} is defined in AOZU and requires a Location reference`)
+  const mentionedLocation = unreferencedMention(text, locations.map((item) => ({ name: item.name, referenced: item.id === input.sourceLocationId, value: item })))
+  if (mentionedLocation) throw new Error(`${mentionedLocation.name} is defined in AOZU and requires a Location reference`)
   const condition = input.sourceConditionId && location ? location.conditions.find(({ id }) => id === input.sourceConditionId) : undefined
   if (input.sourceConditionId && !condition) throw new Error('Source Condition not found in the selected Location')
-  const mentionedCondition = locations.flatMap((item) => item.conditions.map((candidate) => ({ location: item, condition: candidate }))).find(({ condition: candidate }) => candidate.name && text.includes(candidate.name))
-  if (mentionedCondition && (mentionedCondition.location.id !== input.sourceLocationId || mentionedCondition.condition.id !== input.sourceConditionId)) throw new Error(`${mentionedCondition.condition.name} is defined in AOZU and requires a Condition reference`)
+  const mentionedCondition = unreferencedMention(text, locations.flatMap((item) => item.conditions.map((candidate) => ({
+    name: candidate.name, referenced: item.id === input.sourceLocationId && candidate.id === input.sourceConditionId, value: candidate,
+  }))))
+  if (mentionedCondition) throw new Error(`${mentionedCondition.name} is defined in AOZU and requires a Condition reference`)
   return [`Characters: ${names.join(', ')}`, location && `Location: ${location.name}`, condition && `Condition: ${condition.name}`, `Prompt: ${prompt}`].filter(Boolean).join('; ').slice(0, 2000)
 }
 
@@ -45,6 +57,14 @@ const requiredName = (name: string | undefined) => {
   const value = name?.trim()
   if (!value) throw new Error('Name is required')
   return value
+}
+
+/** A distinct name for a duplicate, so copies never shadow each other in a picker. */
+const copyName = (source: string, used: Set<string>) => {
+  const base = `${source} copy`
+  let name = base
+  for (let suffix = 2; used.has(name); suffix++) name = `${base} ${suffix}`
+  return name
 }
 
 export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLibraryCommand): { library: WorldLibrary; id: string | null } {
@@ -79,8 +99,7 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
     }
     const location = library.locations.find((item) => item.id === command.id); if (!location) throw new Error('Location not found')
     if (command.action === 'duplicate') {
-      const id = crypto.randomUUID(), used = new Set(library.locations.map(({ name }) => name)), base = `${location.name} copy`
-      let name = base; for (let suffix = 2; used.has(name); suffix++) name = `${base} ${suffix}`
+      const id = crypto.randomUUID(), name = copyName(location.name, new Set(library.locations.map((item) => item.name)))
       library.locations.push({ ...structuredClone(location), id, name, parentId: location.parentId, updatedAt: now, images: location.images.map((image) => ({ ...image, id: crypto.randomUUID() })), conditions: location.conditions.map((condition) => ({ ...condition, id: crypto.randomUUID(), updatedAt: now, images: condition.images.map((image) => ({ ...image, id: crypto.randomUUID() })) })) })
       return { library, id }
     }
@@ -97,7 +116,9 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
     if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(); location.conditions.push({ id, ...group(), images: [] }); location.updatedAt = now; return { library, id } }
     const condition = location.conditions.find((item) => item.id === command.id); if (!condition) throw new Error('Condition not found')
     if (command.action === 'duplicate') {
-      const id = crypto.randomUUID(); location.conditions.push({ ...structuredClone(condition), id, ...group(condition), images: condition.images.map((image) => ({ ...image, id: crypto.randomUUID() })) }); location.updatedAt = now; return { library, id }
+      const id = crypto.randomUUID(), name = patch.name ?? copyName(condition.name, new Set(location.conditions.map((item) => item.name)))
+      location.conditions.push({ ...structuredClone(condition), id, ...group(condition), name: requiredName(name), images: condition.images.map((image) => ({ ...image, id: crypto.randomUUID() })) })
+      location.updatedAt = now; return { library, id }
     }
     if (command.action === 'delete') location.conditions = location.conditions.filter((item) => item.id !== condition.id)
     else Object.assign(condition, group(condition))

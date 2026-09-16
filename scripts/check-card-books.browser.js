@@ -24,6 +24,13 @@ const wait = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms))
 const check = (condition, message) => { if (!condition) throw new Error(message) }
 const ready = async (predicate) => { for (let i = 0; i < 400; i++) { if (await predicate()) return; await wait() } throw new Error(`Timed out: ${predicate}`) }
 const button = (text) => [...document.querySelectorAll('button')].find((el) => el.textContent.trim() === text)
+const shelf = () => ready(() => route === '/collections' && document.querySelector('.bookshelf-grid'))
+const startCharacter = async () => {
+  await shelf()
+  document.querySelector('.bookshelf-grid a[href="/collections/default"]').click()
+  await ready(() => button('Create character'))
+  button('Create character').click()
+}
 const text = async (input, value) => {
   input.focus()
   Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(input, value)
@@ -64,14 +71,12 @@ if (new URLSearchParams(location.search).has('responsive')) {
 } else {
 try {
   mount()
-  await ready(() => document.querySelector('.world-home-grid'))
-  document.querySelector('a[href="/characters/new/expressions"]').click()
+  await startCharacter()
   await ready(() => document.querySelector('.character-stage-canvas'))
   check(route === '/characters/new/expressions', 'Create character did not enter the workshop')
   check((await application.loadCharacterLibrary()).characters.length === 0, 'Opening the workshop saved an empty Character')
   root.unmount(); mount()
-  await ready(() => document.querySelector('.world-home-grid'))
-  document.querySelector('a[href="/characters/new/expressions"]').click()
+  await startCharacter()
   await ready(() => button('Character profile'))
   button('Character profile').click()
   await ready(() => document.querySelector('button[aria-label="Edit character profile"]'))
@@ -124,7 +129,7 @@ try {
   document.querySelector('header button').click()
   await ready(() => route === `/collections/${bookId}`)
   navigate('/')
-  await ready(() => route === '/' && document.querySelector('.world-home-grid'))
+  await shelf()
   const snapshot = await application.prepareCharacterLibraryImport(await application.exportCharacterLibrary())
   check(snapshot.entries.find((entry) => entry.id === bookId).data.backstory === world.backstory, 'Library ZIP lost the shared world')
   await application.importCharacterLibrary(snapshot, 'replace')
@@ -141,12 +146,12 @@ try {
     await ready(() => route === path && document.querySelector('main')?.textContent.includes('404'))
     check(document.querySelector('header a')?.getAttribute('href') === '/', 'Logo must always link home')
     document.querySelector('header a').click()
-    await ready(() => route === '/' && document.querySelector('.world-home-grid'))
+    await shelf()
   }
   await application.copyCharacter(characterId)
   await application.copyCharacter(characterId)
   root.unmount(); mount()
-  await ready(() => document.querySelector('.world-home-grid'))
+  await shelf()
   navigate('/collections/default')
   await ready(() => document.querySelectorAll('.book-character-card:not(.workspace-add-card)').length === 3)
   const cards = [...document.querySelectorAll('.book-character-card:not(.workspace-add-card)')]

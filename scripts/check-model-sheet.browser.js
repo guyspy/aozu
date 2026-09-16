@@ -406,7 +406,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(afterDeleteZip.appearances.length === 1, 'ZIP resurrected a deleted Appearance')
     await call('navigate_character', { destination: 'characters' })
     await ready(() => route.pathname === '/collections')
-    result.textContent = 'PASS: 15 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
+    result.textContent = 'PASS: 16 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
     }
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }

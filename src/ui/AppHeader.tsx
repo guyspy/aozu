@@ -21,6 +21,7 @@ type AppHeaderProps = {
 export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
   const { t, i18n } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState('')
   const label = t(`main.webmcp.${webmcp.status}`, { count: webmcp.toolCount })
   const guidePrompt = t('main.webmcp.guidePrompt')
   const color = webmcp.status === 'ready' ? 'bg-emerald-500' : webmcp.status === 'registering' ? 'bg-amber-500'
@@ -51,7 +52,7 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
               {LANGUAGES.map(({ code, label: name }) => <SelectItem key={code} value={code}>{name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Dialog onOpenChange={(open) => { if (!open) setCopied(false) }}>
+          <Dialog onOpenChange={(open) => { if (!open) { setCopied(false); setCopyError('') } }}>
             <DialogTrigger asChild>
               <Button type="button" size="sm" variant="ghost" aria-label={`WebMCP. ${label}`} title={webmcp.error ?? label} className="h-8 gap-1.5 px-2 text-xs text-muted-foreground">
                 <span className={`size-2 rounded-full ${color}`} aria-hidden="true" />
@@ -62,9 +63,10 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
               <DialogTitle>{t('main.webmcp.guideTitle')}</DialogTitle>
               <DialogDescription>{t('main.webmcp.guideDescription')}</DialogDescription>
               <div className="max-h-64 select-text overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{guidePrompt}</div>
-              <Button type="button" onClick={() => void navigator.clipboard.writeText(guidePrompt).then(() => setCopied(true))}>
+              <Button type="button" onClick={() => void navigator.clipboard.writeText(guidePrompt).then(() => { setCopied(true); setCopyError('') }, (caught: unknown) => setCopyError(caught instanceof Error ? caught.message : String(caught)))}>
                 <CopyIcon />{t(copied ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}
               </Button>
+              {copyError && <p role="alert" className="text-sm text-destructive">{t('data.error')} {copyError}</p>}
             </DialogContent>
           </Dialog>
         </div>

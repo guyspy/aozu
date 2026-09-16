@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const fr: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Fermer', productName: 'AOZU', back: 'Retour', cancel: 'Annuler', language: 'Langue' },
-  navigation: { ...en.navigation, primary: 'Navigation principale' },
+  navigation: { ...en.navigation, breadcrumb: 'Fil d’Ariane', primary: 'Navigation principale' },
   startup: {
     loading: 'Chargement des données locales…',
     error: 'Impossible de charger les données locales. Actualisez la page et réessayez.',
@@ -13,19 +13,15 @@ export const fr: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'ARCHIVES DES PERSONNAGES AOZU',
     title: 'Vos personnages',
     description: 'Créez et gérez des personnages réutilisables enregistrés dans ce navigateur.',
     saved: 'Personnages enregistrés',
-    count: '{{count}} enregistrés',
-    more: 'Afficher {{count}} de plus',
     new: 'Créer un personnage',
     gates: {
       create: 'Partez d’un personnage vierge, puis façonnez-le dans l’éditeur ou avec ChatGPT.',
       import: 'Restaurez un personnage exporté précédemment.',
     },
     edit: 'Modifier',
-    copy: 'Dupliquer',
     delete: 'Supprimer',
     revision: 'Révision {{revision}}',
     updated: 'Mis à jour {{updated}}',
@@ -63,7 +59,7 @@ export const fr: Messages = {
       add: 'Ajouter', text: 'Texte', number: 'Nombre', boolean: 'Oui / non', yes: 'Oui', no: 'Non', value: 'Valeur', update: 'Mettre à jour le profil',
       attributeName: 'Nom de l’attribut {{index}}', attributeType: 'Type de l’attribut {{index}}', attributeValue: 'Valeur de l’attribut {{index}}', removeAttribute: 'Supprimer l’attribut {{index}}',
       edit: 'Modifier le profil',
-      noDescription: 'Aucune description pour le moment.', noBackstory: 'Aucune histoire pour le moment.', noAttributes: 'Aucun attribut pour le moment.',
+      noDescription: 'Aucune description pour le moment.', noBackstory: 'Aucune histoire pour le moment.',
     },
     alignment: {
       label: 'Aperçu de l’alignement',
@@ -108,10 +104,11 @@ export const fr: Messages = {
       unsupported: 'WebMCP n’est pas pris en charge par ce navigateur',
       registering: 'Enregistrement des outils de site WebMCP',
       ready: '{{count}} outils de site WebMCP prêts',
-      readyShort: '{{count}} outils',
       failed: 'Échec de l’enregistrement des outils WebMCP',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: 'Exporter le personnage',
     import: 'Importer un personnage',

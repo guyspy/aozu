@@ -44,7 +44,7 @@ function CharacterCardPortrait({ character, loadThumbnail }: { character: Charac
   </div>
 }
 
-export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, openCharacter, refresh, actions, profileAction }: {
+export function CharacterLibraryPage({ characters, loadThumbnail, collections, createCollection, openCharacter, refresh, actions, profileAction, recent }: {
   characters: CharacterLibraryItem[]
   loadThumbnail: LoadThumbnail
   collections: CharacterCollection[]
@@ -53,6 +53,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
   refresh(): Promise<void>
   actions: ReactNode
   profileAction?: ReactNode
+  recent?: ReactNode
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -121,6 +122,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
       {collections.map((value) => <CollectionBookCard key={value.id} to={`/collections/${value.id}`} label={nameOf(value)} />)}
       <WatermarkAddCard className="collection-cover" label={t('books.create')} icon="collections" onClick={createBook} />
     </section>}
+    {!book && recent}
     </WorkspaceScroll>
     </WorkspaceSurface>
     <Sheet open={creating} onOpenChange={(open) => { if (!open && !busy) setCreating(false) }}>

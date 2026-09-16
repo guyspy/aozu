@@ -67,7 +67,8 @@ export function CollectionProfileAction({ collection, updateCollection, refresh 
   const [profile, setProfile] = useState<CharacterCollectionProfile>(fields)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  return <>
+  // The form is portaled out of the workspace, so the flag agents read has to stay behind in the page.
+  return <span data-has-uncommitted-input={open || undefined}>
     <Button type="button" size="icon" variant="ghost" aria-label={t('books.editWorld')} onClick={() => { setProfile(fields()); setError(undefined); setOpen(true) }}><PencilIcon /></Button>
     <Sheet open={open} onOpenChange={(next) => { if (!busy) setOpen(next) }}>
       <WorkspaceSheet title={t('books.profile')} closeLabel={t('common.close')} aria-describedby={undefined}>
@@ -80,5 +81,5 @@ export function CollectionProfileAction({ collection, updateCollection, refresh 
         </form>
       </WorkspaceSheet>
     </Sheet>
-  </>
+  </span>
 }

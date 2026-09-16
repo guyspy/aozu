@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const ko: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: '닫기', productName: 'AOZU', back: '뒤로', cancel: '취소', language: '언어' },
-  navigation: { ...en.navigation, primary: '주 탐색' },
+  navigation: { ...en.navigation, breadcrumb: '탐색 경로', primary: '주 탐색' },
   startup: {
     loading: '로컬 데이터를 불러오는 중…',
     error: '로컬 데이터를 불러올 수 없습니다. 새로 고침 후 다시 시도해 주세요.',
@@ -13,19 +13,15 @@ export const ko: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'AOZU 캐릭터 아카이브',
     title: '내 캐릭터',
     description: '이 브라우저에 저장된, 다시 쓸 수 있는 캐릭터를 만들고 관리합니다.',
     saved: '저장된 캐릭터',
-    count: '{{count}}개 저장됨',
-    more: '{{count}}개 더 보기',
     new: '캐릭터 만들기',
     gates: {
       create: '빈 캐릭터로 시작한 뒤 편집기나 ChatGPT로 다듬어 보세요.',
       import: '이전에 내보낸 캐릭터를 복원합니다.',
     },
     edit: '편집',
-    copy: '복제',
     delete: '삭제',
     revision: '리비전 {{revision}}',
     updated: '{{updated}} 업데이트',
@@ -63,7 +59,7 @@ export const ko: Messages = {
       add: '추가', text: '텍스트', number: '숫자', boolean: '예／아니요', yes: '예', no: '아니요', value: '값', update: '프로필 업데이트',
       attributeName: '속성 {{index}} 이름', attributeType: '속성 {{index}} 유형', attributeValue: '속성 {{index}} 값', removeAttribute: '속성 {{index}} 삭제',
       edit: '캐릭터 프로필 편집',
-      noDescription: '아직 소개가 없습니다.', noBackstory: '아직 배경 이야기가 없습니다.', noAttributes: '아직 속성이 없습니다.',
+      noDescription: '아직 소개가 없습니다.', noBackstory: '아직 배경 이야기가 없습니다.',
     },
     alignment: {
       label: '정렬 미리보기',
@@ -108,10 +104,11 @@ export const ko: Messages = {
       unsupported: '이 브라우저는 WebMCP를 지원하지 않습니다',
       registering: 'WebMCP 사이트 도구를 등록하는 중',
       ready: 'WebMCP 사이트 도구 {{count}}개 준비됨',
-      readyShort: '도구 {{count}}개',
       failed: 'WebMCP 도구 등록 실패',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: '캐릭터 내보내기',
     import: '캐릭터 가져오기',

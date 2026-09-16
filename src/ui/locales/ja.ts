@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const ja: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: '閉じる', productName: 'AOZU', back: '戻る', cancel: 'キャンセル', language: '言語' },
-  navigation: { ...en.navigation, primary: 'メインナビゲーション' },
+  navigation: { ...en.navigation, breadcrumb: 'パンくずリスト', primary: 'メインナビゲーション' },
   startup: {
     loading: 'ローカルデータを読み込んでいます…',
     error: 'ローカルデータを読み込めませんでした。ページを再読み込みしてもう一度お試しください。',
@@ -13,19 +13,15 @@ export const ja: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'AOZU キャラクターアーカイブ',
     title: 'あなたのキャラクター',
     description: 'このブラウザに保存された、再利用できるキャラクターを作成・管理します。',
     saved: '保存済みのキャラクター',
-    count: '{{count}} 件保存済み',
-    more: 'さらに {{count}} 件を表示',
     new: 'キャラクターを作成',
     gates: {
       create: '空のキャラクターから始めて、エディターや ChatGPT で形にしていきましょう。',
       import: '以前に書き出したキャラクターを復元します。',
     },
     edit: '編集',
-    copy: '複製',
     delete: '削除',
     revision: 'リビジョン {{revision}}',
     updated: '{{updated}} に更新',
@@ -63,7 +59,7 @@ export const ja: Messages = {
       add: '追加', text: 'テキスト', number: '数値', boolean: 'はい／いいえ', yes: 'はい', no: 'いいえ', value: '値', update: 'プロフィールを更新',
       attributeName: '属性 {{index}} の名前', attributeType: '属性 {{index}} の種類', attributeValue: '属性 {{index}} の値', removeAttribute: '属性 {{index}} を削除',
       edit: 'プロフィールを編集',
-      noDescription: '紹介はまだありません。', noBackstory: '背景はまだありません。', noAttributes: '属性はまだありません。',
+      noDescription: '紹介はまだありません。', noBackstory: '背景はまだありません。',
     },
     alignment: {
       label: '位置合わせプレビュー',
@@ -108,10 +104,11 @@ export const ja: Messages = {
       unsupported: 'このブラウザは WebMCP に対応していません',
       registering: 'WebMCP サイトツールを登録しています',
       ready: 'WebMCP サイトツール {{count}} 件が利用可能',
-      readyShort: '{{count}} 件のツール',
       failed: 'WebMCP ツールの登録に失敗しました',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: 'キャラクターを書き出す',
     import: 'キャラクターを読み込む',

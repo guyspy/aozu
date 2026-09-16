@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const de: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Schließen', productName: 'AOZU', back: 'Zurück', cancel: 'Abbrechen', language: 'Sprache' },
-  navigation: { ...en.navigation, primary: 'Hauptnavigation' },
+  navigation: { ...en.navigation, breadcrumb: 'Brotkrümelnavigation', primary: 'Hauptnavigation' },
   startup: {
     loading: 'Lokale Daten werden geladen…',
     error: 'Lokale Daten konnten nicht geladen werden. Seite neu laden und erneut versuchen.',
@@ -13,19 +13,15 @@ export const de: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'AOZU-FIGURENARCHIV',
     title: 'Deine Figuren',
     description: 'Erstelle und verwalte wiederverwendbare Figuren, die in diesem Browser gespeichert sind.',
     saved: 'Gespeicherte Figuren',
-    count: '{{count}} gespeichert',
-    more: '{{count}} weitere anzeigen',
     new: 'Figur erstellen',
     gates: {
       create: 'Beginne mit einer leeren Figur und gestalte sie im Editor oder mit ChatGPT.',
       import: 'Stelle eine zuvor exportierte Figur wieder her.',
     },
     edit: 'Bearbeiten',
-    copy: 'Duplizieren',
     delete: 'Löschen',
     revision: 'Revision {{revision}}',
     updated: 'Aktualisiert {{updated}}',
@@ -63,7 +59,7 @@ export const de: Messages = {
       add: 'Hinzufügen', text: 'Text', number: 'Zahl', boolean: 'Ja / nein', yes: 'Ja', no: 'Nein', value: 'Wert', update: 'Profil aktualisieren',
       attributeName: 'Name von Attribut {{index}}', attributeType: 'Typ von Attribut {{index}}', attributeValue: 'Wert von Attribut {{index}}', removeAttribute: 'Attribut {{index}} entfernen',
       edit: 'Figurenprofil bearbeiten',
-      noDescription: 'Noch keine Beschreibung.', noBackstory: 'Noch keine Hintergrundgeschichte.', noAttributes: 'Noch keine Attribute.',
+      noDescription: 'Noch keine Beschreibung.', noBackstory: 'Noch keine Hintergrundgeschichte.',
     },
     alignment: {
       label: 'Ausrichtungsvorschau',
@@ -108,10 +104,11 @@ export const de: Messages = {
       unsupported: 'WebMCP wird von diesem Browser nicht unterstützt',
       registering: 'WebMCP-Site-Tools werden registriert',
       ready: '{{count}} WebMCP-Site-Tools bereit',
-      readyShort: '{{count}} Tools',
       failed: 'Registrierung der WebMCP-Tools fehlgeschlagen',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: 'Figur exportieren',
     import: 'Figur importieren',

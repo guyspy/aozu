@@ -1,10 +1,10 @@
-import { en, type Messages } from './en'
+import { en, type Messages } from './en.ts'
 
 export const es: Messages = {
   preview: en.preview,
   modelSheet: en.modelSheet,
   common: { close: 'Cerrar', productName: 'AOZU', back: 'Atrás', cancel: 'Cancelar', language: 'Idioma' },
-  navigation: { ...en.navigation, primary: 'Navegación principal' },
+  navigation: { ...en.navigation, breadcrumb: 'Ruta de navegación', primary: 'Navegación principal' },
   startup: {
     loading: 'Cargando datos locales…',
     error: 'No se pudieron cargar los datos locales. Recarga la página e inténtalo de nuevo.',
@@ -13,19 +13,15 @@ export const es: Messages = {
   books: en.books,
   library: en.library,
   characters: {
-    kicker: 'ARCHIVO DE PERSONAJES AOZU',
     title: 'Tus personajes',
     description: 'Crea y gestiona personajes reutilizables guardados en este navegador.',
     saved: 'Personajes guardados',
-    count: '{{count}} guardados',
-    more: 'Mostrar {{count}} más',
     new: 'Crear personaje',
     gates: {
       create: 'Empieza con un personaje en blanco y dale forma en el editor o con ChatGPT.',
       import: 'Restaura un personaje que exportaste antes.',
     },
     edit: 'Editar',
-    copy: 'Duplicar',
     delete: 'Eliminar',
     revision: 'Revisión {{revision}}',
     updated: 'Actualizado {{updated}}',
@@ -63,7 +59,7 @@ export const es: Messages = {
       add: 'Añadir', text: 'Texto', number: 'Número', boolean: 'Sí / no', yes: 'Sí', no: 'No', value: 'Valor', update: 'Actualizar perfil',
       attributeName: 'Nombre del atributo {{index}}', attributeType: 'Tipo del atributo {{index}}', attributeValue: 'Valor del atributo {{index}}', removeAttribute: 'Eliminar atributo {{index}}',
       edit: 'Editar perfil del personaje',
-      noDescription: 'Aún no hay descripción.', noBackstory: 'Aún no hay historia.', noAttributes: 'Aún no hay atributos.',
+      noDescription: 'Aún no hay descripción.', noBackstory: 'Aún no hay historia.',
     },
     alignment: {
       label: 'Vista de alineación',
@@ -108,10 +104,11 @@ export const es: Messages = {
       unsupported: 'Este navegador no es compatible con WebMCP',
       registering: 'Registrando herramientas de sitio WebMCP',
       ready: '{{count}} herramientas de sitio WebMCP listas',
-      readyShort: '{{count}} herramientas',
       failed: 'No se pudieron registrar las herramientas WebMCP',
     },
   },
+  world: en.world,
+  storyboard: en.storyboard,
   data: {
     export: 'Exportar personaje',
     import: 'Importar personaje',

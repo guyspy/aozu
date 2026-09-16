@@ -62,7 +62,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     if (kind === 'location') navigate(`/collections/${collectionId}/locations${(value as LocationSetting).parentId ? `/${(value as LocationSetting).parentId}` : ''}`)
   })
   const upload = <input ref={uploadInput} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void run(async () => { await service.upload(library, albumId ?? 'default', files) }) }} />
-  const groupName = (id: string) => id === 'default' ? text('defaultCollection') : collections.find((c) => c.id === id)?.name ?? id
+  const groupName = (id: string) => id === 'default' ? t('books.default') : collections.find((c) => c.id === id)?.name ?? id
   const albumName = (a: LibraryGroup) => a.id === 'default' ? text('defaultAlbum') : a.name
   const settingImages = (images: SettingImage[], targetConditionId = '') => <section className="world-grid">
     {images.map((image) => <WorkspaceCard key={image.id} className="world-card" aspect="4 / 3" label={image.label}
@@ -73,7 +73,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     <WatermarkAddCard className="world-card" icon="collections" aspect="4 / 3" label={text('addSettingImage')} onClick={() => setSettingUpload({ conditionId: targetConditionId || undefined })} />
     <WatermarkAddCard className="world-card" icon="albums" aspect="4 / 3" label={text('addReference')} onClick={() => setReference({ snapshot: library, locationId: locationId ?? '', conditionId: targetConditionId, photoId: '' })} />
   </section>
-  if ((albumId && !album) || (photoId && !photo) || (locationId && (!place || place.collectionId !== collectionId)) || (collectionId && !collections.some((c) => c.id === collectionId))) return <Workspace className="world-workspace"><p role="alert">404</p></Workspace>
+  if ((albumId && !album) || (photoId && !photo) || (locationId && (!place || place.collectionId !== collectionId)) || (collectionId && !collections.some((c) => c.id === collectionId))) return <Workspace><p role="alert">404</p></Workspace>
   const allTags = [...new Set(library.locations.filter((item) => item.collectionId === collectionId).flatMap((item) => item.tags))].sort()
   const locations = library.locations.filter((item) => item.collectionId === collectionId && (tags.length ? tags.some((tag) => item.tags.includes(tag)) : item.parentId === (locationId ?? null)))
   const locationView = pathname.includes('/conditions') ? 'conditions' : pathname.endsWith('/profile') ? 'profile' : 'images'
@@ -113,9 +113,9 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     : collectionId && <WorkspaceTabs label={text('collection')} active="locations"
       items={[{ id: 'characters', label: text('characters') }, { id: 'locations', label: text('locations') }, { id: 'profile', label: t('books.profile') }]}
       onSelect={(id) => navigate(`/collections/${collectionId}${id === 'characters' ? '' : `/${id}`}`)}>{actions}</WorkspaceTabs>}
-    {!collectionId && !album && !photo && <LibraryTabs active="albums" />}</>} className="world-workspace" data-workspace-view={place ? `location-${locationView}` : collectionId ? 'locations' : 'albums'} data-collection-id={collectionId} data-location-id={locationId} data-condition-id={conditionId} data-album-id={albumId} data-photo-id={photoId} data-has-uncommitted-input={Boolean(editing || movePhotoOpen || reference || settingUpload)}>
+    {!collectionId && !album && !photo && <LibraryTabs active="albums" />}</>} data-workspace-view={place ? `location-${locationView}` : collectionId ? 'locations' : 'albums'} data-collection-id={collectionId} data-location-id={locationId} data-condition-id={conditionId} data-album-id={albumId} data-photo-id={photoId} data-has-uncommitted-input={Boolean(editing || movePhotoOpen || reference || settingUpload)}>
     {!collectionId && !album && !photo && <h1 className="sr-only">{text('albums')}</h1>}
-<WorkspaceSurface surface={album ? 'paper' : undefined} className={`world-page${album ? ' album-page' : ''}${photo ? ' album-photo-page' : ''}`} aria-label={place?.name ?? photo?.name ?? (album ? albumName(album) : text(collectionId ? 'locations' : 'albums'))}><WorkspaceScroll>
+<WorkspaceSurface surface={album ? 'paper' : undefined} className={`world-page${album ? ' album-page' : ''}`} aria-label={place?.name ?? photo?.name ?? (album ? albumName(album) : text(collectionId ? 'locations' : 'albums'))}><WorkspaceScroll>
     {error && <p role="alert" className="story-error">{error}</p>}{busy && <p role="status">{text('working')}</p>}
     {place && locationView === 'images' && <section className="world-section"><div className="world-heading"><h2>{text('images')}</h2></div>{settingImages(place.images)}</section>}
     {place && locationView === 'profile' && <div className="book-profile flex flex-col gap-4" aria-label={text('locationProfile')}>

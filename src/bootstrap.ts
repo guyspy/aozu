@@ -8,7 +8,7 @@ import { createIndexedDbCharacterLibraryRepository } from './adapters/indexeddb/
 import { exportCharacterLibraryZip, readCharacterLibraryZip } from './adapters/zip/character-library.ts'
 import type { CharacterLibrarySnapshot } from './core/application/character-library.ts'
 import { createIndexedDbMantleStorageAdapter } from './adapters/indexeddb/mantle-storage.ts'
-import { createWorldLibraryService, validateAlbumComposition, type AlbumCharacterSource, type WorldLibraryCommand } from './core/application/world-library.ts'
+import { createWorldLibraryService, unreferencedMention, validateAlbumComposition, type AlbumCharacterSource, type WorldLibraryCommand } from './core/application/world-library.ts'
 import { exportLibraryArchive, importLibraryArchive } from './core/application/library-archive.ts'
 import { createStoryboardService } from './core/application/storyboard.ts'
 import type { SettingSnapshot } from './core/domain/storyboard.ts'
@@ -452,6 +452,8 @@ export function createApplication(document: Document) {
         updatedAt: Date.now(),
       }))
     },
+    /** The one complete-archive contract, shared by the Library tree and the import/export tools. */
+    archiveServices: () => archiveServices(),
   }
 
   async function validateStoryboardSources(command: { action: string; source?: string; title?: string; setting?: SettingSnapshot; settings?: SettingSnapshot[] }) {
@@ -467,14 +469,14 @@ export function createApplication(document: Document) {
     }
     if (command.action !== 'add-candidate') return
     const text = `${command.title ?? ''}\n${command.source ?? ''}`
-    const referencedNames = records.filter(({ character }) => settings.some(({ kind, sourceId }) => kind === 'character' && sourceId === character.id)).map(({ character }) => character.name)
-    const missingCharacter = [...records].sort((a, b) => b.character.name.length - a.character.name.length).find(({ character }) => character.name && text.includes(character.name) && !settings.some(({ kind, sourceId }) => kind === 'character' && sourceId === character.id) && !referencedNames.some((referenced) => referenced.includes(character.name) && text.includes(referenced)))
-    if (missingCharacter) throw new Error(`${missingCharacter.character.name} is defined in AOZU and requires a Character setting ref`)
-    const missingLocation = world.locations.find(({ id, name }) => name && text.includes(name) && !settings.some(({ kind, sourceId }) => kind === 'location' && sourceId === id))
+    const pinned = (kind: SettingSnapshot['kind'], sourceId: string) => settings.some((setting) => setting.kind === kind && setting.sourceId === sourceId)
+    const missingCharacter = unreferencedMention(text, records.map(({ character }) => ({ name: character.name, referenced: pinned('character', character.id), value: character })))
+    if (missingCharacter) throw new Error(`${missingCharacter.name} is defined in AOZU and requires a Character setting ref`)
+    const missingLocation = unreferencedMention(text, world.locations.map((location) => ({ name: location.name, referenced: pinned('location', location.id), value: location })))
     if (missingLocation) throw new Error(`${missingLocation.name} is defined in AOZU and requires a Location setting ref`)
-    const missingCondition = world.locations.flatMap((location) => location.conditions.map((condition) => ({ location, condition }))).find(({ location, condition }) => condition.name && text.includes(condition.name) && !settings.some(({ kind, sourceId }) => kind === 'location' && sourceId === location.id))
-    if (missingCondition) throw new Error(`${missingCondition.condition.name} is defined in AOZU and requires its Location setting ref`)
-    const missingPhoto = world.photos.find(({ id, name }) => name && text.includes(name) && !settings.some(({ kind, sourceId }) => kind === 'photo' && sourceId === id))
+    const missingCondition = unreferencedMention(text, world.locations.flatMap((location) => location.conditions.map((condition) => ({ name: condition.name, referenced: pinned('location', location.id), value: condition }))))
+    if (missingCondition) throw new Error(`${missingCondition.name} is defined in AOZU and requires its Location setting ref`)
+    const missingPhoto = unreferencedMention(text, world.photos.map((photo) => ({ name: photo.name, referenced: pinned('photo', photo.id), value: photo })))
     if (missingPhoto) throw new Error(`${missingPhoto.name} is defined in AOZU and requires an Album Photo setting ref`)
   }
 
@@ -640,7 +642,7 @@ export function createApplication(document: Document) {
     const worldContext = intent === 'world' || ['albums', 'locations', 'story-book'].includes(view?.surface ?? '') || ['collection', 'album', 'photo', 'location', 'story-book'].includes(resource ?? '')
     const worldNextActions = intent === 'world' && !selectedCollection ? books.map((book) => ({
       tool: 'inspect_workspace', required: true, reason: `Read ${book.name}'s backstory, Characters and Locations before creating world art.`, input: { intent: 'world', resource: 'collection', id: book.id },
-    })) : [{ tool: 'navigate_workspace', required: false, reason: 'Open the selected Collection locations or another exact Library resource.', input: selectedCollection ? { resource: 'locations', id: selectedCollection.id } : { resource: 'albums' } }]
+    })) : [{ tool: 'navigate_workspace', required: false, reason: 'Open the selected Collection locations or another exact Library resource.', input: selectedCollection ? { resource: 'collection', id: selectedCollection.id, view: 'locations' } : { resource: 'albums' } }]
     return {
       status: 'ok',
       data: {
@@ -710,10 +712,6 @@ export function createApplication(document: Document) {
       allow(['characters', 'profile', 'locations'])
       const collection = (await collections.list()).find((item) => item.id === id); if (!collection) throw new Error('Collection not found')
       path = `/collections/${exact(id, 'Collection')}${view && view !== 'characters' ? `/${view}` : ''}`
-    } else if (resource === 'locations') {
-      allow()
-      if (!(await collections.list()).some((item) => item.id === id)) throw new Error('Collection not found')
-      path = `/collections/${exact(id, 'Collection')}/locations`
     } else if (resource === 'location') {
       allow(['setting-images', 'profile', 'conditions'], view === 'conditions')
       const location = (await worldLibrary.load()).locations.find((item) => item.id === id); if (!location) throw new Error('Location not found')
@@ -776,7 +774,7 @@ export function createApplication(document: Document) {
         return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id, collectionId }, effects: { navigation: { path: `/collections/${encodeURIComponent(collectionId)}`, mode: 'push', reason: 'Review the Character in its Collection.' } } }
       }
       if (input.action !== 'delete') throw new Error('Unsupported Character action')
-      await editor.close(input.id); await characterDrafts.delete(input.id)
+      await application.deleteCharacter(input.id); characterChanges.publish({ characterId: input.id, revision: null })
       return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id }, effects: { navigation: { path: '/collections', mode: 'push', reason: 'Return to Collections.' } } }
     }
     if (input.expectedRevision === undefined) throw new Error('expectedRevision is required')
@@ -784,13 +782,16 @@ export function createApplication(document: Document) {
     const knownCollections = await collections.list()
     if (input.resource === 'location' && input.collectionId && !knownCollections.some(({ id }) => id === input.collectionId)) throw new Error('Collection not found')
     if (input.resource === 'story-book' && Array.isArray(input.collectionIds) && input.collectionIds.some((id) => !knownCollections.some((collection) => collection.id === id))) throw new Error('Collection not found')
-    const originalLocation = input.resource === 'location' && input.id ? (await worldLibrary.load()).locations.find((item) => item.id === input.id) : undefined
+    const before = input.resource === 'location' || input.resource === 'photo' ? await worldLibrary.load() : undefined
+    const originalLocation = input.resource === 'location' && input.id ? before?.locations.find((item) => item.id === input.id) : undefined
+    // A deleted Photo is gone from the result, so remember the album it is being removed from.
+    const originalPhotoAlbum = input.resource === 'photo' && input.id ? before?.photos.find((item) => item.id === input.id)?.albumId : undefined
     const { expectedRevision, ...command } = input
     const result = await worldLibrary.update(command as unknown as WorldLibraryCommand, expectedRevision)
     const changedLocation = result.library.locations.find((item) => item.id === (command.resource === 'condition' ? input.locationId : result.id))
     const changedPhoto = result.library.photos.find((item) => item.id === result.id)
     const path = command.resource === 'album' ? (command.action === 'delete' ? '/albums' : `/albums/${result.id}`)
-      : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : '/albums')
+      : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : originalPhotoAlbum ? `/albums/${originalPhotoAlbum}` : '/albums')
       : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${originalLocation?.collectionId ?? 'default'}/locations${originalLocation?.parentId ? `/${originalLocation.parentId}` : ''}` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
       : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
       : command.resource === 'reference' ? `/collections/${result.library.locations.find((item) => item.id === input.locationId)?.collectionId ?? 'default'}/locations/${input.locationId}${input.conditionId ? `/conditions/${input.conditionId}` : ''}`
