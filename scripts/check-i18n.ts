@@ -27,6 +27,10 @@ for (const [name, locale] of Object.entries({ de, es, fr, ja, ko, ptBR, zhCN, zh
   assert.deepEqual(extra, [], `${name} has keys English dropped: ${extra.join(', ')}`)
 }
 
+const read = (tree: Tree, path: string) => path.split('.').reduce<string | Tree>((value, part) => (value as Tree)[part], tree)
+const untranslatedJapanese = [...english].filter((key) => key !== 'common.productName' && read(ja as unknown as Tree, key) === read(en as unknown as Tree, key))
+assert.deepEqual(untranslatedJapanese, [], `Japanese still uses English: ${untranslatedJapanese.join(', ')}`)
+
 const sources: string[] = []
 const walk = (dir: string) => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
