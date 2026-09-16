@@ -2,7 +2,7 @@ import { strToU8, zipSync } from 'fflate'
 import { createWorldLibraryRepository } from '../../adapters/indexeddb/world-library-repository.ts'
 import { inspectSceneImage } from '../../adapters/browser/scene-image.ts'
 import { readSafeZip, parseZipJson } from '../../adapters/zip/archive.ts'
-import { libraryImages, locationAncestors, validateWorldLibrary, type AlbumPhoto, type WorldLibrary, type LibraryImage, type LocationSetting, type SettingImage, type StoryFolder } from '../domain/world-library.ts'
+import { libraryImages, locationAncestors, validateWorldLibrary, type AlbumPhoto, type WorldLibrary, type LibraryImage, type LocationSetting, type SettingImage, type StoryBook } from '../domain/world-library.ts'
 
 type GroupPatch = { name?: string; description?: string }
 export type AlbumCharacterSource = { characterId: string; revision: number; sha256: string }
@@ -38,8 +38,8 @@ export type WorldLibraryCommand =
   | ({ resource: 'location'; action: 'create' | 'update' | 'delete' | 'duplicate'; id?: string; collectionId?: string; parentId?: string | null; tags?: string[]; consistency?: string } & GroupPatch)
   | ({ resource: 'condition'; action: 'create' | 'update' | 'delete' | 'duplicate'; locationId: string; id?: string } & GroupPatch)
   | ({ resource: 'reference'; action: 'create' | 'delete'; locationId: string; conditionId?: string; id?: string; photoId?: string; label?: string; purpose?: SettingImage['purpose'] })
-  | ({ resource: 'folder'; action: 'create' | 'update' | 'delete'; id?: string; synopsis?: string; direction?: string; collectionIds?: string[] } & GroupPatch)
-  | { resource: 'storyboard-folder'; action: 'move'; boardId: string; folderId?: string | null }
+  | ({ resource: 'story-book'; action: 'create' | 'update' | 'delete'; id?: string; synopsis?: string; direction?: string; collectionIds?: string[] } & GroupPatch)
+  | { resource: 'storyboard-book'; action: 'move'; boardId: string; bookId?: string | null }
 
 const requiredName = (name: string | undefined) => {
   const value = name?.trim()
@@ -110,17 +110,17 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
     const id = command.id ?? crypto.randomUUID(); target.images.push({ id, label: requiredName(command.label), purpose: command.purpose ?? 'inspiration', photoId: photo.id, image: { ...photo.image }, source: `${photo.name} · ${photo.source}`.slice(0, 2000) }); location.updatedAt = now
     return { library, id }
   }
-  if (command.resource === 'folder') {
-    if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(), folder: StoryFolder = { id, ...group(), synopsis: command.synopsis ?? '', direction: command.direction ?? '', collectionIds: command.collectionIds ?? [] }; library.folders.push(folder); return { library, id } }
-    const folder = library.folders.find((item) => item.id === command.id); if (!folder) throw new Error('Folder not found')
-    if (command.action === 'delete') { library.folders = library.folders.filter((item) => item.id !== folder.id); for (const [boardId, folderId] of Object.entries(library.boardFolders)) if (folderId === folder.id) delete library.boardFolders[boardId] }
-    else Object.assign(folder, group(folder), command.synopsis === undefined ? {} : { synopsis: command.synopsis }, command.direction === undefined ? {} : { direction: command.direction }, command.collectionIds === undefined ? {} : { collectionIds: command.collectionIds })
-    return { library, id: folder.id }
+  if (command.resource === 'story-book') {
+    if (command.action === 'create') { const id = command.id ?? crypto.randomUUID(), book: StoryBook = { id, ...group(), synopsis: command.synopsis ?? '', direction: command.direction ?? '', collectionIds: command.collectionIds ?? [] }; library.storyBooks.push(book); return { library, id } }
+    const book = library.storyBooks.find((item) => item.id === command.id); if (!book) throw new Error('Story book not found')
+    if (command.action === 'delete') { library.storyBooks = library.storyBooks.filter((item) => item.id !== book.id); for (const [boardId, bookId] of Object.entries(library.boardBooks)) if (bookId === book.id) delete library.boardBooks[boardId] }
+    else Object.assign(book, group(book), command.synopsis === undefined ? {} : { synopsis: command.synopsis }, command.direction === undefined ? {} : { direction: command.direction }, command.collectionIds === undefined ? {} : { collectionIds: command.collectionIds })
+    return { library, id: book.id }
   }
-  if (command.folderId && !library.folders.some((item) => item.id === command.folderId)) throw new Error('Folder not found')
-  if (command.folderId) library.boardFolders[command.boardId] = command.folderId
-  else delete library.boardFolders[command.boardId]
-  return { library, id: command.folderId ?? null }
+  if (command.bookId && !library.storyBooks.some((item) => item.id === command.bookId)) throw new Error('Story book not found')
+  if (command.bookId) library.boardBooks[command.boardId] = command.bookId
+  else delete library.boardBooks[command.boardId]
+  return { library, id: command.bookId ?? null }
 }
 
 export function createWorldLibraryService() {
@@ -151,11 +151,11 @@ export function createWorldLibraryService() {
       blobs.set(image.sha256, blob)
     }
     const remap = new Map<string, string>()
-    for (const group of [incoming.albums, incoming.photos, incoming.locations, incoming.folders]) for (const item of group) remap.set(item.id, crypto.randomUUID())
+    for (const group of [incoming.albums, incoming.photos, incoming.locations, incoming.storyBooks]) for (const item of group) remap.set(item.id, crypto.randomUUID())
     for (const album of incoming.albums) next.albums.push({ ...album, id: remap.get(album.id)! })
     for (const photo of incoming.photos) next.photos.push({ ...photo, id: remap.get(photo.id)!, albumId: remap.get(photo.albumId)! })
     for (const location of incoming.locations) next.locations.push({ ...location, id: remap.get(location.id)!, parentId: location.parentId ? remap.get(location.parentId)! : null, collectionId: preserveCollections ? location.collectionId : 'default', images: location.images.map((i) => ({ ...i, ...(i.photoId ? { photoId: remap.get(i.photoId) ?? i.photoId } : {}) })), conditions: location.conditions.map((c) => ({ ...c, images: c.images.map((i) => ({ ...i, ...(i.photoId ? { photoId: remap.get(i.photoId) ?? i.photoId } : {}) })) })) })
-    for (const folder of incoming.folders) next.folders.push({ ...folder, id: remap.get(folder.id)!, collectionIds: preserveCollections ? folder.collectionIds : [] })
+    for (const book of incoming.storyBooks) next.storyBooks.push({ ...book, id: remap.get(book.id)!, collectionIds: preserveCollections ? book.collectionIds : [] })
     return { library: changed(await repository.save(next, blobs)), idMap: Object.fromEntries(remap) }
   }
   return {

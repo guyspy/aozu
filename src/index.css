@@ -788,8 +788,8 @@ body::before {
 .story-upload:focus-within { outline:2px solid var(--ring)}
 .story-upload input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer}
 .story-upload:has(input:disabled) { opacity:.5; pointer-events:none}
-.story-folder-toolbar { margin-bottom:20px; }
-.story-folder-toolbar [role=alert] { margin-left:8px; }
+.story-history-toolbar { margin-bottom:20px; }
+.story-history-toolbar [role=alert] { margin-left:8px; }
 
 
 .story-picture { aspect-ratio:16/9; background:color-mix(in srgb,var(--muted) 65%,transparent); display:grid; place-items:center; overflow:hidden}

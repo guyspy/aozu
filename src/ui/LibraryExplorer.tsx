@@ -65,7 +65,7 @@ export function LibraryExplorer({ application, world, collections, characters, r
       {locations(place.id, collectionId)}
     </TreeDetails>
   })
-  const storyboardLinks = (folder?: string) => boards.filter((board) => world.boardFolders[board.id] === folder).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
+  const storyboardLinks = (book?: string) => boards.filter((board) => world.boardBooks[board.id] === book).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>
     <Button type="button" variant="ghost" onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}</Button>
@@ -86,10 +86,10 @@ export function LibraryExplorer({ application, world, collections, characters, r
             </TreeDetails>
             <TreeDetails initialOpen={pathname.startsWith('/albums')} label={<><AozuIcon name="albums" />{text('albums')}</>}>{world.albums.map((album) => <TreeLink key={album.id} to={`/albums/${album.id}`}>{album.id === 'default' ? text('defaultAlbum') : album.name}</TreeLink>)}</TreeDetails>
             <TreeDetails initialOpen={pathname.startsWith('/storyboards')} label={<><AozuIcon name="storyboards" />{text('storyboards')}</>}>
-              <TreeDetails initialOpen={pathname.includes('/folders/unfiled') || boards.some((board) => !world.boardFolders[board.id] && pathname.includes(board.id))} label={text('unfiled')}>
+              {boards.some((board) => !world.boardBooks[board.id]) && <TreeDetails initialOpen={pathname.includes('/books/unfiled') || boards.some((board) => !world.boardBooks[board.id] && pathname.includes(board.id))} label={text('unfiled')}>
                 {storyboardLinks()}
-              </TreeDetails>
-              {world.folders.map((folder) => <TreeDetails key={folder.id} initialOpen={pathname.includes(folder.id)} label={folder.name}>{storyboardLinks(folder.id)}</TreeDetails>)}
+              </TreeDetails>}
+              {world.storyBooks.map((book) => <TreeDetails key={book.id} initialOpen={pathname.includes(book.id)} label={book.name}>{storyboardLinks(book.id)}</TreeDetails>)}
             </TreeDetails>
           </nav>
           {error && <p role="alert" className="story-error">{error}</p>}

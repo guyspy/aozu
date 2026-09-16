@@ -16,7 +16,7 @@ export function readWorkspaceView(document: Document) {
     ...(view.locationId ? { locationId: view.locationId } : {}),
     ...(view.albumId ? { albumId: view.albumId } : {}),
     ...(view.photoId ? { photoId: view.photoId } : {}),
-    ...(view.folderId ? { folderId: view.folderId } : {}),
+    ...(view.bookId ? { bookId: view.bookId } : {}),
     boardId: view.boardId ?? null,
     frameId: view.frameId ?? null,
     candidateId: view.candidateId ?? null,

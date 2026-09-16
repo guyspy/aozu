@@ -140,14 +140,14 @@ export function AppRoutes({ application }: { application: Application }) {
     ?? (album ? named(album, 'world.defaultAlbum') : undefined)
     ?? (collection ? named(collection, 'world.defaultCollection') : undefined)
     ?? (parts[0] === 'storyboards' ? boardTitle : undefined)
-  const boardFolder = parts[0] === 'storyboards' ? world.library.boardFolders[parts[1]] : undefined
+  const boardBook = parts[0] === 'storyboards' ? world.library.boardBooks[parts[1]] : undefined
   const backPath = editing ? `/collections/${characterBook}`
     : place ? `/collections/${place.collectionId}/locations${locationAncestors(world.library, place.id).at(-2) ? `/${place.parentId}` : ''}`
     : parts[0] === 'collections' && parts[2] === 'locations' ? `/collections/${parts[1]}`
     : parts[0] === 'collections' && parts[1] ? '/collections'
     : parts[0] === 'albums' && parts[2] === 'photos' ? `/albums/${parts[1]}`
     : parts[0] === 'albums' && parts[1] ? '/albums'
-    : parts[0] === 'storyboards' && parts[1] ? (boardFolder ? `/storyboards/folders/${boardFolder}` : '/storyboards')
+    : parts[0] === 'storyboards' && parts[1] ? (parts[1] === 'books' ? '/storyboards' : boardBook ? `/storyboards/books/${boardBook}` : '/storyboards/books/unfiled')
     : parts.length ? '/' : undefined
 
   const crumbs: Array<{ label: string; path: string }> = []
@@ -205,7 +205,7 @@ export function AppRoutes({ application }: { application: Application }) {
       <Route path="/storyboards" element={storyPage} />
       <Route path="/storyboards/:boardId" element={storyPage} />
       <Route path="/storyboards/:boardId/details" element={storyPage} />
-      <Route path="/storyboards/folders/:folderId" element={storyPage} />
+      <Route path="/storyboards/books/:bookId" element={storyPage} />
       <Route path="/albums" element={worldPage} />
       <Route path="/albums/:albumId" element={worldPage} />
       <Route path="/albums/:albumId/photos/:photoId" element={worldPage} />

@@ -6,9 +6,9 @@ import { StoryboardSettingPicker } from '@/ui/StoryboardSettingPicker'
 import type { Application } from '@/bootstrap'
 import type { CharacterLibraryItem } from '@/ui/pages/CharacterLibraryPage'
 import type { WorldLibraryService } from '@/core/application/world-library'
-import type { WorldLibrary } from '@/core/domain/world-library'
+import type { StoryBook, WorldLibrary } from '@/core/domain/world-library'
 import type { CharacterCollection } from '@/core/domain/character-collection'
-import { StoryboardFolders } from '@/ui/StoryboardFolders'
+import { StoryboardBookMove } from '@/ui/StoryboardBooks'
 import { useEffect, useRef, useState } from 'react'
 import { useMatch, useNavigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,7 @@ import { Sheet, SheetDescription } from '@/ui/components/ui/sheet'
 import { Button } from '@/ui/components/ui/button'
 import { useBlobUrl } from '@/ui/useBlobUrl'
 import { DataControls } from '@/ui/DataControls'
-import { ImportIcon, PencilIcon } from 'lucide-react'
+import { ImportIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 
 function Picture({ service, id, alt }: { service: StoryboardService; id?: string | null; alt: string }) {
@@ -32,7 +32,8 @@ function Picture({ service, id, alt }: { service: StoryboardService; id?: string
 export function StoryboardPage({ service, worldService, world, collections, application, characters, setTitle }: { service: StoryboardService; worldService: WorldLibraryService; world: WorldLibrary; collections: CharacterCollection[]; application: Application; characters: CharacterLibraryItem[]; setTitle(name?: string): void }) {
   const { t } = useTranslation()
   const text = (key: string) => t(`storyboard.${key}`)
-  const { boardId, folderId } = useParams()
+  const { boardId, bookId } = useParams()
+  const book = world.storyBooks.find((item) => item.id === (bookId ?? (boardId && world.boardBooks[boardId])))
   const navigate = useNavigate()
   const [boards, setBoards] = useState<Storyboard[]>([])
   const [board, setBoard] = useState<Storyboard>()
@@ -55,6 +56,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     return () => { live = false; unsubscribe() }
   }, [service, boardId])
   const [creating, setCreating] = useState(false)
+  const [editingBook, setEditingBook] = useState<StoryBook | 'new'>()
   const run = async (task: () => Promise<void>) => { setBusy(true); setError(''); try { await task() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
   const update = async (command: BoardCommand, blob?: Blob) => {
     if (!board) throw new Error('Storyboard not loaded')
@@ -77,9 +79,9 @@ export function StoryboardPage({ service, worldService, world, collections, appl
     }
   })
   useEffect(() => {
-    setTitle(board?.name)
+    setTitle(board?.name ?? book?.name)
     return () => setTitle(undefined)
-  }, [board?.name, setTitle])
+  }, [board?.name, book?.name, setTitle])
   useEffect(() => {
     if (!draft && !settings) return
     const prevent = (event: BeforeUnloadEvent) => { event.preventDefault() }
@@ -88,14 +90,13 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   }, [draft, settings])
   const uploadInput = (target?: string) => <label className="story-upload">{text(target ? 'addCandidates' : 'importFrames')}<input type="file" accept="image/png" multiple disabled={busy || dirty} onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void upload(files, target) }} /></label>
   const move = (id: string, offset: number) => run(async () => { if (!board) return; const order = board.frames.map((f) => f.id), from = order.indexOf(id), to = from + offset; if (to < 0 || to >= order.length) return; [order[from], order[to]] = [order[to], order[from]]; await update({ action: 'reorder', order }) })
-  if (folderId && folderId !== 'unfiled' && !world.folders.some((f) => f.id === folderId)) return <Workspace className="world-workspace"><p role="alert">404</p></Workspace>
-  const folder = world.folders.find((f) => f.id === (folderId ?? (boardId && world.boardFolders[boardId])))
+  if (bookId && bookId !== 'unfiled' && !world.storyBooks.some((item) => item.id === bookId)) return <Workspace className="world-workspace"><p role="alert">404</p></Workspace>
   const crumbs = [{ label: t('world.storyboards'), path: '/storyboards' }]
-  if (folder) crumbs.push({ label: folder.name, path: `/storyboards/folders/${folder.id}` })
-  else if (folderId === 'unfiled') crumbs.push({ label: t('world.unfiled'), path: '/storyboards/folders/unfiled' })
+  if (book) crumbs.push({ label: book.name, path: `/storyboards/books/${book.id}` })
+  else if (bookId === 'unfiled' || (boardId && !world.boardBooks[boardId])) crumbs.push({ label: t('world.unfiled'), path: '/storyboards/books/unfiled' })
   if (boardId) crumbs.push({ label: board?.name ?? text('working'), path: `/storyboards/${boardId}` })
   const documentActions = board && <WorkspaceActions>
-    <StoryboardFolders service={worldService} library={world} collections={collections} boardId={board.id} disabled={busy || dirty} />
+    <StoryboardBookMove service={worldService} library={world} boardId={board.id} disabled={busy || dirty} />
     <DataControls exportData={() => service.export(board.id, board.revision)} exportFilename={`${board.name}.zip`} exportLabel={text('export')} exportIconOnly />
     <TooltipProvider><Tooltip><TooltipTrigger asChild><Button asChild type="button" size="icon" variant="outline" aria-label={text('importFrames')} disabled={busy || dirty}>
       <label><ImportIcon /><input className="sr-only" type="file" accept="image/png" multiple disabled={busy || dirty} onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void upload(files) }} /></label>
@@ -104,17 +105,18 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   return <><Breadcrumbs items={crumbs} /><Workspace header={!boardId ? <LibraryTabs active="storyboards" /> : board ? <WorkspaceTabs label={text('workspace')} active={details ? 'details' : 'frames'}
     items={[{ id: 'frames', label: text('workspace') }, { id: 'details', label: text('settings') }] as const}
     onSelect={(tab) => navigate(`/storyboards/${board.id}${tab === 'details' ? '/details' : ''}`)}>{documentActions}</WorkspaceTabs> : undefined}
-    className="story-workspace" data-workspace-view={boardId ? 'storyboard' : 'storyboards'} data-board-id={boardId} data-folder-id={folderId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
+    className="story-workspace" data-workspace-view={boardId ? 'storyboard' : bookId ? 'story-book' : 'storyboards'} data-board-id={boardId} data-book-id={bookId} data-board-revision={board?.revision} data-frame-id={frameId || undefined} data-panel={frameId ? 'frame' : undefined} data-has-uncommitted-input={dirty || Boolean(editingBook)} data-compared-image-ids={compare.join(',')} data-candidate-id={compare.length === 1 ? compare[0] : frame?.selected ?? undefined}>
 <WorkspaceSurface surface={boardId && !details ? 'paper' : undefined} className={boardId ? 'story-document' : 'workspace-scroll'}>
     {!boardId && <h1 className="sr-only">{text('title')}</h1>}
-    {!boardId ? <StoryboardFolders service={worldService} library={world} collections={collections} folderId={folderId} disabled={busy || dirty} /> : board && !details &&
-      <div className="story-folder-toolbar flex min-w-0 flex-wrap items-center gap-1"><WorkspaceHistoryActions undoLabel={text('undo')} redoLabel={text('redo')} canUndo={!busy && !dirty && Boolean(board.past.length)} canRedo={!busy && !dirty && Boolean(board.future.length)}
+    {!boardId && bookId && <div className="character-profile-heading"><div className="min-w-0"><span>{t('world.storyBook')}</span><h2>{book?.name ?? t('world.unfiled')}</h2>{book?.description && <p>{book.description}</p>}</div>{book && <Button type="button" size="icon" variant="ghost" aria-label={t('world.edit')} onClick={() => setEditingBook(book)}><PencilIcon /></Button>}</div>}
+    {board && !details &&
+      <div className="story-history-toolbar flex min-w-0 flex-wrap items-center gap-1"><WorkspaceHistoryActions undoLabel={text('undo')} redoLabel={text('redo')} canUndo={!busy && !dirty && Boolean(board.past.length)} canRedo={!busy && !dirty && Boolean(board.future.length)}
         onUndo={() => void run(async () => { await update({ action: 'undo' }) })} onRedo={() => void run(async () => { await update({ action: 'redo' }) })} />
         <span role="status" className="ml-1 text-xs text-muted-foreground">{dirty ? text('unsavedStatus') : text('saved')}</span></div>}
 
     {error && <p role="alert" className="story-error">{error}</p>}
     {busy && <p role="status">{text('working')}</p>}
-    {!boardId ? <section className="bookshelf-grid">{boards.filter((b) => !folderId || (folderId === 'unfiled' ? !world.boardFolders[b.id] : world.boardFolders[b.id] === folderId)).map((b) => <LibraryBookCard key={b.id} icon="storyboards" to={`/storyboards/${b.id}`} label={b.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={text('create')} onClick={() => { setCreating(true); setError('') }} /></section> : !board ? <p>{text('working')}</p> : details ?
+    {!boardId ? !bookId ? <section className="bookshelf-grid">{boards.some((item) => !world.boardBooks[item.id]) && <LibraryBookCard icon="storyboards" to="/storyboards/books/unfiled" label={t('world.unfiled')} />}{world.storyBooks.map((item) => <LibraryBookCard key={item.id} icon="storyboards" to={`/storyboards/books/${item.id}`} label={item.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={t('world.createStoryBook')} onClick={() => { setEditingBook('new'); setError('') }} /></section> : <section className="bookshelf-grid">{boards.filter((item) => bookId === 'unfiled' ? !world.boardBooks[item.id] : world.boardBooks[item.id] === bookId).map((item) => <LibraryBookCard key={item.id} icon="storyboards" to={`/storyboards/${item.id}`} label={item.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={text('create')} onClick={() => { setCreating(true); setError('') }} /></section> : !board ? <p>{text('working')}</p> : details ?
       <WorkspaceScroll className="story-details"><div className="book-profile flex flex-col gap-4" aria-label={text('settings')}>
         <div className="character-profile-heading"><div className="min-w-0"><span>{text('settings')}</span><h2>{board.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={text('editDetails')} onClick={() => { setSettings({ action: 'rename', name: board.name, notes: board.notes }); setDetailsOpen(true) }}><PencilIcon /></Button></div>
         <div><h3 className="font-heading text-lg font-semibold">{text('notes')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{board.notes || text('emptyNotes')}</p></div>
@@ -143,7 +145,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
           <div className="flex gap-2"><Button disabled={busy || !draft}>{text('save')}</Button>{draft && <Button type="button" variant="outline" onClick={() => setDraft(undefined)}>{text('cancel')}</Button>}</div>
         </form>
         <div className="flex flex-wrap gap-2">{(['draft', 'needs-work', 'confirmed'] as const).map((review) => <Button key={review} size="sm" variant={frame.review === review ? 'default' : 'outline'} disabled={busy || dirty || (review === 'confirmed' && !frame.selected)} onClick={() => void run(async () => { await update({ action: 'edit-frame', frameId, review }) })}>{text(review)}</Button>)}</div>
-        <StoryboardSettingPicker application={application} world={world} collections={collections} characters={characters} frame={frame} disabled={busy || dirty} pin={update} />
+        <StoryboardSettingPicker application={application} world={world} collections={collections} characters={characters} collectionIds={book?.collectionIds} frame={frame} disabled={busy || dirty} pin={update} />
         <h3>{text('references')}</h3><p className="text-sm text-muted-foreground">{text('referenceHint')}</p>
         {frame.references.map((ref) => <div key={ref.imageId} className="story-reference"><Picture service={service} id={ref.imageId} alt={ref.purpose} /><p>{ref.purpose}</p><label><input type="checkbox" checked={compare.includes(ref.imageId)} disabled={!compare.includes(ref.imageId) && compare.length >= 2} onChange={(e) => setCompare(e.target.checked ? [...compare, ref.imageId] : compare.filter((id) => id !== ref.imageId))} />{text('compare')}</label>{board.frames.some((f) => f.candidates.includes(ref.imageId) && f.selected !== ref.imageId) && <p className="story-warning">{text('referenceChanged')}</p>}<Button size="sm" variant="ghost" disabled={busy || dirty} onClick={() => void run(async () => { await update({ action: 'reference', frameId, imageId: ref.imageId, remove: true }) })}>{text('unpin')}</Button></div>)}
         <form onSubmit={(e) => { e.preventDefault(); void run(async () => { await update({ action: 'reference', frameId, imageId: reference, purpose }); setReference(''); setPurpose('') }) }}><label>{text('referenceImage')}<select disabled={busy} required value={reference} onChange={(e) => setReference(e.target.value)}><option value="">{text('choose')}</option>{board.images.map((image) => <option key={image.id} value={image.id}>{image.filename} · {image.id.slice(0, 6)}</option>)}</select></label><label>{text('purpose')}<input disabled={busy} required maxLength={2000} value={purpose} onChange={(e) => setPurpose(e.target.value)} /></label><Button variant="outline" disabled={busy || dirty || !reference || !purpose.trim()}>{text('pin')}</Button></form>
@@ -169,7 +171,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
           const name = String(new FormData(e.currentTarget).get('name'))
           void run(async () => {
             const created = await service.update({ action: 'create', name })
-            try { if (folderId && folderId !== 'unfiled') await worldService.save({ ...world, boardFolders: { ...world.boardFolders, [created.id]: folderId } }) }
+            try { if (bookId && bookId !== 'unfiled') await worldService.update({ resource: 'storyboard-book', action: 'move', boardId: created.id, bookId }, world.revision) }
             finally { setCreating(false); navigate(`/storyboards/${created.id}`) }
           })
         }}>
@@ -177,6 +179,26 @@ export function StoryboardPage({ service, worldService, world, collections, appl
           <div className="flex justify-end gap-2"><Button variant="ghost" type="button" disabled={busy} onClick={() => setCreating(false)}>{t('common.cancel')}</Button><Button disabled={busy} type="submit">{text('create')}</Button></div>
           {error && <p role="alert" className="story-error">{error}</p>}
         </form>
+      </WorkspaceSheet>
+    </Sheet>
+    <Sheet open={Boolean(editingBook)} onOpenChange={(open) => { if (!open && !busy) setEditingBook(undefined) }}>
+      <WorkspaceSheet title={t('world.storyBook')} closeLabel={text('close')} aria-describedby={undefined}>
+        {editingBook && <form className="book-profile-form" onSubmit={(event) => {
+          event.preventDefault(); const data = new FormData(event.currentTarget)
+          void run(async () => {
+            const current = editingBook === 'new' ? undefined : editingBook
+            const result = await worldService.update({ resource: 'story-book', action: current ? 'update' : 'create', id: current?.id, name: String(data.get('name')), description: String(data.get('description')), synopsis: String(data.get('synopsis')), direction: String(data.get('direction')), collectionIds: data.getAll('collections').map(String) }, world.revision)
+            setEditingBook(undefined); navigate(`/storyboards/books/${result.id}`)
+          })
+        }}>
+          <label>{t('world.name')}<input autoFocus name="name" required maxLength={120} defaultValue={editingBook === 'new' ? '' : editingBook.name} disabled={busy} /></label>
+          <label>{t('world.description')}<textarea name="description" maxLength={8000} defaultValue={editingBook === 'new' ? '' : editingBook.description} disabled={busy} /></label>
+          <label>{t('world.synopsis')}<textarea name="synopsis" maxLength={8000} defaultValue={editingBook === 'new' ? '' : editingBook.synopsis} disabled={busy} /></label>
+          <label>{t('world.direction')}<textarea name="direction" maxLength={8000} defaultValue={editingBook === 'new' ? '' : editingBook.direction} disabled={busy} /></label>
+          <fieldset><legend>{t('world.linkedCollections')}</legend>{collections.map((collection) => <label className="world-checkbox" key={collection.id}><input type="checkbox" name="collections" value={collection.id} defaultChecked={editingBook !== 'new' && editingBook.collectionIds.includes(collection.id)} disabled={busy} />{collection.id === 'default' ? t('world.defaultCollection') : collection.name}</label>)}</fieldset>
+          <div className="flex justify-between gap-2">{editingBook !== 'new' ? <Button type="button" variant="destructive" disabled={busy} onClick={() => { if (window.confirm(`${t('world.remove')} ${editingBook.name}?`)) void run(async () => { await worldService.update({ resource: 'story-book', action: 'delete', id: editingBook.id }, world.revision); setEditingBook(undefined); navigate('/storyboards') }) }}><Trash2Icon />{t('world.remove')}</Button> : <span />}<Button disabled={busy}>{t('world.save')}</Button></div>
+          {error && <p role="alert" className="story-error">{error}</p>}
+        </form>}
       </WorkspaceSheet>
     </Sheet>
   </Workspace></>

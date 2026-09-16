@@ -19,6 +19,10 @@ try {
   assert.throws(() => validateAlbumComposition({ prompt: 'Hero repairs an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }], [composedLocation]), /requires a Character reference/)
   assert.throws(() => validateAlbumComposition({ characterSources: [{ characterId: 'hero', revision: 1, sha256: 'a'.repeat(64) }], prompt: 'Hero repairs a bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: 'a'.repeat(64) }], [composedLocation]), /changed/)
   let library = await service.load()
+  const legacyLibrary = structuredClone(library) as Record<string, unknown>
+  delete legacyLibrary.storyBooks; delete legacyLibrary.boardBooks
+  const migrated = validateWorldLibrary({ ...legacyLibrary, folders: [{ id: 'legacy', name: 'Legacy book', description: '', synopsis: '', direction: '', collectionIds: [], updatedAt: 0 }], boardFolders: { board: 'legacy' } })
+  assert.equal(migrated.boardBooks.board, 'legacy', 'Legacy folder metadata migrates once at the schema boundary')
   const location = (id: string, parentId: string | null): LocationSetting => ({ id, parentId, collectionId: 'default', name: id, description: '', consistency: '', updatedAt: 1, tags: [], images: [], conditions: [] })
   library.locations = [location('city', null), location('house', 'city'), location('room', 'house')]
   library = await service.save(library)
@@ -55,9 +59,9 @@ try {
   const copiedCondition = await service.update({ resource: 'condition', action: 'duplicate', locationId: duplicatedRoom.id, id: duplicatedRoom.conditions[0].id, name: 'Night copy' }, library.revision)
   library = copiedCondition.library
   assert.equal(library.locations.find((item) => item.id === duplicatedRoom.id)!.conditions.at(-1)?.name, 'Night copy')
-  library.folders.push({ id: 'episode', name: 'Episode one', description: '', synopsis: 'Return home', direction: 'Warm', collectionIds: ['default'], updatedAt: 1 })
+  library.storyBooks.push({ id: 'episode', name: 'Episode one', description: '', synopsis: 'Return home', direction: 'Warm', collectionIds: ['default'], updatedAt: 1 })
   let board = await boards.update({ action: 'create', name: 'A story' })
-  library.boardFolders[board.id] = 'episode'
+  library.boardBooks[board.id] = 'episode'
   library = await service.save(library)
   assert.deepEqual(await service.load(), library)
   await assert.rejects(boards.update({ action: 'add-frame', boardId: board.id, expectedRevision: board.revision, title: 'Invalid photo' }, new Blob(['bad'], { type: 'image/png' })))
@@ -83,8 +87,8 @@ try {
   assert.equal(copy.images[0].image.sha256, photo.image.sha256)
   assert.equal(copy.images[0].photoId, undefined, 'Direct Location images survive archive round-trip without Album linkage')
   await assert.rejects(service.upload(library, 'default', [new File(['invalid'], 'bad.png', { type: 'image/png' })]))
-  const bad = structuredClone(library); bad.boardFolders.bad = 'missing'
-  await assert.rejects(service.save(bad), /folder not found/)
+  const bad = structuredClone(library); bad.boardBooks.bad = 'missing'
+  await assert.rejects(service.save(bad), /book not found/)
   assert.deepEqual(await service.load(), library, 'Rejected saves are atomic')
   const collections = createIndexedDbCharacterCollectionRepository(), collection = await collections.create('Temporary world')
   library.locations.push({ ...location('orphan', null), collectionId: collection.id })
@@ -112,6 +116,6 @@ try {
   await importLibraryArchive(await exportLibraryArchive(archiveServices), archiveServices)
   const importedBoards = await boards.list(), importedLibrary = await service.load()
   assert.equal(importedBoards.length, boardCount * 2)
-  assert.ok(importedBoards.filter(({ id }) => !existingBoards.has(id)).some((item) => importedLibrary.boardFolders[item.id]), 'Complete archive restores storyboard folders')
+  assert.ok(importedBoards.filter(({ id }) => !existingBoards.has(id)).some((item) => importedLibrary.boardBooks[item.id]), 'Complete archive restores storyboard books')
   console.log('world-library: hierarchy, direct setting images, explicit Album references, CAS, storyboard snapshots and complete additive ZIP: ok')
 } finally { globalThis.createImageBitmap = original; service.dispose(); boards.dispose() }

@@ -24,7 +24,7 @@ export function createWorldLibraryRepository() {
         if ((current?.version ?? 0) !== next.revision) throw new Error('Library changed elsewhere. Reload before saving; your edits have not been applied.')
         const collectionIds = new Set((await entries.index('bundleId').getAll(AUTHORING_NAMESPACE)).filter((e) => e.collection === 'character-collections' && e.status === 'published').map((e) => e.id))
         collectionIds.add('default')
-        if (next.locations.some((l) => !collectionIds.has(l.collectionId)) || next.folders.some((f) => f.collectionIds.some((id) => !collectionIds.has(id)))) throw new Error('Setting collection no longer exists')
+        if (next.locations.some((l) => !collectionIds.has(l.collectionId)) || next.storyBooks.some((book) => book.collectionIds.some((id) => !collectionIds.has(id)))) throw new Error('Setting collection no longer exists')
         const previousImages = new Map(current ? libraryImages(validateWorldLibrary(current.data.library)).map((i) => [i.sha256, i]) : [])
         const images = new Map(libraryImages(next).map((i) => [i.sha256, i]))
         if ([...images.values()].reduce((sum, i) => sum + i.size, 0) > 256 * 1024 * 1024) throw new Error('Library image limit reached (256 MiB)')
@@ -58,7 +58,7 @@ export function rehomeWorldCollections(entry: import('./database.ts').StoredEntr
   collectionIds.add('default')
   const before = JSON.stringify(library)
   library.locations = library.locations.map((l) => collectionIds.has(l.collectionId) ? l : { ...l, collectionId: 'default' })
-  library.folders = library.folders.map((f) => ({ ...f, collectionIds: f.collectionIds.filter((id) => collectionIds.has(id)) }))
+  library.storyBooks = library.storyBooks.map((book) => ({ ...book, collectionIds: book.collectionIds.filter((id) => collectionIds.has(id)) }))
   if (before === JSON.stringify(library)) return undefined
   library.revision++
   return { ...entry, version: library.revision, updatedAt: Date.now(), data: { library } }

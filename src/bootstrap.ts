@@ -546,7 +546,7 @@ export function createApplication(document: Document) {
     const locationId = resource === 'location' ? id : view?.locationId
     const albumId = resource === 'album' ? id : view?.albumId
     const photoId = resource === 'photo' ? id : view?.photoId
-    const folderId = resource === 'folder' ? id : view?.folderId ?? (view?.boardId ? visualLibrary.boardFolders[view.boardId] : undefined)
+    const bookId = resource === 'story-book' ? id : view?.bookId ?? (view?.boardId ? visualLibrary.boardBooks[view.boardId] : undefined)
     const requestedImages = await Promise.all(images.map(async (imageId) => {
       const photo = visualLibrary.photos.find((item) => item.id === imageId)
       const reference = visualLibrary.locations.flatMap((location) => [...location.images, ...location.conditions.flatMap((condition) => condition.images)]).find((item) => item.id === imageId)
@@ -625,7 +625,7 @@ export function createApplication(document: Document) {
     }]
     const requestedCollectionId = resource === 'collection' ? id : view?.collectionId
     const selectedCollection = books.find(({ id }) => id === requestedCollectionId)
-    const worldContext = intent === 'world' || ['albums', 'locations'].includes(view?.surface ?? '') || ['collection', 'album', 'photo', 'location', 'folder'].includes(resource ?? '')
+    const worldContext = intent === 'world' || ['albums', 'locations', 'story-book'].includes(view?.surface ?? '') || ['collection', 'album', 'photo', 'location', 'story-book'].includes(resource ?? '')
     const worldNextActions = intent === 'world' && !selectedCollection ? books.map((book) => ({
       tool: 'inspect_workspace', required: true, reason: `Read ${book.name}'s backstory, Characters and Locations before creating world art.`, input: { intent: 'world', resource: 'collection', id: book.id },
     })) : [{ tool: 'navigate_workspace', required: false, reason: 'Open the selected Collection locations or another exact Library resource.', input: selectedCollection ? { resource: 'locations', id: selectedCollection.id } : { resource: 'albums' } }]
@@ -639,12 +639,12 @@ export function createApplication(document: Document) {
         currentStoryboard: view?.boardId ? await storyboards.inspect(view.boardId) : null,
         currentCollection: selectedCollection ?? null,
         collections: books,
-        visualLibrary: { revision: visualLibrary.revision, albums: visualLibrary.albums, folders: visualLibrary.folders,
+        visualLibrary: { revision: visualLibrary.revision, albums: visualLibrary.albums, storyBooks: visualLibrary.storyBooks,
           locations: visualLibrary.locations.map(({ id, collectionId, parentId, name, tags }) => ({ id, collectionId, parentId, name, tags })),
           currentLocation: visualLibrary.locations.find((l) => l.id === locationId) ?? null,
           currentPhoto: visualLibrary.photos.find((p) => p.id === photoId) ?? null,
           currentAlbum: albumId ? { album: visualLibrary.albums.find((a) => a.id === albumId), photos: visualLibrary.photos.filter((p) => p.albumId === albumId) } : null,
-          currentFolder: visualLibrary.folders.find((f) => f.id === folderId) ?? null,
+          currentStoryBook: visualLibrary.storyBooks.find((item) => item.id === bookId) ?? null,
           requestedImages,
           policy: 'Location and Condition setting images are owned directly by that setting. Album photos are finished compositions built from Characters, Locations, situation prompts and Collection backstory. An Album photo is linked back to a Location only when explicitly requested. Pinned storyboard references are snapshots and do not follow source edits.' },
         ...(worldContext ? { worldWorkflow: selectedCollection ? {
@@ -710,9 +710,9 @@ export function createApplication(document: Document) {
       const photo = (await worldLibrary.load()).photos.find((item) => item.id === id); if (!photo) throw new Error('Photo not found')
       path = `/albums/${encodeURIComponent(photo.albumId)}/photos/${exact(id, 'Photo')}`
     } else if (resource === 'storyboards') path = '/storyboards'
-    else if (resource === 'folder') {
-      if (!(await worldLibrary.load()).folders.some((item) => item.id === id)) throw new Error('Folder not found')
-      path = `/storyboards/folders/${exact(id, 'Folder')}`
+    else if (resource === 'story-book') {
+      if (!(await worldLibrary.load()).storyBooks.some((item) => item.id === id)) throw new Error('Story book not found')
+      path = `/storyboards/books/${exact(id, 'Story book')}`
     } else if (resource === 'storyboard') {
       await storyboards.get(exact(id, 'Storyboard'))
       path = `/storyboards/${exact(id, 'Storyboard')}${view === 'details' ? '/details' : ''}`
@@ -752,7 +752,7 @@ export function createApplication(document: Document) {
       return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id }, effects: { navigation: { path: '/collections', mode: 'push', reason: 'Return to Collections.' } } }
     }
     if (input.expectedRevision === undefined) throw new Error('expectedRevision is required')
-    if (input.resource === 'storyboard-folder' && input.action === 'move') await storyboards.get(String(input.boardId ?? ''))
+    if (input.resource === 'storyboard-book' && input.action === 'move') await storyboards.get(String(input.boardId ?? ''))
     const { expectedRevision, ...command } = input
     const result = await worldLibrary.update(command as unknown as WorldLibraryCommand, expectedRevision)
     const changedLocation = result.library.locations.find((item) => item.id === (command.resource === 'condition' ? input.locationId : result.id))
@@ -761,8 +761,8 @@ export function createApplication(document: Document) {
       : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : '/albums')
       : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${input.collectionId ?? 'default'}/locations` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
       : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
-      : command.resource === 'folder' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/folders/${result.id}`)
-      : command.resource === 'storyboard-folder' ? `/storyboards/${input.boardId}` : undefined
+      : command.resource === 'story-book' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/books/${result.id}`)
+      : command.resource === 'storyboard-book' ? `/storyboards/${input.boardId}` : undefined
     return { status: 'ok', data: { resource: input.resource, action: input.action, id: result.id, revision: result.library.revision }, ...(path ? { effects: { navigation: { path, mode: 'push', reason: 'Review the changed Library resource.' } } } : {}) }
   }
 
