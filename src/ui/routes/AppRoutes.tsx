@@ -8,7 +8,6 @@ import type { CharacterCollection } from '@/core/domain/character-collection'
 import { Breadcrumbs } from '@/ui/Breadcrumbs'
 import { useWorldLibrary } from '@/ui/useWorldLibrary'
 import { locationAncestors } from '@/core/domain/world-library'
-import { HomePage } from '@/ui/pages/HomePage'
 import { WorldLibraryPage } from '@/ui/pages/WorldLibraryPage'
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -148,7 +147,7 @@ export function AppRoutes({ application }: { application: Application }) {
     : parts[0] === 'albums' && parts[2] === 'photos' ? `/albums/${parts[1]}`
     : parts[0] === 'albums' && parts[1] ? '/albums'
     : parts[0] === 'storyboards' && parts[1] ? (parts[1] === 'books' ? '/storyboards' : boardBook ? `/storyboards/books/${boardBook}` : '/storyboards/books/unfiled')
-    : parts.length ? '/' : undefined
+    : undefined
 
   const crumbs: Array<{ label: string; path: string }> = []
   const addCrumb = (label: string, path: string) => crumbs.push({ label, path })
@@ -201,7 +200,7 @@ export function AppRoutes({ application }: { application: Application }) {
     />
     {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
     <Routes>
-      <Route index element={<HomePage application={application} world={world.library} collections={library.collections} characters={library.characters} />} />
+      <Route index element={<Navigate to="/collections" replace />} />
       <Route path="/storyboards" element={storyPage} />
       <Route path="/storyboards/:boardId" element={storyPage} />
       <Route path="/storyboards/:boardId/details" element={storyPage} />

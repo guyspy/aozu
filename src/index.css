@@ -867,15 +867,7 @@ body::before {
 .album-photo-print .world-picture { max-height: none; background: #eeeae2; }
 .album-photo-title { position: absolute; z-index: 1; top: 1rem; left: 0.65rem; max-width: calc(100% - 2rem); padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-size: clamp(1rem, 2vw, 1.35rem); line-height: 1.3; box-shadow: 0 2px 5px #47321f3d; transform: rotate(-1deg); }
 .album-photo-description { width: fit-content; max-width: min(85%, 65ch); margin: 0.9rem auto -1.5rem; padding: 0.65rem 1.1rem; background: #fff0a8; color: #594124; font-size: clamp(0.875rem, 1.7vw, 1.05rem); line-height: 1.6; box-shadow: 0 2px 5px #47321f3d; transform: rotate(0.35deg); }
-.world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-.world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }
-.world-home-card > a:first-child { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 24px; width: 100%; flex: 1; }
-.home-seal.aozu-icon { width: clamp(100px, 12vw, 160px); height: clamp(100px, 12vw, 160px); }
-.world-home-card p { font-size: 14px; color: #f0dcb6; }
-.world-home-card a:focus-visible { outline: 2px solid #f3d899; outline-offset: -6px; }
-.world-home-card h2, .world-section h2 { font-family: var(--font-heading); font-weight: 700; font-size: 22px; }
-.world-shortcut { display: block; width: 100%; padding: 14px 24px; border-top: 1px solid #deb46e55; }
-.world-home-card a:hover { background: #deb46e18; }
+.world-section h2 { font-family: var(--font-heading); font-weight: 700; font-size: 22px; }
 .world-recent a:hover { background: var(--accent); }
 .world-section { margin: 28px 0; }
 .world-section h2 { margin-bottom: 12px; }
@@ -890,7 +882,7 @@ body::before {
 .world-condition summary { cursor: pointer; font-weight: 600; }
 .world-condition > p, .world-condition > .world-actions { margin: 12px 0; }
 .world-tags span { padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; }
-@media (max-width: 680px) { .world-home-grid, .world-recent { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .world-recent { grid-template-columns: 1fr; } }
 
 /* Shared shadcn breadcrumb, colored with the AOZU theme tokens. */
 .app-breadcrumb {
