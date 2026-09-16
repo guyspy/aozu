@@ -104,6 +104,7 @@ export const de: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: 'WebMCP wird von diesem Browser nicht unterstützt',
       registering: 'WebMCP-Site-Tools werden registriert',
       ready: '{{count}} WebMCP-Site-Tools bereit',

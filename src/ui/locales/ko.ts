@@ -104,6 +104,7 @@ export const ko: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: '이 브라우저는 WebMCP를 지원하지 않습니다',
       registering: 'WebMCP 사이트 도구를 등록하는 중',
       ready: 'WebMCP 사이트 도구 {{count}}개 준비됨',

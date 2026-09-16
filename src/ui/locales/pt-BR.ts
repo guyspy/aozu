@@ -104,6 +104,7 @@ export const ptBR: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: 'Este navegador não é compatível com WebMCP',
       registering: 'Registrando ferramentas de site WebMCP',
       ready: '{{count}} ferramentas de site WebMCP prontas',

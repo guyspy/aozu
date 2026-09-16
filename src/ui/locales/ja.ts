@@ -104,6 +104,7 @@ export const ja: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: 'このブラウザは WebMCP に対応していません',
       registering: 'WebMCP サイトツールを登録しています',
       ready: 'WebMCP サイトツール {{count}} 件が利用可能',

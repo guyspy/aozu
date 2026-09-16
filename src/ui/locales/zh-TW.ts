@@ -142,11 +142,15 @@ export const zhTW: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: '這個瀏覽器不支援 WebMCP',
       registering: '正在註冊 WebMCP 網站工具',
       ready: '{{count}} 個 WebMCP 網站工具已就緒',
       readyShort: '{{count}} 個工具',
       failed: 'WebMCP 工具註冊失敗',
+      guideTitle: '用 AI 操作 AOZU',
+      guideDescription: '複製這段提示詞給 AI，讓它帶你認識並操作目前的 AOZU 資料庫。',
+      guidePrompt: `請使用 AOZU 的 WebMCP 工具帶我導覽這個資料庫。先呼叫 inspect_workspace，理解目前頁面和儲存在這個瀏覽器裡的資料。簡短說明 Collections、Characters、Locations、Albums、Story Books、Storyboards 的關係，以及目前已經有哪些內容。請用 navigate_workspace 導航，不要猜網址。任何編輯前先取得正確的 ID 與 revision；每次操作後重新 inspect，並確認實際畫面。有定義過的 Character、Location、Condition 必須保留 reference；沒有定義的內容可以視需要建立。資料只存在這個瀏覽器，不會同步到雲端。請先給我整體導覽，再問我接下來想做什麼。`,
     },
   },
   data: {

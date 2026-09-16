@@ -104,6 +104,7 @@ export const fr: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: 'WebMCP n’est pas pris en charge par ce navigateur',
       registering: 'Enregistrement des outils de site WebMCP',
       ready: '{{count}} outils de site WebMCP prêts',

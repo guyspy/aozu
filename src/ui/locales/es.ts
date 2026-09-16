@@ -104,6 +104,7 @@ export const es: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: 'Este navegador no es compatible con WebMCP',
       registering: 'Registrando herramientas de sitio WebMCP',
       ready: '{{count}} herramientas de sitio WebMCP listas',

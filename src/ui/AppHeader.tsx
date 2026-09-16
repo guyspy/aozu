@@ -1,9 +1,11 @@
-import { ArrowLeftIcon, LanguagesIcon } from 'lucide-react'
+import { ArrowLeftIcon, CopyIcon, LanguagesIcon } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import { AozuIcon } from '@/ui/AozuIcon'
 import { Button } from '@/ui/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/ui/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
 import type { WebMcpState } from '@/adapters/webmcp/controller.ts'
 import { LANGUAGES } from '@/ui/i18n'
@@ -18,7 +20,9 @@ type AppHeaderProps = {
 
 export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
   const { t, i18n } = useTranslation()
+  const [copied, setCopied] = useState(false)
   const label = t(`main.webmcp.${webmcp.status}`, { count: webmcp.toolCount })
+  const guidePrompt = t('main.webmcp.guidePrompt')
   const color = webmcp.status === 'ready' ? 'bg-emerald-500' : webmcp.status === 'registering' ? 'bg-amber-500'
     : webmcp.status === 'failed' ? 'bg-red-500' : 'bg-muted-foreground/50'
 
@@ -47,17 +51,22 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
               {LANGUAGES.map(({ code, label: name }) => <SelectItem key={code} value={code}>{name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span
-            aria-label={label}
-            title={webmcp.error ?? label}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <span
-              className={`size-2 rounded-full ${color}`}
-              aria-hidden="true"
-            />
-            WebMCP
-          </span>
+          <Dialog onOpenChange={(open) => { if (!open) setCopied(false) }}>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm" variant="ghost" aria-label={`WebMCP. ${label}`} title={webmcp.error ?? label} className="h-8 gap-1.5 px-2 text-xs text-muted-foreground">
+                <span className={`size-2 rounded-full ${color}`} aria-hidden="true" />
+                WebMCP
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg" closeLabel={t('common.close')}>
+              <DialogTitle>{t('main.webmcp.guideTitle')}</DialogTitle>
+              <DialogDescription>{t('main.webmcp.guideDescription')}</DialogDescription>
+              <div className="max-h-64 select-text overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{guidePrompt}</div>
+              <Button type="button" onClick={() => void navigator.clipboard.writeText(guidePrompt).then(() => setCopied(true))}>
+                <CopyIcon />{t(copied ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}
+              </Button>
+            </DialogContent>
+          </Dialog>
         </div>
       </nav>
     </header>

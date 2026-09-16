@@ -104,6 +104,7 @@ export const zhCN: Messages = {
   },
   main: {
     webmcp: {
+      ...en.main.webmcp,
       unsupported: '此浏览器不支持 WebMCP',
       registering: '正在注册 WebMCP 站点工具',
       ready: '{{count}} 个 WebMCP 站点工具已就绪',
