@@ -27,6 +27,7 @@ for (const [name, locale] of Object.entries({ de, es, fr, ja, ko, ptBR, zhCN, zh
   const extra = [...keys].filter((key) => !english.has(key))
   assert.deepEqual(missing, [], `${name} is missing keys: ${missing.join(', ')}`)
   assert.deepEqual(extra, [], `${name} has keys English dropped: ${extra.join(', ')}`)
+  assert.deepEqual([...keys], [...english], `${name} keys are not ordered like English`)
   for (const key of english) {
     const value = read(locale as unknown as Tree, key)
     assert.ok(String(value).trim(), `${name}.${key} is empty`)
