@@ -1,4 +1,4 @@
-import { CHARACTER_OUTFIT_SLOTS, type CharacterAssetContent, type CharacterDraft, type CharacterSelection } from '../domain/character.ts'
+import type { CharacterAssetContent, CharacterDraft, CharacterSelection } from '../domain/character.ts'
 import { validateModelSheet } from './character-model-sheet.ts'
 
 export const activeCharacterAppearance = (draft: Pick<CharacterDraft, 'appearances' | 'activeAppearanceId'>) =>
@@ -17,18 +17,13 @@ export function validateCharacterSelection(draft: CharacterAssetContent<unknown>
   const has = (group: string, id: unknown) => typeof id === 'string' && draft.variants.some((variant) => variant.group === group && variant.id === id)
   if (!selected || typeof selected !== 'object' || Array.isArray(selected) ||
     Object.keys(selected).some((key) => !['expression', 'outfits', 'hair', 'headwear', 'props'].includes(key)) ||
-    !selected.outfits || typeof selected.outfits !== 'object' || Array.isArray(selected.outfits) ||
-    Object.keys(selected.outfits).some((slot) => !CHARACTER_OUTFIT_SLOTS.includes(slot as typeof CHARACTER_OUTFIT_SLOTS[number])) ||
+    !Array.isArray(selected.outfits) || selected.outfits.length > 100 || new Set(selected.outfits).size !== selected.outfits.length ||
+    selected.outfits.some((id) => !has('outfit', id)) ||
     !Array.isArray(selected.props) || selected.props.length > 100 || new Set(selected.props).size !== selected.props.length ||
     selected.props.some((id) => !has('prop', id)) ||
     (selected.expression !== undefined && !has('expression', selected.expression)) ||
     (selected.hair !== undefined && !has('hair', selected.hair)) ||
     (selected.headwear !== undefined && !has('headwear', selected.headwear))) throw new Error('Appearance references a missing or invalid variant')
-  for (const [slot, id] of Object.entries(selected.outfits)) {
-    const variant = draft.variants.find((candidate) => candidate.group === 'outfit' && candidate.id === id)
-    if (!variant || variant.metadata?.outfit?.slot !== slot) throw new Error('Appearance references a missing or invalid outfit slot')
-  }
-  if (selected.outfits['one-piece'] && (selected.outfits.top || selected.outfits.bottom)) throw new Error('One-piece outfits replace top and bottom')
 }
 
 /** The top-level selection is the current editor's projection of its named Appearance. */
@@ -88,7 +83,7 @@ export function changeCharacterAppearance(draft: CharacterDraft, command: Charac
     if (existing) throw new Error('Appearance already exists; save with a new ID to preserve its references')
     if (action === 'create') draft = withDefaultCharacterAppearance(draft)
     const first = !draft.appearances?.length
-    const selected = action === 'create' ? { outfits: {}, props: [] } : draft.selected
+    const selected = action === 'create' ? { outfits: [], props: [] } : draft.selected
     const { heightCm, ...references } = draft.modelSheet ?? { views: {} }
     next = { ...draft, activeAppearanceId: id, selected,
       appearances: [...draft.appearances ?? [], { id, label: label?.trim() ?? '', selected: structuredClone(selected),

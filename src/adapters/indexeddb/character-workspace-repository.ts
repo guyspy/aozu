@@ -1,7 +1,7 @@
 import type { Entry } from '@aotter/mantle-spec'
 import type { MantleRuntime } from '@aotter/mantle-runtime'
 
-import { resolveCharacterDraftPlacements } from '../../core/application/character-creation.ts'
+import { migrateCharacterDraft, resolveCharacterDraftPlacements } from '../../core/application/character-creation.ts'
 import { characterAssets, mapCharacterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
 import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
@@ -60,7 +60,7 @@ export function createCharacterWorkspaceRepository(
       if (!blob) throw new Error(`Character asset is missing: ${data.packId}/${blobId}`)
       return { ...descriptor, blob } satisfies CharacterDraftAsset
     })
-    return { character: { ...data, ...content, id: entry.id, updatedAt: entry.updatedAt }, version: entry.version }
+    return { character: migrateCharacterDraft({ ...data, ...content, id: entry.id, updatedAt: entry.updatedAt }), version: entry.version }
   }
   const entries = async () => (await runtime()).entries
 

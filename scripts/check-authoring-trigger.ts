@@ -29,6 +29,7 @@ let profileInput: unknown
 let transformInput: unknown
 let selectionDraft = createCharacterDraft('selection-pack', 'selection-character')
 selectionDraft.variants.push({ group: 'prop', id: 'prop-2', label: 'Second prop', layers: {} })
+selectionDraft.variants.push({ group: 'outfit', id: 'top-2', label: 'Second top', metadata: { outfit: { slot: 'top', garmentType: 'top' } }, layers: {} })
 let selectionRevision = 1
 const runtime = await bootMantleRuntime({
   plan: compileAuthoringBackbone(),
@@ -70,7 +71,7 @@ const runtime = await bootMantleRuntime({
       return { status: 'ok', data: {} }
     },
     'companion.set-character-variant-selection': async (rawInput) => {
-      const input = rawInput as { characterId: string; group: 'prop'; variantId: string; active: boolean; expectedRevision: number }
+      const input = rawInput as { characterId: string; group: 'outfit' | 'prop'; variantId: string; active: boolean; expectedRevision: number }
       if (input.characterId !== selectionDraft.id || input.expectedRevision !== selectionRevision) throw new Error('Stale character selection')
       const next = input.active
         ? activateCharacterVariant(selectionDraft, { group: input.group, id: input.variantId })
@@ -105,6 +106,17 @@ assert.equal(selectionRevision, 3)
 assert.equal((await selectProp('prop-2', false)).ok, true)
 assert.equal((await selectProp('prop-2', true)).ok, true)
 assert.deepEqual(selectionDraft.selected.props, ['prop-1', 'prop-2'])
+const selectOutfit = (variantId: string, active: boolean) => runtime.invokeTrigger({
+  trigger: 'set-character-variant-selection',
+  input: { characterId: selectionDraft.id, group: 'outfit', variantId, active, expectedRevision: selectionRevision },
+  ctx: context,
+})
+assert.equal((await selectOutfit('top-1', true)).ok, true)
+assert.equal((await selectOutfit('top-2', true)).ok, true)
+assert.deepEqual(selectionDraft.selected.outfits, ['top-1', 'top-2'])
+assert.equal((await selectOutfit('top-1', false)).ok, true)
+assert.equal((await selectOutfit('top-1', true)).ok, true)
+assert.deepEqual(selectionDraft.selected.outfits, ['top-2', 'top-1'])
 assert.equal((await selectProp('prop-1', false, 1)).ok, false)
 assert.equal((await selectProp('missing', true)).ok, false)
 assert.deepEqual(selectionDraft.selected.props, ['prop-1', 'prop-2'])

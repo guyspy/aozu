@@ -267,7 +267,7 @@ const modelSheetSchema = objectSchema({
 }, ['views'])
 const characterSelectionSchema = objectSchema({
   expression: { type: 'string', minLength: 1, maxLength: 40 },
-  outfits: objectSchema(Object.fromEntries(CHARACTER_OUTFIT_SLOTS.map((slot) => [slot, { type: 'string', minLength: 1, maxLength: 40 }]))),
+  outfits: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
   hair: { type: 'string', minLength: 1, maxLength: 40 },
   headwear: { type: 'string', minLength: 1, maxLength: 40 },
   props: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
@@ -280,7 +280,7 @@ const characterAttributesSchema: JsonSchema = {
 }
 
 const characterWorkspaceProperties = {
-  schemaVersion: { const: 5 },
+  schemaVersion: { const: 6 },
   packId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' },
   rigProfile: objectSchema({
     id: { const: CHARACTER_RIG.id },
@@ -907,7 +907,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-variant-metadata.yaml',
     envelope('Procedure', 'update-character-variant-metadata', {
       title: 'Update Character Variant Metadata',
-      description: `Name and describe one Character variant using the exact inspected revision. Outfits require a wardrobe slot and garment type; only one garment is active per slot, and one-piece is mutually exclusive with top and bottom. Expressions belong to a Face Style. Facial hair is part of that Face Style's complete expression heads, never a separate overlay. Hair and headwear are registered front/back overlays. Props are only independent or handheld objects, never clothing. Omitted fields stay unchanged. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Name and describe one Character variant using the exact inspected revision. Outfits require a wardrobe slot and garment type as descriptive metadata; slots do not limit which garments may be worn together. Expressions belong to a Face Style. Facial hair is part of that Face Style's complete expression heads, never a separate overlay. Hair and headwear are registered front/back overlays. Props are only independent or handheld objects, never clothing. Omitted fields stay unchanged. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -1022,7 +1022,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/set-character-variant-selection.yaml',
     envelope('Procedure', 'set-character-variant-selection', {
       title: 'Set Character Variant Selection',
-      description: `Activate or deactivate an existing expression, garment, hair, headwear, or prop using the inspected revision. One garment is active per wardrobe slot; one-piece clears top and bottom, while top or bottom clears one-piece. Edits automatically save into the current named Appearance. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create opens a fresh look with no selected variants and an empty model sheet. selected.props is bottom-to-top activation order; deactivate then reactivate to move a prop to the top. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Activate or deactivate an existing expression, garment, hair, headwear, or prop using the inspected revision. Outfits and props are independent toggles; their selected arrays persist bottom-to-top activation order. Activating an inactive item puts it on top, activating an active item keeps its order, and deactivating then reactivating moves it to the top. Wardrobe slots are descriptive metadata and do not make garments mutually exclusive. Edits automatically save into the current named Appearance. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create opens a fresh look with no selected variants and an empty model sheet. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'hair', 'headwear', 'prop'] },

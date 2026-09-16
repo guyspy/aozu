@@ -74,13 +74,13 @@ const initialVariants = (): CharacterDraftVariant[] => [
 
 export const createCharacterDraft = (packId: string = `character-${crypto.randomUUID()}`, id: string = crypto.randomUUID()): CharacterDraft => ({
   id,
-  schemaVersion: 5,
+  schemaVersion: 6,
   packId,
   rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
   name: 'My Companion',
   variants: initialVariants(),
   faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }],
-  selected: { outfits: {}, props: [] },
+  selected: { outfits: [], props: [] },
   updatedAt: Date.now(),
 })
 
@@ -235,13 +235,7 @@ export function updateCharacterVariantMetadata(
   const metadata = { ...(description ? { description } : {}), ...(tags?.length ? { tags } : {}), ...(sourceSha256 ? { sourceSha256 } : {}),
     ...(outfit ? { outfit: { slot: outfit.slot, garmentType: outfit.garmentType.trim() } } : {}), ...(faceStyleId ? { faceStyleId } : {}) }
   const variants = draft.variants.map((candidate) => candidate === variant ? { ...candidate, label, metadata } : candidate)
-  let selected = draft.selected
-  if (group === 'outfit' && outfit && variant.metadata?.outfit?.slot !== outfit.slot) {
-    const outfits = { ...selected.outfits }
-    for (const slot of CHARACTER_OUTFIT_SLOTS) if (outfits[slot] === variantId) delete outfits[slot]
-    selected = { ...selected, outfits }
-  }
-  const next = { ...draft, variants, faceStyles, selected }
+  const next = { ...draft, variants, faceStyles }
   validateCharacterVariantMetadata(next)
   return next
 }
@@ -420,7 +414,7 @@ const withHeadRegistration = (draft: CharacterDraft): CharacterDraft => {
 }
 
 export function migrateCharacterDraft(draft: CharacterDraft): CharacterDraft {
-  if (draft.schemaVersion !== 5) throw new Error('Unsupported Character Draft schema version')
+  if (draft.schemaVersion !== 6) throw new Error('Unsupported Character Draft schema version')
   return withHeadRegistration(draft)
 }
 
@@ -657,13 +651,8 @@ export function activateCharacterVariant(
   if (target.group === 'expression') return draft.selected.expression === target.id
     ? draft : { ...draft, selected: { ...draft.selected, expression: target.id } }
   if (target.group === 'outfit') {
-    const variant = findVariant(draft, 'outfit', target.id)
-    const slot = variant?.metadata?.outfit?.slot
-    if (!slot) throw new Error('Outfit metadata requires a slot')
-    const outfits = { ...draft.selected.outfits, [slot]: target.id }
-    if (slot === 'one-piece') { delete outfits.top; delete outfits.bottom }
-    else if (slot === 'top' || slot === 'bottom') delete outfits['one-piece']
-    return draft.selected.outfits[slot] === target.id ? draft : { ...draft, selected: { ...draft.selected, outfits } }
+    return draft.selected.outfits.includes(target.id)
+      ? draft : { ...draft, selected: { ...draft.selected, outfits: [...draft.selected.outfits, target.id] } }
   }
   if (target.group === 'hair' || target.group === 'headwear') return draft.selected[target.group] === target.id
     ? draft : { ...draft, selected: { ...draft.selected, [target.group]: target.id } }
@@ -680,10 +669,8 @@ export function deactivateCharacterVariant(
   if (target.group === 'prop') return draft.selected.props.includes(target.id)
     ? { ...draft, selected: { ...draft.selected, props: draft.selected.props.filter((id) => id !== target.id) } } : draft
   if (target.group === 'outfit') {
-    const slot = findVariant(draft, 'outfit', target.id)?.metadata?.outfit?.slot
-    if (!slot || draft.selected.outfits[slot] !== target.id) return draft
-    const outfits = { ...draft.selected.outfits }; delete outfits[slot]
-    return { ...draft, selected: { ...draft.selected, outfits } }
+    return draft.selected.outfits.includes(target.id)
+      ? { ...draft, selected: { ...draft.selected, outfits: draft.selected.outfits.filter((id) => id !== target.id) } } : draft
   }
   return draft.selected[target.group] === target.id
     ? { ...draft, selected: { ...draft.selected, [target.group]: undefined } } : draft
@@ -693,23 +680,23 @@ export function clearCharacterVariantSelection(draft: CharacterDraft, group: Cha
   if (group === 'body') return draft
   if (group === 'prop') return draft.selected.props.length
     ? { ...draft, selected: { ...draft.selected, props: [] } } : draft
-  if (group === 'outfit') return Object.keys(draft.selected.outfits).length
-    ? { ...draft, selected: { ...draft.selected, outfits: {} } } : draft
+  if (group === 'outfit') return draft.selected.outfits.length
+    ? { ...draft, selected: { ...draft.selected, outfits: [] } } : draft
   return draft.selected[group] === undefined
     ? draft : { ...draft, selected: { ...draft.selected, [group]: undefined } }
 }
 
-const selectedPropIds = (draft: SelectionMetadata, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
-  const ids = draft.selected.props
-  if (new Set(ids).size !== ids.length) throw new Error('Duplicate selected character prop ID')
-  if (ids.some((id) => !findVariant(draft, 'prop', id))) throw new Error('Selected character prop is missing')
-  return preview?.group === 'prop' && !ids.includes(preview.id) ? [...ids, preview.id] : ids
+const selectedVariantIds = (draft: SelectionMetadata, group: 'outfit' | 'prop', preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+  const ids = draft.selected[group === 'outfit' ? 'outfits' : 'props']
+  if (new Set(ids).size !== ids.length) throw new Error(`Duplicate selected character ${group} ID`)
+  if (ids.some((id) => !findVariant(draft, group, id))) throw new Error(`Selected character ${group} is missing`)
+  return preview?.group === group && !ids.includes(preview.id) ? [...ids, preview.id] : ids
 }
 
 /** Preserve activation order, then assign unused variants unique orders for portable pack appearances. */
-const characterPropOrders = (draft: SelectionMetadata, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
-  const selected = selectedPropIds(draft, preview)
-  const inactive = draft.variants.filter(({ group, id }) => group === 'prop' && !selected.includes(id)).map(({ id }) => id)
+const characterVariantOrders = (draft: SelectionMetadata, group: 'outfit' | 'prop', preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {
+  const selected = selectedVariantIds(draft, group, preview)
+  const inactive = draft.variants.filter((variant) => variant.group === group && !selected.includes(variant.id)).map(({ id }) => id)
   return new Map([...selected, ...inactive].map((id, index) => [id, index + 1]))
 }
 
@@ -722,16 +709,7 @@ const selectedCharacterVariants = <V extends VariantMetadata>(
   preview?: Pick<CharacterDraftVariant, 'group' | 'id'>,
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ) => {
-  const previewOutfit = preview?.group === 'outfit' ? findVariant(draft, 'outfit', preview.id) : undefined
-  const previewSlot = previewOutfit?.metadata?.outfit?.slot
-  const outfitSelection = { ...draft.selected.outfits }
-  if (previewOutfit && previewSlot) {
-    outfitSelection[previewSlot] = previewOutfit.id
-    if (previewSlot === 'one-piece') { delete outfitSelection.top; delete outfitSelection.bottom }
-    else if (previewSlot === 'top' || previewSlot === 'bottom') delete outfitSelection['one-piece']
-  }
-  const outfitIds = CHARACTER_OUTFIT_SLOTS.map((slot) => outfitSelection[slot]).filter((id): id is string => Boolean(id))
-  const outfits = outfitIds
+  const outfits = selectedVariantIds(draft, 'outfit', preview)
     .filter((id) => exclude?.group !== 'outfit' || exclude.id !== id)
     .map((id) => findVariant(draft, 'outfit', id))
     .filter((variant): variant is V => Boolean(variant && (hasCurrentCharacterLayer(draft, 'outfit', variant.id, 'front') || hasCurrentCharacterLayer(draft, 'outfit', variant.id, 'back'))))
@@ -744,18 +722,19 @@ const selectedCharacterVariants = <V extends VariantMetadata>(
       (hasCurrentCharacterLayer(draft, group, id, 'front') || hasCurrentCharacterLayer(draft, group, id, 'back'))
       ? findVariant(draft, group, id) : undefined
   }
-  const props = selectedPropIds(draft, preview)
+  const props = selectedVariantIds(draft, 'prop', preview)
     .filter((id) => exclude?.group !== 'prop' || exclude.id !== id)
     .map((id) => findVariant(draft, 'prop', id))
   return [findVariant(draft, 'body', 'base'), ...outfits, expression, single('hair'), single('headwear'), ...props]
     .filter((variant): variant is V => Boolean(variant && Object.keys(variant.layers).some((layer) => isCharacterDraftAssetCurrent(draft, variant, layer as CharacterVariantLayer))))
 }
 
-export const characterAssetPlacement = (group: CharacterVariantGroup, layer: CharacterVariantLayer, propOrder = 1) => {
+export const characterAssetPlacement = (group: CharacterVariantGroup, layer: CharacterVariantLayer, variantOrder = 1) => {
   if (group === 'body') return { slot: 'character-skin', order: 1 }
   if (group === 'expression') return { slot: 'expression-head', order: 1 }
-  if (group === 'outfit' || group === 'hair' || group === 'headwear') return { slot: `${group}-${layer}`, order: 1 }
-  return { slot: layer === 'back' ? 'prop-back' : 'prop-front', order: propOrder }
+  if (group === 'outfit') return { slot: `outfit-${layer}`, order: variantOrder }
+  if (group === 'hair' || group === 'headwear') return { slot: `${group}-${layer}`, order: 1 }
+  return { slot: layer === 'back' ? 'prop-back' : 'prop-front', order: variantOrder }
 }
 
 /** Resolve paint order from metadata so library cards need only the PNGs actually painted. */
@@ -765,10 +744,12 @@ export const resolveCharacterDraftPlacements = <V extends VariantMetadata>(
   exclude?: Pick<CharacterDraftVariant, 'group' | 'id'>,
 ) => {
   const slotOrders = new Map<string, number>(CHARACTER_RIG.slots.map(({ id, order }) => [id, order]))
-  const propOrders = characterPropOrders(draft, preview)
+  const outfitOrders = characterVariantOrders(draft, 'outfit', preview)
+  const propOrders = characterVariantOrders(draft, 'prop', preview)
   return selectedCharacterVariants(draft, preview, exclude).flatMap((variant) =>
     (Object.keys(variant.layers) as CharacterVariantLayer[]).filter((layer) => isCharacterDraftAssetCurrent(draft, variant, layer)).map((layer) => {
-      const placement = characterAssetPlacement(variant.group, layer, propOrders.get(variant.id))
+      const placement = characterAssetPlacement(variant.group, layer,
+        (variant.group === 'outfit' ? outfitOrders : propOrders).get(variant.id))
       return {
         variant, layer,
         id: assetKey(variant, layer),
@@ -825,7 +806,8 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
   if (!hasCurrentCharacterLayer(draft, 'body', 'base', 'body')) throw new Error('Base body is required')
   const keys = new Set<string>()
   validateCharacterVariantMetadata(draft)
-  const propOrders = characterPropOrders(draft)
+  const outfitOrders = characterVariantOrders(draft, 'outfit')
+  const propOrders = characterVariantOrders(draft, 'prop')
   for (const variant of draft.variants) {
     if (variant.transform) validateCharacterVariantTransform(variant.transform)
     if (
@@ -852,7 +834,8 @@ export function buildCharacterPack(draft: CharacterDraft, version = 1): Characte
     }))),
     appearances: draft.variants.flatMap((variant) => {
       const layers = currentLayerEntries(draft, variant).map(([layer]) => {
-        const placement = characterAssetPlacement(variant.group, layer, propOrders.get(variant.id))
+        const placement = characterAssetPlacement(variant.group, layer,
+          (variant.group === 'outfit' ? outfitOrders : propOrders).get(variant.id))
         return {
           asset: { packId: draft.packId, packVersion: version, assetId: assetKey(variant, layer) },
           ...placement,

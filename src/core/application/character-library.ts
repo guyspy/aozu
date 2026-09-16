@@ -54,7 +54,7 @@ const validateAuthoringData = (collection: string, data: Record<string, unknown>
 
 /** Validate partial authoring work without requiring publishable artwork. No mutation or repair on import. */
 function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: string; updatedAt: number }), assets: Map<string, CharacterLibraryAsset>) {
-  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 5 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
+  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 6 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
     !text(draft.name) || !stamp(draft.updatedAt) || !record(draft.rigProfile) || draft.rigProfile.id !== CHARACTER_RIG.id || draft.rigProfile.version !== CHARACTER_RIG.version ||
     !Array.isArray(draft.variants) || !draft.variants.length || draft.variants.length > 100) fail('Character record')
   for (const [field, max] of [['description', 500], ['backstory', 8000]] as const) {

@@ -561,7 +561,7 @@ body::before {
   color: #765133;
 }
 
-.workbench-tabs [data-slot="tabs-trigger"][data-state="active"] {
+.workbench-tabs [data-slot="tabs-trigger"][aria-selected="true"] {
   background: #6f4423;
   color: #f5dc91;
   box-shadow: inset 0 1px rgb(255 235 172 / 22%);

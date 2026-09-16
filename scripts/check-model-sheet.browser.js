@@ -346,7 +346,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await appearanceMenu('Add new')
     await ready(() => state().character.appearances.length === 3); await settled()
     const fresh = state().character.activeAppearanceId
-    check(state().character.selected.props.length === 0 && !state().character.selected.expression && Object.keys(state().character.selected.outfits).length === 0 && state().character.variants === preservedVariants, 'Add new did not reset only the selection')
+    check(state().character.selected.props.length === 0 && !state().character.selected.expression && state().character.selected.outfits.length === 0 && state().character.variants === preservedVariants, 'Add new did not reset only the selection')
     check(state().character.appearances.slice(0, 2).every((look, index) => look === preservedLooks[index]) && Object.keys(sheet().views).length === 0, 'Add new overwrote existing looks or populated references')
     await appearanceMenu('Rename')
     await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))

@@ -161,7 +161,8 @@ export interface CharacterAssetContent<Asset> {
 
 export interface CharacterSelection {
   expression?: string
-  outfits: Partial<Record<CharacterOutfitSlot, string>>
+  /** Bottom to top activation order across selected garments. */
+  outfits: string[]
   hair?: string
   headwear?: string
   /** Bottom to top within each prop rig slot. */
@@ -177,7 +178,7 @@ export interface CharacterAppearance<Asset = CharacterDraftAsset> {
 
 export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsset> {
   id: string
-  schemaVersion: 5
+  schemaVersion: 6
   packId: string
   rigProfile: { id: string; version: number }
   name: string

@@ -270,14 +270,14 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   const selectVariant = (variant: CharacterDraftVariant) => commit((current) => activateCharacterVariant(current, variant))
   const clearVariant = (group: CharacterVariantGroup) => commit((current) => clearCharacterVariantSelection(current, group))
   const isSelected = (variant: CharacterDraftVariant) => variant.group === 'prop' ? draft.selected.props.includes(variant.id)
-    : variant.group === 'outfit' ? Object.values(draft.selected.outfits).includes(variant.id)
+    : variant.group === 'outfit' ? draft.selected.outfits.includes(variant.id)
       : selectedId(variant.group) === variant.id
   const toggleVariant = (variant: CharacterDraftVariant) => {
-    if (variant.group !== 'prop' || !isSelected(variant)) return selectVariant(variant)
+    if (!['outfit', 'prop'].includes(variant.group) || !isSelected(variant)) return selectVariant(variant)
     commit((current) => deactivateCharacterVariant(current, variant))
   }
   const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length)
-    : group === 'outfit' ? Boolean(Object.keys(draft.selected.outfits).length) : Boolean(selectedId(group))
+    : group === 'outfit' ? Boolean(draft.selected.outfits.length) : Boolean(selectedId(group))
   const addVariant = (group: CharacterVariantGroup) => {
     const count = draft.variants.filter((variant) => variant.group === group).length + 1
     const variant: CharacterDraftVariant = {

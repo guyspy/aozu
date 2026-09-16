@@ -40,7 +40,7 @@ put('expression', 'happy', 'head')
 put('prop', 'prop-1', 'back')
 put('prop', 'prop-1', 'front')
 draft.variants.push({ group: 'prop', id: 'prop-2', label: 'Prop 2', layers: { back: asset, front: asset } })
-draft.selected = { expression: 'happy', outfits: { top: 'top-1' }, props: ['prop-1', 'prop-2'] }
+draft.selected = { expression: 'happy', outfits: ['top-1'], props: ['prop-1', 'prop-2'] }
 draft.headRegistration = { variantId: 'happy' }
 draft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform = { x: 2, y: -3, scale: 1.01 }
 
@@ -111,11 +111,14 @@ const withDress = updateCharacterVariantMetadata(draft, 'outfit', 'dress', {
   label: 'Field dress', description: 'One-piece field uniform', tags: ['field', 'uniform'], outfit: { slot: 'one-piece', garmentType: 'dress' },
 })
 const dressed = activateCharacterVariant(withDress, { group: 'outfit', id: 'dress' })
-assert.deepEqual(dressed.selected.outfits, { 'one-piece': 'dress' })
-assert.deepEqual(activateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' }).selected.outfits, { top: 'top-1' })
+assert.deepEqual(dressed.selected.outfits, ['top-1', 'dress'])
+const layeredOutfits = activateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' })
+assert.equal(layeredOutfits, dressed)
+const topmostDress = activateCharacterVariant(deactivateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' }), { group: 'outfit', id: 'top-1' })
+assert.deepEqual(topmostDress.selected.outfits, ['dress', 'top-1'])
 const dressAsset = draft.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')!.layers.front!
 const dressedWithAsset = { ...dressed, variants: dressed.variants.map((variant) => variant.group === 'outfit' && variant.id === 'dress' ? { ...variant, layers: { front: dressAsset } } : variant) }
-assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ slot }) => slot.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front'])
+assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ slot }) => slot.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front', 'outfit-dress-front'])
 assert.throws(() => updateCharacterVariantMetadata(draft, 'expression', 'happy', { faceStyle: { id: 'invalid', label: 'Invalid', facialHair: { type: 'x'.repeat(81) } } }), /Invalid Face Style/)
 const bearded = updateCharacterVariantMetadata(draft, 'expression', 'happy', {
   faceStyle: { id: 'bearded', label: 'Bearded', facialHair: { type: 'full beard', color: 'black' } },
@@ -155,7 +158,7 @@ assert.deepEqual(resolveCharacterDraftLayers(reversedRestored.draft).map(({ id }
 assert.deepEqual(resolveCharacterDraftLayers(draft).find(({ slot }) => slot === 'expression-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 assert.deepEqual(resolveCharacterDraftAtlasSources(draft).find(({ id }) => id === 'expression-happy-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 const atlasKey = characterDraftAtlasKey(draft)
-assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { outfits: {}, props: [] } }), atlasKey)
+assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { outfits: [], props: [] } }), atlasKey)
 assert.equal('revision' in archivedDraft, false)
 const movedAtlasDraft = structuredClone(draft)
 movedAtlasDraft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform!.x += 1

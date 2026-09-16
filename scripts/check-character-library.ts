@@ -91,7 +91,7 @@ await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => val
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.assets.push(value.assets[0])), inspect), /duplicate.*asset path/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.selected.props = ['missing']), inspect), /selection/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.selected.props = ['prop-1', 'prop-1']), inspect), /schema|selection/)
-await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.selected.outfits.top = 'bottom-1'), inspect), /selection/)
+await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.selected.outfits = ['missing']), inspect), /selection/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.variants.find((variant) => variant.group === 'expression').metadata.faceStyleId = 'missing'), inspect), /Face Style/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[0].data.surprise = true), inspect), /schema/)
 await assert.rejects(readCharacterLibraryZip(await mutateManifest((value) => value.entries[1].data.characterIds = ['missing']), inspect), /Collection Character reference/)

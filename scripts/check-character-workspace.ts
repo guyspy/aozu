@@ -98,7 +98,7 @@ assert.deepEqual(assetReads, ['a'.repeat(64)])
 metadata.variants.push({ group: 'outfit', id: 'uniform', label: 'Uniform', metadata: { outfit: { slot: 'top', garmentType: 'uniform' } }, layers: { front: {
   ...metadata.variants.find((variant) => variant.id === 'sad')!.layers.head!,
 } } })
-metadata.selected.outfits.top = 'uniform'
+metadata.selected.outfits = ['uniform']
 assetReads = []
 assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['body-base-body', 'outfit-uniform-front'])
 assert.deepEqual(assetReads.sort(), ['a'.repeat(64), 'c'.repeat(64)])

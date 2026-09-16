@@ -63,7 +63,7 @@ export async function readCharacterDraftZip(
   for (const path of Object.keys(files)) if (path.endsWith('/')) delete files[path]
   const raw = object(parseZipJson(files['draft.json']!, 'Character Draft manifest'), 'Character Draft manifest')
   if (raw.archiveVersion !== 1) throw new Error('Unsupported Character Draft archive version')
-  if (raw.schemaVersion !== 5) throw new Error('Unsupported Character Draft schema version')
+  if (raw.schemaVersion !== 6) throw new Error('Unsupported Character Draft schema version')
   const sourceId = string(raw.id, 'Character Draft ID', 100)
   const packId = string(raw.packId, 'Character Pack ID', 64)
   if (!idPattern.test(packId)) throw new Error('Invalid Character Pack ID')
@@ -115,25 +115,31 @@ export async function readCharacterDraftZip(
   const faceStyles = raw.faceStyles as CharacterDraft['faceStyles']
   validateCharacterVariantMetadata({ variants, faceStyles })
   if (raw.modelSheet !== undefined) validateModelSheet(raw.modelSheet as CharacterModelSheet<unknown>)
-  const appearanceContent = { variants, faceStyles, appearances: raw.appearances as CharacterDraft['appearances'], activeAppearanceId: raw.activeAppearanceId as string | undefined }
+  const readSelection = (value: unknown): CharacterDraft['selected'] => {
+    const selected = object(value, 'Character Draft selection')
+    if (!Array.isArray(selected.outfits) || selected.outfits.some((id) => typeof id !== 'string') || new Set(selected.outfits).size !== selected.outfits.length ||
+      !Array.isArray(selected.props) || selected.props.some((id) => typeof id !== 'string') || new Set(selected.props).size !== selected.props.length) {
+      throw new Error('Invalid Character Draft ordered selection')
+    }
+    return {
+      ...(selected.expression ? { expression: selected.expression as string } : {}),
+      outfits: [...selected.outfits] as string[],
+      ...(selected.hair ? { hair: selected.hair as string } : {}),
+      ...(selected.headwear ? { headwear: selected.headwear as string } : {}),
+      props: [...selected.props] as string[],
+    }
+  }
+  const appearances = Array.isArray(raw.appearances)
+    ? raw.appearances.map((appearance) => ({ ...object(appearance, 'Character Appearance'), selected: readSelection(object(appearance, 'Character Appearance').selected) })) as CharacterDraft['appearances']
+    : raw.appearances as CharacterDraft['appearances']
+  const appearanceContent = { variants, faceStyles, appearances, activeAppearanceId: raw.activeAppearanceId as string | undefined }
   validateCharacterAppearances(appearanceContent)
   const references = await mapCharacterAssets({ ...appearanceContent, variants: [], modelSheet: raw.modelSheet as CharacterModelSheet<unknown> | undefined },
     (asset, key) => readAsset(asset, `assets/${key}.png`, true))
   if (assetPaths.size) throw new Error(`Character Draft contains an unreferenced asset: ${[...assetPaths][0]}`)
 
-  const selected = object(raw.selected, 'Character Draft selection')
-  const selectedOutfits = object(selected.outfits, 'Character Draft outfit selection')
-  if (!Array.isArray(selected.props) || selected.props.some((id) => typeof id !== 'string') || new Set(selected.props).size !== selected.props.length) {
-    throw new Error('Invalid Character Draft prop selection')
-  }
   const hasVariant = (group: CharacterVariantGroup, id: unknown) => typeof id === 'string' && variants.some((variant) => variant.group === group && variant.id === id)
-  const characterSelection: CharacterDraft['selected'] = {
-    ...(selected.expression ? { expression: selected.expression as string } : {}),
-    outfits: selectedOutfits as CharacterDraft['selected']['outfits'],
-    ...(selected.hair ? { hair: selected.hair as string } : {}),
-    ...(selected.headwear ? { headwear: selected.headwear as string } : {}),
-    props: [...selected.props] as string[],
-  }
+  const characterSelection = readSelection(raw.selected)
   validateCharacterSelection({ variants, faceStyles }, characterSelection)
   const headRegistration = raw.headRegistration === undefined ? undefined : object(raw.headRegistration, 'Character Draft head registration')
   if (headRegistration && !hasVariant('expression', headRegistration.variantId)) throw new Error('Registered Character Draft head is missing')
@@ -141,7 +147,7 @@ export async function readCharacterDraftZip(
   return {
     draft: {
       id: sourceId,
-      schemaVersion: 5,
+      schemaVersion: 6,
       packId,
       rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
       name,
