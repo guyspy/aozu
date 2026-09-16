@@ -98,9 +98,9 @@ assert.match(registered.get('replace_character_asset')!.description, /one comple
 assert.match(registered.get('replace_character_asset')!.description, /Never print or route base64 through model text/)
 assert.match(registered.get('replace_character_asset')!.description, /node:fs\/promises/)
 assert.match(registered.get('replace_character_asset')!.description, /browser-file-chooser fallback/)
-assert.match(registered.get('replace_character_asset')!.description, /neutral skin-tone character body base/)
-assert.match(CHARACTER_A_POSE_GUIDANCE, /non-sexual, non-pornographic design mannequin/)
-assert.match(CHARACTER_A_POSE_GUIDANCE, /no nipples, genitals, intimate contours/)
+assert.match(registered.get('replace_character_asset')!.description, /neutral nude-color body base/)
+assert.match(CHARACTER_A_POSE_GUIDANCE, /non-sexual, non-pornographic character-design reference/)
+assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /no nipples/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /wearing underwear/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
 assert.ok(!replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
