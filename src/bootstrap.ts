@@ -527,7 +527,12 @@ export function createApplication(document: Document) {
     if (collectionId === DEFAULT_CHARACTER_COLLECTION && patch.name !== undefined && patch.name !== book.name) throw new Error('The default collection name is fixed')
     await collections.update(collectionId, { name: book.name, description: book.description, backstory: book.backstory, ...patch }, expectedRevision)
     characterChanges.publish({ characterId: collectionId, revision: null })
-    return { status: 'ok', data: { collection: (await collections.list()).find(({ id }) => id === collectionId) }, nextActions: [] }
+    return {
+      status: 'ok',
+      data: { collection: (await collections.list()).find(({ id }) => id === collectionId) },
+      nextActions: [],
+      effects: { navigation: { path: `/collections/${encodeURIComponent(collectionId)}/profile`, mode: 'push', reason: 'Review the updated Collection.' } },
+    }
   }
 
   const collectionFor = async (characterId: string) => {
@@ -543,6 +548,13 @@ export function createApplication(document: Document) {
     const view = readWorkspaceView(document)
     const books = await collections.list()
     const visualLibrary = await worldLibrary.load()
+    if (resource && !id) throw new Error(`${resource} ID is required`)
+    const exists = resource === 'collection' ? books.some((item) => item.id === id)
+      : resource === 'album' ? visualLibrary.albums.some((item) => item.id === id)
+      : resource === 'photo' ? visualLibrary.photos.some((item) => item.id === id)
+      : resource === 'location' ? visualLibrary.locations.some((item) => item.id === id)
+      : resource === 'story-book' ? visualLibrary.storyBooks.some((item) => item.id === id) : true
+    if (!exists) throw new Error(`${resource} not found`)
     const locationId = resource === 'location' ? id : view?.locationId
     const albumId = resource === 'album' ? id : view?.albumId
     const photoId = resource === 'photo' ? id : view?.photoId
@@ -688,35 +700,46 @@ export function createApplication(document: Document) {
   async function navigateWorkspace(rawInput: unknown) {
     const { resource, id, view, itemId } = rawInput as { resource: string; id?: string; view?: string; itemId?: string }
     const exact = (value: string | undefined, what: string) => { if (!value) throw new Error(`${what} ID is required`); return encodeURIComponent(value) }
+    const allow = (views: string[] = [], items = false) => {
+      if (view && !views.includes(view)) throw new Error(`Unsupported ${resource} view`)
+      if (itemId && !items) throw new Error(`${resource} does not support itemId`)
+    }
     let path = '/'
-    if (resource === 'collections') path = '/collections'
+    if (resource === 'collections') { allow(); path = '/collections' }
     else if (resource === 'collection') {
+      allow(['characters', 'profile', 'locations'])
       const collection = (await collections.list()).find((item) => item.id === id); if (!collection) throw new Error('Collection not found')
       path = `/collections/${exact(id, 'Collection')}${view && view !== 'characters' ? `/${view}` : ''}`
     } else if (resource === 'locations') {
+      allow()
       if (!(await collections.list()).some((item) => item.id === id)) throw new Error('Collection not found')
       path = `/collections/${exact(id, 'Collection')}/locations`
     } else if (resource === 'location') {
+      allow(['setting-images', 'profile', 'conditions'], view === 'conditions')
       const location = (await worldLibrary.load()).locations.find((item) => item.id === id); if (!location) throw new Error('Location not found')
-      if (view && !['setting-images', 'profile', 'conditions'].includes(view)) throw new Error('Unsupported Location view')
       if (itemId && view !== 'conditions') throw new Error('itemId requires the Conditions view')
       if (view === 'conditions' && itemId && !location.conditions.some((condition) => condition.id === itemId)) throw new Error('Condition not found')
       path = `/collections/${encodeURIComponent(location.collectionId)}/locations/${exact(id, 'Location')}${view && view !== 'setting-images' ? `/${view}${view === 'conditions' && itemId ? `/${encodeURIComponent(itemId)}` : ''}` : ''}`
-    } else if (resource === 'albums') path = '/albums'
+    } else if (resource === 'albums') { allow(); path = '/albums' }
     else if (resource === 'album') {
+      allow()
       if (!(await worldLibrary.load()).albums.some((item) => item.id === id)) throw new Error('Album not found')
       path = `/albums/${exact(id, 'Album')}`
     } else if (resource === 'photo') {
+      allow()
       const photo = (await worldLibrary.load()).photos.find((item) => item.id === id); if (!photo) throw new Error('Photo not found')
       path = `/albums/${encodeURIComponent(photo.albumId)}/photos/${exact(id, 'Photo')}`
-    } else if (resource === 'storyboards') path = '/storyboards'
+    } else if (resource === 'storyboards') { allow(); path = '/storyboards' }
     else if (resource === 'story-book') {
+      allow()
       if (!(await worldLibrary.load()).storyBooks.some((item) => item.id === id)) throw new Error('Story book not found')
       path = `/storyboards/books/${exact(id, 'Story book')}`
     } else if (resource === 'storyboard') {
+      allow(['storyboard', 'details'])
       await storyboards.get(exact(id, 'Storyboard'))
       path = `/storyboards/${exact(id, 'Storyboard')}${view === 'details' ? '/details' : ''}`
     } else if (resource === 'character') {
+      allow(['expressions', 'outfits', 'props', 'profile', 'model-sheet'], ['expressions', 'outfits', 'props', 'model-sheet'].includes(view ?? 'expressions'))
       const characterId = exact(id, 'Character'), character = await editor.open(id!)
       if (view === 'model-sheet' && itemId && !modelSheetReferences(characterModelSheet(character))[itemId]) throw new Error('Reference not found')
       if (['expressions', 'outfits', 'props'].includes(view ?? 'expressions') && itemId) {
@@ -724,7 +747,8 @@ export function createApplication(document: Document) {
         if (!character.variants.some((variant) => variant.group === group && variant.id === itemId)) throw new Error('Character variant not found')
       }
       path = `/characters/${characterId}/${view ?? 'expressions'}${itemId ? `/${encodeURIComponent(itemId)}` : ''}`
-    } else if (resource !== 'home') throw new Error('Unsupported workspace resource')
+    } else if (resource === 'home') allow()
+    else throw new Error('Unsupported workspace resource')
     return { status: 'ok', data: { resource, id: id ?? null, path }, nextActions: [], effects: { navigation: { path, mode: 'push', reason: 'Open the requested workspace resource.' } } }
   }
 
@@ -746,7 +770,11 @@ export function createApplication(document: Document) {
       if (!input.id || input.expectedRevision === undefined) throw new Error('Character ID and expectedRevision are required')
       const record = (await listCharacterDrafts()).find(({ character }) => character.id === input.id); if (!record) throw new Error('Character not found')
       if (record.version !== input.expectedRevision) throw new Error('Character changed elsewhere; inspect and try again')
-      if (input.action === 'move') { await collections.assign(input.id, input.collectionId ?? null); characterChanges.publish({ characterId: input.id, revision: record.version }); return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id, collectionId: input.collectionId ?? 'default' } } }
+      if (input.action === 'move') {
+        await collections.assign(input.id, input.collectionId ?? null); characterChanges.publish({ characterId: input.id, revision: record.version })
+        const collectionId = input.collectionId ?? DEFAULT_CHARACTER_COLLECTION
+        return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id, collectionId }, effects: { navigation: { path: `/collections/${encodeURIComponent(collectionId)}`, mode: 'push', reason: 'Review the Character in its Collection.' } } }
+      }
       if (input.action !== 'delete') throw new Error('Unsupported Character action')
       await editor.close(input.id); await characterDrafts.delete(input.id)
       return { status: 'ok', data: { resource: input.resource, action: input.action, id: input.id }, effects: { navigation: { path: '/collections', mode: 'push', reason: 'Return to Collections.' } } }
@@ -765,6 +793,7 @@ export function createApplication(document: Document) {
       : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : '/albums')
       : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${originalLocation?.collectionId ?? 'default'}/locations${originalLocation?.parentId ? `/${originalLocation.parentId}` : ''}` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
       : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
+      : command.resource === 'reference' ? `/collections/${result.library.locations.find((item) => item.id === input.locationId)?.collectionId ?? 'default'}/locations/${input.locationId}${input.conditionId ? `/conditions/${input.conditionId}` : ''}`
       : command.resource === 'story-book' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/books/${result.id}`)
       : command.resource === 'storyboard-book' ? `/storyboards/${input.boardId}` : undefined
     return { status: 'ok', data: { resource: input.resource, action: input.action, id: result.id, revision: result.library.revision }, ...(path ? { effects: { navigation: { path, mode: 'push', reason: 'Review the changed Library resource.' } } } : {}) }
@@ -810,6 +839,7 @@ export function createApplication(document: Document) {
     if (resource === 'world') { const library = await worldLibrary.import(blob, await worldLibrary.load()); return { status: 'ok', data: { resource, revision: library.revision }, effects: { navigation: { path: '/albums', mode: 'push', reason: 'Review the imported world Library.' } } } }
     if (resource === 'storyboard') { const board = await storyboards.import(blob); return { status: 'ok', data: { resource, id: board.id, revision: board.revision }, effects: { navigation: { path: `/storyboards/${board.id}`, mode: 'push', reason: 'Review the imported Storyboard.' } } } }
     if (resource === 'character') {
+      if (collectionId && !(await collections.list()).some((collection) => collection.id === collectionId)) throw new Error('Collection not found')
       const character = await application.importCharacter(blob); if (collectionId) await collections.assign(character.id, collectionId)
       return { status: 'ok', data: { resource, id: character.id }, effects: { navigation: { path: `/characters/${character.id}/expressions`, mode: 'push', reason: 'Review the imported Character.' } } }
     }
