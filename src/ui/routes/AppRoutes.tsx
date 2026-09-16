@@ -202,7 +202,7 @@ export function AppRoutes({ application }: { application: Application }) {
     />
     {crumbs.length > 0 && <Breadcrumbs items={crumbs} />}
     <Routes>
-      <Route index element={<Navigate to="/collections" replace />} />
+      <Route index element={<Navigate to={library.characters.length ? "/collections" : "/characters/new/expressions"} replace />} />
       <Route path="/storyboards" element={storyPage} />
       <Route path="/storyboards/:boardId" element={storyPage} />
       <Route path="/storyboards/:boardId/details" element={storyPage} />

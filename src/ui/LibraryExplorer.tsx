@@ -1,4 +1,4 @@
-import { CloudOffIcon, DownloadIcon, FolderTreeIcon } from 'lucide-react'
+import { DownloadIcon, FolderTreeIcon } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -69,7 +69,7 @@ function ExplorerBody({ application, world, collections, characters, refresh, cl
 
   return <WorkspaceScroll>
     <section className="mb-3 rounded-lg border bg-muted/40 p-3" aria-label={text('localOnly')}>
-      <div className="flex items-center gap-2 font-medium"><CloudOffIcon className="size-4" />{text('localOnly')}</div>
+      <div className="font-medium">{text('localOnly')}</div>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{text('localOnlyDescription')}</p>
     </section>
     <section className="library-tree-transfer">
@@ -100,7 +100,7 @@ export function LibraryExplorer(props: ExplorerProps) {
   const [open, setOpen] = useState(false)
 
   return <>
-    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}<CloudOffIcon className="size-3.5 text-muted-foreground" /></Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
+    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}</Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="library-explorer" closeLabel={t('common.close')} aria-describedby={undefined}>
         <SheetTitle>{text('library')}</SheetTitle>

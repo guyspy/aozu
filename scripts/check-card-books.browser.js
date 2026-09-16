@@ -27,7 +27,9 @@ const button = (text) => [...document.querySelectorAll('button')].find((el) => e
 const message = (key) => i18n.t(key)
 const shelf = () => ready(() => route === '/collections' && document.querySelector('.bookshelf-grid'))
 const startCharacter = async () => {
-  await shelf()
+  if (route === '/') await ready(() => route === '/characters/new/expressions')
+  if (route.startsWith('/characters/new/')) { navigate('/collections'); await shelf() }
+  else await shelf()
   document.querySelector('.bookshelf-grid a[href="/collections/default"]').click()
   await ready(() => button(message('characters.new')))
   button(message('characters.new')).click()
