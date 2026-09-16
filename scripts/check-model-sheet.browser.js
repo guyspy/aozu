@@ -98,6 +98,9 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await app.webmcp.ready
     check((await app.loadCharacterLibrary()).characters.length === 0, 'Opening an empty model sheet saved a Character')
     check(state().character.appearances[0].id === 'default', 'New character lacks an editable Default Appearance')
+    const invalidPng = await call('replace_character_asset', { characterId: 'new', group: 'body', variantId: 'base', label: 'Base', layer: 'body', expectedRevision: 0, expectedAssetSha256: null, filename: 'invalid.png', dataUrl: 'data:image/png;base64,AAAA' }).then(() => false, (error) => error.message.includes('not PNG bytes'))
+    const truncatedPng = await call('replace_character_asset', { characterId: 'new', group: 'body', variantId: 'base', label: 'Base', layer: 'body', expectedRevision: 0, expectedAssetSha256: null, filename: 'truncated.png', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }).then(() => false, (error) => error.message.includes('could not be decoded as PNG'))
+    check(invalidPng && truncatedPng, 'Malformed PNG base64 was not rejected with an actionable error')
     const png = await image('#564432')
     await app.replaceCharacterReference('new', 'front', png)
     await ready(() => !route.pathname.includes('/new/') && document.querySelector('[aria-label="Open Front reference"]'))

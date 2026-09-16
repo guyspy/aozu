@@ -76,7 +76,9 @@ const readDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
 const pngFromDataUrl = (dataUrl: string) => {
   const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!match || dataUrl.length > 7_100_000) throw new Error('Expected a PNG data URL under 5 MiB')
-  return new Blob([Uint8Array.from(atob(match[1]), (character) => character.charCodeAt(0))], { type: 'image/png' })
+  const bytes = Uint8Array.from(atob(match[1]), (character) => character.charCodeAt(0))
+  if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) throw new Error('Submitted dataUrl is not PNG bytes; provide the complete original PNG base64 payload')
+  return new Blob([bytes], { type: 'image/png' })
 }
 const blobFromDataUrl = (dataUrl: string) => {
   const match = /^data:(application\/zip|image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
@@ -1396,7 +1398,9 @@ export function createApplication(document: Document) {
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
       const submitted = providedBlob ?? pngFromDataUrl(input.dataUrl ?? '')
-      const submittedInspection = await inspectCharacterImage(submitted)
+      let submittedInspection: CharacterAssetInspection
+      try { submittedInspection = await inspectCharacterImage(submitted) }
+      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted dataUrl'} could not be decoded as PNG; provide complete PNG bytes without truncation or MIME relabeling`) }
       const registrationFrame = characterRegistrationFrame(current)
       const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined
       const referenceBounds = characterReferenceBounds(registrationFrame, target.group)
