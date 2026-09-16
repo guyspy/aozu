@@ -16,7 +16,7 @@ export function readWorkspaceView(document: Document) {
     ...(view.locationId ? { locationId: view.locationId } : {}),
     ...(view.albumId ? { albumId: view.albumId } : {}),
     ...(view.photoId ? { photoId: view.photoId } : {}),
-    ...(view.folderId ? { folderId: view.folderId } : {}),
+    ...(view.bookId ? { bookId: view.bookId } : {}),
     boardId: view.boardId ?? null,
     frameId: view.frameId ?? null,
     candidateId: view.candidateId ?? null,
@@ -44,7 +44,7 @@ const navigationEffect = (value: unknown) => {
   const navigation = (value as { effects?: { navigation?: unknown } }).effects?.navigation
   if (!navigation || typeof navigation !== 'object') return null
   const { path, mode } = navigation as { path?: unknown; mode?: unknown }
-  return typeof path === 'string' && /^\/(?:characters|collections|storyboards)(?:\/|$)/.test(path) && mode === 'push' ? path : null
+  return typeof path === 'string' && (path === '/' || /^\/(?:characters|collections|storyboards|albums)(?:\/|$)/.test(path)) && mode === 'push' ? path : null
 }
 
 export function createWebMcpController(

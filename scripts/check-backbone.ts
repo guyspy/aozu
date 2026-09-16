@@ -5,7 +5,7 @@ import { compileAuthoringBackbone, compileFixedBackbone, FIXED_BACKBONE_VERSION 
 const plan = compileFixedBackbone()
 const authoring = compileAuthoringBackbone()
 
-assert.equal(FIXED_BACKBONE_VERSION, "6")
+assert.equal(FIXED_BACKBONE_VERSION, "8")
 assert.deepEqual(Object.keys(plan.schemas).sort(), ["character-loadouts", "character-packs", "character-states", "inventory-items", "item-definitions", "journal-entries", "pending-agent-turns", "progress-events", "rules", "runs", "scene-assets", "scene-compositions", "stages"])
 assert.deepEqual(Object.keys(authoring.schemas).sort(), ['character-collections', 'character-workspaces', 'experience-drafts', 'world-library'])
 assert.equal(plan.views["current-stage"]?.query.kind, "declarative")
@@ -15,7 +15,8 @@ assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.h
 assert.equal(authoring.procedures['update-character-workspace']?.manifest.spec.input.properties?.expectedVersion?.type, 'number')
 assert.equal(authoring.triggers["select-experience-draft"]?.target, "select-experience-draft")
 assert.equal(authoring.triggers['inspect-workspace']?.target, 'inspect-workspace')
-assert.equal(authoring.triggers['navigate-character']?.target, 'navigate-character')
+assert.equal(authoring.triggers['navigate-workspace']?.target, 'navigate-workspace')
+assert.deepEqual(authoring.procedures['update-library']?.manifest.spec.input.properties?.resource?.enum?.slice(-2), ['story-book', 'storyboard-book'])
 assert.equal(authoring.triggers['update-character-profile']?.target, 'update-character-profile')
 assert.equal(authoring.triggers['create-local-companion']?.target, 'create-local-companion')
 assert.equal(authoring.triggers["submit-experience-candidate"]?.target, "submit-experience-candidate")

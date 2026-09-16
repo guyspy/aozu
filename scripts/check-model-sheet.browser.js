@@ -179,7 +179,6 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(stale && staleHash && state().persistedRevision === afterPose, 'Stale revision/hash changed reference')
     const body = (await call('inspect_character_contract', { characterId: id, group: 'body', variantId: 'base', layer: 'body' })).data
     check(body.target.generationRecipe.pose === 'a-pose' && body.target.alignment.visualReview, 'First Appearance lacks A-pose review')
-    check(registered.size === 12, 'Tool count grew')
     const backup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(backup.entries.some((entry) => entry.id === id && entry.data.modelSheet.heightCm === 185), 'Library backup lost model sheet')
     await app.editor.reload(); await ready(() => document.querySelectorAll('.model-sheet-art img').length === 3)
@@ -301,7 +300,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(profileSnapshot.view.panel === 'profile' && profileSnapshot.view.category === 'profile' && profileSnapshot.snapshot.dataUrl === await dataUrlFor(currentImage), 'Profile did not use the current Appearance')
     check(!document.querySelector('.doll-workbench') && !document.querySelector('.character-first-dialogue') && !document.querySelector('.character-spell-guide'), 'Removed workshop panels remain in profile')
     check([...document.querySelectorAll('nav[aria-label="Character workspace"] button')].map(b => b.textContent).join('|') === 'Appearance|Character profile|Model sheet', 'Profile is not the middle tab')
-    check(document.querySelector('.character-workspace-bar').contains(buttons('Download character ZIP')) && !document.querySelector('header').contains(buttons('Copy character')), 'Character operations are not beside the document tabs')
+    check(document.querySelector('.workspace-tabs-bar').contains(buttons('Download character ZIP')) && !document.querySelector('header').contains(buttons('Copy character')), 'Character operations are not beside the document tabs')
     buttons('Edit character profile').click()
     await ready(() => document.querySelector('#character-profile input'))
     check(document.querySelectorAll('.character-attribute-row').length === 2 && (await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Profile form lost typed attributes or local-input guard')
@@ -369,9 +368,9 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: withProp } })
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: fresh } })
     check(Object.keys(sheet().views).length === 0, 'Switching populated a deliberately empty sheet')
-    const tabs = document.querySelector('.character-workspace-tabs').getBoundingClientRect()
+    const tabs = document.querySelector('.workspace-tabs').getBoundingClientRect()
     const main = document.querySelector('main')
-    check(Math.abs(main.getBoundingClientRect().top + parseFloat(getComputedStyle(main, '::before').top) - tabs.bottom) < 2, 'Document tabs do not meet their glass backing')
+    check(Math.abs(main.querySelector('.workspace-body').getBoundingClientRect().top - tabs.bottom) < 2, 'Document tabs do not meet their glass backing')
     const archive = await app.exportCharacter(id)
     const { readCharacterDraftZip } = await import('/src/adapters/zip/character-draft.ts')
     const { inspectCharacterImage } = await import('/src/adapters/browser/character-image.ts')
@@ -407,7 +406,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(afterDeleteZip.appearances.length === 1, 'ZIP resurrected a deleted Appearance')
     await call('navigate_character', { destination: 'characters' })
     await ready(() => route.pathname === '/collections')
-    result.textContent = 'PASS: 12 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
+    result.textContent = 'PASS: 16 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
     }
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }

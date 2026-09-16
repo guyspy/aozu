@@ -43,9 +43,12 @@ const runtime = await bootMantleRuntime({
     'companion.inspect-storyboard': async (input) => ({ status: 'ok', data: input }),
     'companion.update-storyboard': async (input) => ({ status: 'ok', data: input }),
     'companion.export-storyboard': async (input) => ({ status: 'ok', data: input }),
+    'companion.navigate-workspace': async (input) => ({ status: 'ok', data: input }),
+    'companion.update-library': async (input) => ({ status: 'ok', data: input }),
+    'companion.export-library': async (input) => ({ status: 'ok', data: input }),
+    'companion.import-library': async (input) => ({ status: 'ok', data: input }),
     'companion.update-collection-profile': async (input) => ({ status: 'ok', data: input }),
     'companion.inspect-workspace': async () => ({ status: 'ok', data: {} }),
-    'companion.navigate-character': async (input) => ({ status: 'ok', data: input }),
     'companion.update-character-profile': async (input) => {
       profileInput = input
       return { status: 'ok', data: input }
@@ -124,7 +127,7 @@ assert.equal(createdEntry?.collection, 'experience-drafts')
 assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: {}, ctx: context })).ok, true)
 assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: { includeSnapshot: true }, ctx: context })).ok, true)
 assert.equal((await runtime.invokeTrigger({ trigger: 'inspect-workspace', input: { includeSnapshot: 'true' }, ctx: context })).ok, false)
-assert.equal((await runtime.invokeTrigger({ trigger: 'navigate-character', input: { destination: 'characters' }, ctx: context })).ok, true)
+assert.equal((await runtime.invokeTrigger({ trigger: 'navigate-workspace', input: { resource: 'collections' }, ctx: context })).ok, true)
 const profile = { characterId: 'character:triggered', expectedRevision: 1, name: 'Renamed', backstory: 'Line one.\n\nLine two.', attributes: { courage: 8, nocturnal: true } }
 assert.equal((await runtime.invokeTrigger({ trigger: 'update-character-profile', input: profile, ctx: context })).ok, true)
 assert.deepEqual(profileInput, profile)

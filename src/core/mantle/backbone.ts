@@ -56,7 +56,7 @@ const nextActionSchema = objectSchema({
 
 const toolEffectsSchema = objectSchema({
   navigation: objectSchema({
-    path: { type: 'string', pattern: '^/(?:characters|collections|storyboards)(?:/|$)' },
+    path: { type: 'string', pattern: '^/(?:$|characters(?:/|$)|collections(?:/|$)|storyboards(?:/|$)|albums(?:/|$))' },
     mode: { const: 'push' },
     reason: { type: 'string', minLength: 1 },
   }, ['path', 'mode', 'reason']),
@@ -311,14 +311,52 @@ const characterWorkspaceProperties = {
 }
 const characterWorkspaceRequired = ['schemaVersion', 'packId', 'rigProfile', 'name', 'variants', 'selected']
 
-export const FIXED_BACKBONE_VERSION = "6"
+const workspaceNavigationSchema = objectSchema({
+  resource: { enum: ['home', 'collections', 'collection', 'location', 'albums', 'album', 'photo', 'storyboards', 'story-book', 'storyboard', 'character'] },
+  id: { type: 'string', minLength: 1, maxLength: 100 },
+  view: { enum: ['characters', 'profile', 'locations', 'setting-images', 'conditions', 'expressions', 'outfits', 'props', 'model-sheet', 'storyboard', 'details'] },
+  itemId: { type: 'string', minLength: 1, maxLength: 100 },
+}, ['resource'])
+
+const libraryUpdateSchema = objectSchema({
+  resource: { enum: ['collection', 'character', 'album', 'photo', 'location', 'condition', 'reference', 'story-book', 'storyboard-book'] },
+  action: { enum: ['create', 'update', 'delete', 'duplicate', 'move'] },
+  expectedRevision: { type: 'integer', minimum: 0 },
+  id: { type: 'string', minLength: 1, maxLength: 100 },
+  name: { type: 'string', minLength: 1, maxLength: 120 },
+  description: { type: 'string', maxLength: 8000 },
+  backstory: { type: 'string', maxLength: 8000 },
+  collectionId: { type: 'string', minLength: 1, maxLength: 100 },
+  albumId: { type: 'string', minLength: 1, maxLength: 100 },
+  locationId: { type: 'string', minLength: 1, maxLength: 100 },
+  conditionId: { type: 'string', minLength: 1, maxLength: 100 },
+  photoId: { type: 'string', minLength: 1, maxLength: 100 },
+  parentId: { oneOf: [{ type: 'string', minLength: 1, maxLength: 100 }, { type: 'null' }] },
+  tags: { type: 'array', maxItems: 30, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
+  consistency: { type: 'string', maxLength: 8000 },
+  source: { type: 'string', maxLength: 2000 },
+  label: { type: 'string', minLength: 1, maxLength: 120 },
+  purpose: { enum: ['inspiration', 'design'] },
+  synopsis: { type: 'string', maxLength: 8000 },
+  direction: { type: 'string', maxLength: 8000 },
+  collectionIds: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 100 } },
+  boardId: { type: 'string', minLength: 1, maxLength: 100 },
+  bookId: { oneOf: [{ type: 'string', minLength: 1, maxLength: 100 }, { type: 'null' }] },
+}, ['resource', 'action'])
+
+const archiveDataUrl = { type: 'string', pattern: '^data:(?:application/zip|image/(?:png|jpeg|webp));base64,', maxLength: 28_000_000 } satisfies JsonSchema
+
+export const FIXED_BACKBONE_VERSION = "8"
 
 const ALL_BACKBONE_SOURCES = [
-  source('authoring/world-library.yaml', envelope('Schema', 'world-library', { title: 'Albums, locations and storyboard folders', lifecycle: 'operational', schema: objectSchema({ library: WORLD_LIBRARY_SCHEMA }, ['library']) })),
+  source('authoring/world-library.yaml', envelope('Schema', 'world-library', { title: 'Albums, locations and story books', lifecycle: 'operational', schema: objectSchema({ library: WORLD_LIBRARY_SCHEMA }, ['library']) })),
   ...[
     { name: 'inspect-storyboard', title: 'Inspect Storyboard', description: 'List standalone storyboards or read one exact revision, selected candidates, pinned reference standards and source changes. Boards may mix collections and external PNGs. Image bytes are opt-in, at most five image IDs. Actually view images before visual feedback. Stored, selected and human-confirmed are distinct. UI context is exposed through inspect_workspace. No navigation or mutation.', input: { ...objectSchema({ boardId: { type: 'string', minLength: 1 }, images: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', minLength: 1 } } }), readOnly: true } },
-    { name: 'update-storyboard', title: 'Update Storyboard', description: 'Create a standalone board or mutate it using its exact expectedRevision. Actions: rename (name/notes), add-frame (title/notes), edit-frame (frameId/title/notes/review/transition/duration), remove-frame, reorder (all frame IDs exactly once), add-candidate (frameId/filename/PNG dataUrl/source), select (frameId/imageId), reference (frameId/imageId/purpose or remove:true), undo, redo. Uploaded candidates NEVER automatically replace selections. Confirmed review requires explicit human approval, never merely successful upload. Reference pins exact image ID/hash; changes to source selection do not rewrite it. Same operations and persisted undo/redo as UI. PNG originals up to 4096×4096 and 5 MiB, at most 100 frames/500 images/128 MiB per board. Source text is provenance only. Returns navigation to affected board for visual review. No same-collection requirement. pin-setting stores a setting snapshot (id, kind character/location/photo, sourceId, revision, name, details) on frameId, optionally with PNG dataUrl/filename/source/purpose; it never selects or approves an image. unpin-setting removes a snapshot by imageId. inspect_workspace exposes current location and album metadata; local location settings take precedence over ancestor context.', input: STORYBOARD_UPDATE_SCHEMA },
-    { name: 'export-storyboard', title: 'Export Storyboard', description: 'Build and download a portable ZIP of one exact storyboard revision: all original candidate/reference PNGs, ordered selected PNGs, manifest, HTML overview and transition notes. Reimport creates an independent board. Export is not approval or video generation. Returns filename and size, not a huge base64 payload.', input: { ...objectSchema({ boardId: { type: 'string', minLength: 1 }, expectedRevision: { type: 'integer', minimum: 1 } }, ['boardId', 'expectedRevision']), readOnly: true } },
+    { name: 'update-storyboard', title: 'Update Storyboard', description: 'Create a standalone board or mutate it using its exact expectedRevision. Actions: rename (name/notes), add-frame (title/notes), edit-frame (frameId/title/notes/review/transition/duration), remove-frame, reorder (all frame IDs exactly once), add-candidate (frameId/filename/PNG dataUrl/source/settings), select (frameId/imageId), reference (frameId/imageId/purpose or remove:true), undo, redo. Undefined subjects in candidates may be invented freely. Every defined AOZU Character, Location, Condition or Album Photo used in a candidate must be included in settings. Character settings require the exact Appearance sha256 from inspect_character_contract with scope:model-sheet and images:[appearance]; world settings use the revision from inspect_workspace. Missing or stale refs are rejected. Uploaded candidates NEVER automatically replace selections. Confirmed review requires explicit human approval, never merely successful upload. Reference pins exact image ID/hash; changes to source selection do not rewrite it. Same operations and persisted undo/redo as UI. PNG originals up to 4096×4096 and 5 MiB, at most 100 frames/500 images/128 MiB per board. Source text is provenance only. Returns navigation to affected board for visual review. No same-collection requirement. pin-setting stores the same setting snapshot (id, kind character/location/photo, sourceId, revision, name, details, optional sha256) on frameId, optionally with PNG dataUrl/filename/source/purpose; it never selects or approves an image. unpin-setting removes a snapshot by imageId. inspect_workspace exposes current location and album metadata; local location settings take precedence over ancestor context.', input: STORYBOARD_UPDATE_SCHEMA },
+    { name: 'navigate-workspace', title: 'Navigate Workspace', description: 'Open an exact AOZU resource without guessing a route. resource is home, collections, collection, location, albums, album, photo, storyboards, story-book, storyboard, or character. Supply id for one resource; Location view may be setting-images, profile, or conditions and itemId opens a Condition. Character view may be expressions, outfits, props, profile, or model-sheet and itemId opens a variant/reference. Collection view may be characters, profile, or locations (the Collection’s Location tree); storyboard view may be storyboard or details. AOZU applies the returned navigation in this tab. Re-run inspect_workspace after rendering.', input: { ...workspaceNavigationSchema, readOnly: true } },
+    { name: 'update-library', title: 'Update Library', description: 'Create, update, duplicate, delete, or move AOZU library records with one revision-checked command. Resources: collection; character (move between collections or delete); album; photo; location; condition; reference (explicitly reuse a finished Album photo as Location inspiration/design); story-book; storyboard-book. Duplicate is supported for Locations and Conditions and preserves their setting images with new IDs. Use IDs and expectedRevision from inspect_workspace. Omitted update fields stay unchanged. Moving a Photo requires id and albumId and routes to the Photo in its destination Album. Deleting an Album moves its photos to My images; deleting a Location moves its children to its parent; deleting a Story Book leaves its storyboards unfiled. This does not edit storyboard frames or character artwork. AOZU itself handles effects.navigation.', input: libraryUpdateSchema },
+    { name: 'export-library', title: 'Export Library Resource', description: 'Download one resource without returning a huge base64 payload. resource may be library (complete backup), world (Albums, Locations and Story Books), character, storyboard, or photo. Character/storyboard require id and exact expectedRevision. Photo requires id. Returns the filename and size after starting the browser download.', input: { ...objectSchema({ resource: { enum: ['library', 'world', 'character', 'storyboard', 'photo'] }, id: { type: 'string', minLength: 1, maxLength: 100 }, expectedRevision: { type: 'integer', minimum: 0 } }, ['resource']), readOnly: true } },
+    { name: 'import-library', title: 'Import Library Resource', description: 'Import one AOZU resource from a base64 data URL. library/world/storyboard/character expect application/zip. image expects PNG, JPEG, or WebP and exactly one destination: locationId stores a direct Location or Condition setting image without creating an Album photo. albumId stores a finished composition and requires prompt. Undefined subjects may be invented freely. Every defined AOZU subject used must carry its ref: for each Character, first call inspect_character_contract with scope:model-sheet and images:[appearance], actually view it, then pass characterId/revision/sha256 in characterSources; pass sourceLocationId and optional sourceConditionId for defined settings. Missing or stale refs are rejected and AOZU derives provenance from validated sources. Optional collectionId files an imported Character. Payloads above 20 MiB should use the visible Library file control. AOZU itself handles effects.navigation.', input: objectSchema({ resource: { enum: ['library', 'world', 'character', 'storyboard', 'image'] }, dataUrl: archiveDataUrl, filename: { type: 'string', minLength: 1, maxLength: 200 }, albumId: { type: 'string', minLength: 1, maxLength: 100 }, locationId: { type: 'string', minLength: 1, maxLength: 100 }, conditionId: { type: 'string', minLength: 1, maxLength: 100 }, collectionId: { type: 'string', minLength: 1, maxLength: 100 }, name: { type: 'string', minLength: 1, maxLength: 120 }, label: { type: 'string', minLength: 1, maxLength: 120 }, description: { type: 'string', maxLength: 8000 }, source: { type: 'string', maxLength: 2000 }, purpose: { enum: ['inspiration', 'design'] }, characterSources: { type: 'array', maxItems: 10, items: objectSchema({ characterId: { type: 'string', minLength: 1, maxLength: 100 }, revision: { type: 'integer', minimum: 0 }, sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' } }, ['characterId', 'revision', 'sha256']) }, sourceLocationId: { type: 'string', minLength: 1, maxLength: 100 }, sourceConditionId: { type: 'string', minLength: 1, maxLength: 100 }, prompt: { type: 'string', minLength: 1, maxLength: 8000 } }, ['resource', 'dataUrl']) },
   ].flatMap(({ name, title, description, input }) => [
     source(`authoring/${name}.yaml`, envelope('Procedure', name, { title, description, input, output: toolResultSchema, handler: { kind: 'ref', ref: `companion.${name}` } })),
     source(`authoring/${name}-mcp.yaml`, envelope('Trigger', name, { source: { kind: 'mcp', surface: 'public' }, target: { procedure: name } })),
@@ -632,9 +670,15 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-workspace.yaml',
     envelope('Procedure', 'inspect-workspace', {
       title: 'Inspect Workspace',
-      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. Returns the current route, Storyboard/frame/candidate and board revision, Character/Collection, applied selections, viewed variant or model-sheet reference, save/history state, open panel and uncommitted-input flag. For storyboards use inspect_storyboard with explicit image IDs for original PNGs. includeSnapshot:true returns the clean current Appearance composite or the original image of an open model-sheet reference. Actually view snapshot.dataUrl before visual feedback; if unavailable, follow its reason. A snapshot never navigates, saves or changes selections. Follow nextActions to inspect the task-specific character contract before producing art. Model-sheet references can be opaque and retain their original dimensions; Appearance layers have separate alpha and fixed-canvas rules. A request for an opinion does not request changes.`,
+      description: `Start here and call again after user navigation or tool mutations: context is a snapshot, not a live subscription. intent:world starts the required world-authoring sequence: first choose and inspect a Collection's backstory, Characters, Locations and Conditions, then create setting art or a composed Album photo. resource/id can inspect an exact collection, album, photo, location or story book without navigating; images requests up to five Album photos or direct Location setting images with original data URLs. includeSnapshot:true returns the current Character composite or exact open/requested Photo, Location design, or model-sheet reference. Actually view returned image data before visual feedback. For storyboard originals use inspect_storyboard. A snapshot never navigates, saves or changes selections.`,
       input: {
-        ...objectSchema({ includeSnapshot: { type: 'boolean', description: 'Include the current Appearance preview or open model-sheet reference PNG for visual feedback. Omit for lightweight metadata only.' } }),
+        ...objectSchema({
+          includeSnapshot: { type: 'boolean', description: 'Include the current Character, Photo, Location, or model-sheet image when available.' },
+          resource: { enum: ['collection', 'album', 'photo', 'location', 'story-book'] },
+          intent: { enum: ['character', 'world', 'storyboard'], description: 'Select the authoring workflow so nextActions require the right context before creation.' },
+          id: { type: 'string', minLength: 1, maxLength: 100 },
+          images: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 100 } },
+        }),
         readOnly: true,
       },
       output: toolResultSchema,
@@ -701,28 +745,6 @@ const ALL_BACKBONE_SOURCES = [
     envelope('Trigger', 'inspect-workspace', {
       source: { kind: 'mcp', surface: 'public' },
       target: { procedure: 'inspect-workspace' },
-    }),
-  ),
-  source(
-    'authoring/navigate-character.yaml',
-    envelope('Procedure', 'navigate-character', {
-      title: 'Navigate Character',
-      description: `Navigate to the Character library, Appearance category, variant, profile tab, or model-sheet reference returned by inspect_workspace. Use destination:character-profile for the profile with its current Appearance. Use destination:character-model-sheet with referenceId to open the exact reference. A successful call pushes that route in the SPA without mutating Character data. ${CHARACTER_NAVIGATION_GUIDANCE}`,
-      input: objectSchema({
-        destination: { enum: ['characters', 'character-expressions', 'character-outfits', 'character-props', 'character-profile', 'character-model-sheet'] },
-        referenceId: referenceIdSchema,
-        characterId: { type: 'string', minLength: 1 },
-        variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
-      }, ['destination']),
-      output: toolResultSchema,
-      handler: { kind: 'ref', ref: 'companion.navigate-character' },
-    }),
-  ),
-  source(
-    'authoring/navigate-character-mcp.yaml',
-    envelope('Trigger', 'navigate-character', {
-      source: { kind: 'mcp', surface: 'public' },
-      target: { procedure: 'navigate-character' },
     }),
   ),
   source(

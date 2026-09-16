@@ -1,10 +1,16 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "companion",
-  "account_id": "de5a4a84d570a62d4ac8e411612d0556",
+  "name": "aozu",
+  "account_id": "9fa99f475c0e4db5e46f36a42235d887",
   "compatibility_date": "2026-08-30",
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "aozu.mantle.tools",
+      "custom_domain": true
+    }
+  ]
 }

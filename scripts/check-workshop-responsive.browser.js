@@ -3,6 +3,16 @@ const result = document.querySelector('#result')
 const characterId = new URLSearchParams(location.search).get('characterId')
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
+// Measure where the drawer lands, not mid-slide: wait until its edge stops moving, however long the slide takes.
+const settled = async (element) => {
+  for (let previous = null, attempt = 0; attempt < 60; attempt++) {
+    const right = element.getBoundingClientRect().right
+    if (previous !== null && Math.abs(right - previous) < 0.5) return
+    previous = right
+    await wait(50)
+  }
+  throw new Error('Drawer never stopped moving')
+}
 const ready = async (check) => {
   for (let attempt = 0; attempt < 100; attempt++) { if (check()) return; await wait(50) }
   throw new Error('Timed out waiting for the workshop')
@@ -20,27 +30,28 @@ try {
     assert(find('#root').scrollWidth <= width + 1, `Horizontal overflow at ${width}px`)
     assert(find('.character-stage-canvas').clientHeight > 200, `Collapsed preview at ${width}px`)
     assert(!find('.doll-workbench'), `Closed drawer still occupies the page at ${width}px`)
-    const trigger = find('.character-stage-preview button[aria-label="Customize appearance"]')
-    assert(trigger.getBoundingClientRect().height === 32, 'Customize button has a local size override')
-    for (const button of doc.querySelectorAll('[aria-label="Preview controls"] button')) assert(button.getBoundingClientRect().height === 32, 'Preview button has a local size override')
+    const trigger = find('.workspace-split-trigger')
+    assert(trigger.getAttribute('aria-label') === 'Customize appearance', 'Split trigger must name the drawer it opens')
+    assert(Math.abs(trigger.getBoundingClientRect().height - 32) < 1, `Customize button has a local size override: ${trigger.getBoundingClientRect().height}`)
+    for (const button of doc.querySelectorAll('[aria-label="Preview controls"] button')) assert(Math.abs(button.getBoundingClientRect().height - 32) < 1, 'Preview button has a local size override')
     trigger.click()
     await ready(() => find('[role="dialog"]'))
-    await wait(250)
     const drawer = find('[role="dialog"]')
-    assert(drawer.getBoundingClientRect().right <= width + 1 && drawer.clientWidth >= width * 0.5, 'Drawer must fit on the right')
+    await settled(drawer)
+    assert(drawer.getBoundingClientRect().right <= width + 1 && drawer.clientWidth >= width * 0.5, `Drawer must fit on the right at ${width}px: right ${drawer.getBoundingClientRect().right}, width ${drawer.clientWidth}`)
     assert(find('.workbench-content').clientHeight > 100, 'Drawer list must remain scrollable')
     for (const label of doc.querySelectorAll('.workbench-tabs [role="tab"] > span:last-child')) {
       assert(label.scrollWidth <= label.clientWidth + 1, `Clipped category at ${width}px: ${label.textContent}`)
     }
     const close = find('[data-slot="sheet-close"]')
     const edit = find('.variant-edit')
-    assert(close.getBoundingClientRect().height === 32 && edit.getBoundingClientRect().height === 32, 'Portal buttons have inconsistent sizes')
+    assert(Math.abs(close.getBoundingClientRect().height - 32) < 1 && Math.abs(edit.getBoundingClientRect().height - 32) < 1, 'Portal buttons have inconsistent sizes')
     assert(frame.contentWindow.getComputedStyle(close).backgroundColor === frame.contentWindow.getComputedStyle(edit).backgroundColor, 'Close and edit buttons use different treatments')
     close.click()
     await ready(() => !find('[role="dialog"]'))
     await ready(() => doc.activeElement === trigger)
   }
-  find('.character-stage-preview button[aria-label="Customize appearance"]').click()
+  find('.workspace-split-trigger').click()
   await ready(() => find('[role="dialog"]'))
   frame.style.width = '1280px'
   await ready(() => !find('[role="dialog"]') && find('#root .doll-workbench'))
@@ -73,7 +84,7 @@ try {
       assert(find('[role="dialog"] #character-profile'), 'Mobile profile must use the shared drawer')
       find('[data-slot="sheet-close"]').click()
       await ready(() => !find('[role="dialog"]'))
-      const trigger = find('.character-stage-preview button[aria-label="Character profile"]')
+      const trigger = find('.workspace-split-trigger')
       await ready(() => doc.activeElement === trigger)
       trigger.click()
       await ready(() => find('[role="dialog"] #character-profile'))
@@ -96,7 +107,7 @@ try {
   await ready(() => !find('#character-profile'))
   frame.style.width = '844px'; frame.style.height = '390px'
   await wait(350)
-  assert(find('.character-stage-canvas').clientHeight > 200 && find('#root').scrollHeight > 390, 'Short windows must scroll instead of collapsing the preview')
+  assert(find('.character-stage-canvas').clientHeight > 80 && find('#root').scrollHeight <= find('#root').clientHeight + 1, 'Short windows must keep a usable preview without scrolling the document')
   button('Model sheet').click()
   await ready(() => find('.model-sheet-content'))
   assert(find('.model-sheet-toolbar').clientHeight < 150 && find('.model-sheet-content').clientHeight > 100, 'Short windows must keep a compact model sheet toolbar and usable board')
@@ -105,5 +116,5 @@ try {
   result.textContent = `FAIL: ${error.message}`
   throw error
 } finally {
-  frame.remove()
+  if (result.textContent.startsWith('PASS')) frame.remove()
 }

@@ -3,7 +3,7 @@ import { WORLD_NAMESPACE } from '../../core/domain/world-library.ts'
 import { AUTHORING_NAMESPACE } from '../../core/application/authoring.ts'
 import { CharacterRevisionConflict } from '../../core/application/ports.ts'
 import { CHARACTER_LIBRARY_REVISION_FLOOR } from '../../core/application/character-library.ts'
-import { CHARACTER_COLLECTIONS, DEFAULT_CHARACTER_COLLECTION, characterCollectionName, characterCollectionProfile, type CharacterCollection, type CharacterCollectionProfile } from '../../core/domain/character-collection.ts'
+import { CHARACTER_COLLECTIONS, DEFAULT_CHARACTER_COLLECTION, characterCollectionProfile, type CharacterCollection, type CharacterCollectionProfile } from '../../core/domain/character-collection.ts'
 import { ENTRY_STORE, META_STORE, openCompanionDatabase, type StoredEntry } from './database.ts'
 
 const key = (id: string): [string, string] => [AUTHORING_NAMESPACE, id]
@@ -64,13 +64,13 @@ export function createIndexedDbCharacterCollectionRepository() {
       await meta.put(String(Math.max(Number(await meta.get(CHARACTER_LIBRARY_REVISION_FLOOR)) || 0, entry.version)), CHARACTER_LIBRARY_REVISION_FLOOR)
       await transaction.done
     },
-    async create(value: string): Promise<CharacterCollection> {
-      const name = characterCollectionName(value)
+    async create(value: CharacterCollectionProfile): Promise<CharacterCollection> {
+      const profile = characterCollectionProfile(value)
       const now = Date.now()
       const entry: StoredEntry = {
         id: crypto.randomUUID(), bundleId: AUTHORING_NAMESPACE, collection: CHARACTER_COLLECTIONS,
         status: 'published', version: 1, authorId: null, createdAt: now, updatedAt: now,
-        data: { name, characterIds: [] },
+        data: { ...profile, characterIds: [] },
       }
       await (await openCompanionDatabase()).add(ENTRY_STORE, entry)
       return project(entry)

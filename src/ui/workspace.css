@@ -1,0 +1,100 @@
+/* Document chrome is independent of page names and portal placement. */
+.workspace-panel { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; width: 100%; max-width: 1152px; margin: 0 auto; padding: clamp(14px, 2vw, 24px); overflow: hidden; --workspace-tab-height: 2.75rem; --workspace-edge: #f1deb4; }
+.workspace-body { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: 12px; gap: 12px; overflow: hidden; border: 1px solid #80502c66; border-radius: 1.5rem; background: linear-gradient(180deg, var(--workspace-edge), #ead3a1 42%, #e6c98e); box-shadow: inset 0 0 4rem #5b331b14, 0 1.2rem 3rem #48271414; }
+.workspace-tabs-bar + .workspace-body { border-radius: 0 1.5rem 1.5rem; background: linear-gradient(180deg, var(--workspace-edge) 0 24px, #ead3a1 42%, #e6c98e); }
+.workspace-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+.workspace-toolbar > :first-child { min-width: 0; }
+.workspace-surface, .workspace-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.workspace-surface { padding: var(--panel-padding, 16px); gap: 12px; border: 1px solid #804f2366; border-radius: 1rem; background: var(--workspace-edge); color: #4b2e1c; box-shadow: inset 0 0 0 4px #fff6d824, 0 0.7rem 1.6rem #3f241212; }
+.workspace-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.workspace-scroll::-webkit-scrollbar { display: none; }
+.workspace-scroll:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+[data-workspace-surface="paper"] { background: #f7f6f2; color: #333; border: 1px solid #c9c4ba; border-radius: 14px; padding: clamp(16px, 2vw, 28px); font-family: var(--font-paper); box-shadow: inset 0 1px #fff; }
+.workspace-add { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 12px; padding-top: 12px; }
+.workspace-split { position: relative; display: grid; flex: 1; min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.workspace-split[data-split="wide"] { grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr); }
+.workspace-split[data-split="stacked"] .workspace-main .workspace-toolbar { padding-right: 40px; }
+.workspace-split-trigger { position: absolute; z-index: 2; top: 16px; right: 16px; }
+.workspace-aside-drawer[data-slot="sheet-content"] { width: min(26rem, calc(100vw - 2rem)); max-width: none; padding: 3.25rem 1rem 1rem; gap: 0; }
+.workspace-sheet[data-slot="sheet-content"] { width: min(100%, 44rem); max-width: 44rem; padding: 20px; gap: 16px; }
+.workspace-sheet-title { flex: none; padding-right: 2.5rem; font-family: var(--font-heading); font-size: 1.25rem; }
+.workspace-sheet > .workspace-scroll { display: flex; flex-direction: column; gap: 16px; }
+.workspace-sheet > .workspace-scroll > * { flex-shrink: 0; }
+.workspace-status .workspace-body { justify-content: center; align-items: center; }
+.workspace-tabs-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; flex-shrink: 0; }
+.workspace-tabs { display: flex; align-items: flex-end; gap: 0.2rem; min-width: 0; height: var(--workspace-tab-height); }
+.workspace-tabs .workspace-tab {
+  position: relative;
+  height: calc(var(--workspace-tab-height) - 0.35rem);
+  padding: 0.65rem 1rem;
+  border: 1px solid rgb(125 77 35 / 25%);
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: rgb(192 155 91 / 18%);
+  color: #78573b;
+  box-shadow: inset 0 1px rgb(255 248 219 / 35%);
+  transform: none;
+  transition: background-color 150ms, color 150ms;
+}
+.workspace-tabs .workspace-tab:hover { background: rgb(255 242 201 / 36%); }
+.workspace-tabs .workspace-tab[aria-current="page"] {
+  z-index: 1;
+  height: var(--workspace-tab-height);
+  border-color: rgb(125 77 35 / 34%);
+  background: var(--workspace-edge);
+  color: #4b2e1c;
+  font-weight: 700;
+  box-shadow: none;
+}
+.workspace-tabs .workspace-tab[aria-current="page"]::after { content: ''; position: absolute; right: 0; bottom: -2px; left: 0; height: 3px; background: var(--workspace-edge); }
+.workspace-tab:focus-visible { z-index: 2; }
+.workspace-actions { margin-left: auto; }
+.workspace-tabs-bar > .workspace-actions { padding-bottom: 0.3rem; }
+/* One tile shape for every grid; each grid's own card class supplies the frame around it. */
+:where(.workspace-card) { position: relative; min-width: 0; overflow: hidden; border: 1px solid #804f2366; border-radius: 0.7rem; background: #f8e5b673; color: #6d4927; }
+.workspace-card-open { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 0.5rem; border-radius: inherit; }
+.workspace-card-preview { display: grid; place-items: center; width: 100%; overflow: hidden; }
+.workspace-card-label { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-heading); font-weight: 700; }
+.workspace-card-meta { min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; font-weight: 400; color: var(--muted-foreground); }
+.workspace-card-open:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+
+/* Adding is the same tile with a plus where the preview would be. */
+.workspace-add-card { border-style: dashed; background: rgb(248 229 182 / 30%); color: #7d5326; box-shadow: none; }
+.workspace-add-card:hover { background: rgb(248 229 182 / 55%); }
+.workspace-add-card .workspace-card-open { align-items: center; justify-content: center; text-align: center; }
+.workspace-add-card .workspace-card-preview { position: relative; }
+.workspace-add-card .workspace-card-preview > .workspace-add-watermark { position: absolute; top: 50%; left: 50%; display: grid; width: min(70%, 8rem); height: auto; aspect-ratio: 1; place-items: center; opacity: 0.13; filter: sepia(1); transform: translate(-50%, -50%); }
+.workspace-add-watermark .aozu-icon { width: 100%; height: 100%; }
+.workspace-add-watermark + svg { position: relative; }
+/* A collection cover's thick spine is part of the book, not of an empty slot. */
+.workspace-add-card.collection-cover { border-left-width: 1px; }
+
+@media (max-width: 639px) {
+  .workspace-body { padding: 8px; }
+  .workspace-surface { --panel-padding: 8px; }
+  .workspace-tabs-bar { flex-wrap: wrap; gap: 0; }
+  .workspace-tabs-bar > .workspace-actions { padding-bottom: 0.5rem; }
+  .workspace-tabs { order: 1; width: 100%; }
+  .workspace-tabs .workspace-tab { flex: 1; padding-inline: 0.5rem; font-size: 0.75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .workspace-tabs .workspace-tab { transition: none; } }
+
+.workspace-surface[data-workspace-surface="paper"] { padding: var(--panel-padding, 16px); }
+
+.library-explorer[data-slot="sheet-content"] { width: min(24rem, calc(100vw - 2rem)); max-width: none; padding: 1rem; gap: 1rem; }
+.library-explorer [data-slot="sheet-title"] { padding-right: 2.5rem; font-size: 1.25rem; }
+.library-explorer > .workspace-scroll { display: flex; flex-direction: column; gap: 1rem; }
+.library-tree-transfer { padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.library-tree { display: grid; gap: 0.25rem; }
+.library-tree details { min-width: 0; }
+.library-tree summary { display: flex; min-height: 2rem; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; }
+.library-tree details > summary::before { content: '›'; flex: none; font-size: 1.25rem; line-height: 1; transition: transform 150ms; }
+.library-tree details[open] > summary::before { transform: rotate(90deg); }
+.library-tree summary:hover, .library-tree-row:hover { background: var(--muted); }
+.library-tree summary .aozu-icon { width: 1.25rem; height: 1.25rem; }
+.library-tree-children { display: grid; gap: 0.125rem; margin-left: 0.75rem; padding-left: 0.75rem; border-left: 1px solid var(--border); }
+.library-tree > details > .library-tree-children { margin-left: 1.5rem; }
+.library-tree-row { display: flex; min-width: 0; min-height: 2rem; align-items: center; border-radius: 0.5rem; }
+.library-tree-row.active { background: var(--muted); font-weight: 600; }
+.library-tree-row > a { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-tree-row > button { width: 2rem; height: 2rem; }

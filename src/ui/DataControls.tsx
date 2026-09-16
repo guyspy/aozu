@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckIcon, CircleAlertIcon, DownloadIcon, LoaderCircleIcon } from 'lucide-react'
+import { CheckIcon, CircleAlertIcon, DownloadIcon, ImportIcon, LoaderCircleIcon } from 'lucide-react'
 
-import { AozuIcon } from '@/ui/AozuIcon'
 import { Button } from '@/ui/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 
@@ -53,7 +52,7 @@ export function DataControls({
       })}>{status === 'busy' ? <LoaderCircleIcon className="animate-spin" /> : exportIconOnly && status === 'done' ? <CheckIcon /> : exportIconOnly && status === 'error' ? <CircleAlertIcon className="text-destructive" /> : <DownloadIcon />}{exportIconOnly ? <span className="sr-only">{downloadLabel}</span> : downloadLabel}</Button></TooltipTrigger>{exportIconOnly && <TooltipContent>{statusLabel}</TooltipContent>}</Tooltip></TooltipProvider>}
       {prepareImport && <Button asChild variant={exportData ? 'ghost' : 'default'} className={exportData ? 'justify-start' : 'w-full'}>
         <label>
-          <AozuIcon name="import" />
+          <ImportIcon />
           {importLabel ?? t('data.import')}
           <input className="sr-only" type="file" accept=".zip,application/zip" disabled={status === 'busy'} onChange={(event) => {
             const file = event.target.files?.[0]

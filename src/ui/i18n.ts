@@ -1,5 +1,3 @@
-import { worldEn, worldZh } from './locales/world-library'
-import { storyboardEn, storyboardZh } from './locales/storyboard'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -49,7 +47,7 @@ const storedLanguage = (): LanguageCode | undefined => {
 }
 
 void i18n.use(initReactI18next).init({
-  resources: Object.fromEntries(Object.entries(resources).map(([language, value]) => [language, { translation: { ...value.translation, navigation: { ...value.translation.navigation, breadcrumb: language === 'zh-TW' ? '所在位置' : 'Breadcrumb' }, world: language === 'zh-TW' ? worldZh : worldEn, books: { ...value.translation.books, shelf: language === 'zh-TW' ? worldZh.collections : worldEn.collections, default: language === 'zh-TW' ? worldZh.defaultCollection : worldEn.defaultCollection }, storyboard: language === 'zh-TW' ? storyboardZh : storyboardEn } }])),
+  resources,
   lng: storedLanguage() ?? 'en',
   fallbackLng: 'en',
   supportedLngs: LANGUAGES.map(({ code }) => code),

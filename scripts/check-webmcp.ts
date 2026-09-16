@@ -37,7 +37,7 @@ assert.equal(readWorkspaceView(viewDocument)!.collectionId, 'book')
 assert.equal(readWorkspaceView(viewDocument)!.viewedVariantId, null)
 
 const plan = compileAuthoringBackbone()
-const triggers = new Set(['inspect-workspace', 'navigate-character', 'inspect-character-contract', 'update-character-profile', 'replace-character-asset', 'repair-character-asset', 'set-character-variant-selection', 'set-character-variant-transform', 'undo-character-change', 'redo-character-change'])
+const triggers = new Set(['inspect-workspace', 'navigate-workspace', 'inspect-character-contract', 'update-character-profile', 'replace-character-asset', 'repair-character-asset', 'set-character-variant-selection', 'set-character-variant-transform', 'undo-character-change', 'redo-character-change'])
 assert.equal(createAgentCapability({} as Document).isAvailable(), false)
 assert.equal(await bindMantleWebMcpTools({} as Document, plan, async () => ({ ok: true, data: null }), triggers), null)
 
@@ -62,8 +62,8 @@ assert.equal(createAgentCapability(document).isAvailable(), true)
 let navigated: string | undefined
 const invoke = async (trigger: string, input: unknown) => ({
   ok: true as const,
-  data: trigger === 'navigate-character'
-    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: (input as { destination: string }).destination === 'characters' ? '/collections' : '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } } }
+  data: trigger === 'navigate-workspace'
+    ? { status: 'ok', data: { trigger, input }, effects: { navigation: { path: (input as { resource: string }).resource === 'collections' ? '/collections' : '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } } }
     : { status: 'ok', data: { trigger, input } },
 })
 const controller = createWebMcpController(document, plan, [...triggers], invoke)
@@ -72,7 +72,7 @@ assert.deepEqual(controller.getState(), { status: 'ready', toolCount: 10 })
 assert.deepEqual([...registered.keys()].sort(), [
   'inspect_character_contract',
   'inspect_workspace',
-  'navigate_character',
+  'navigate_workspace',
   'redo_character_change',
   'repair_character_asset',
   'replace_character_asset',
@@ -102,17 +102,17 @@ const selection = { characterId: 'id', group: 'prop', variantId: 'hat', active: 
 assert.deepEqual(await registered.get('set_character_variant_selection')!.execute(selection, {}), {
   status: 'ok', data: { trigger: 'set-character-variant-selection', input: selection },
 })
-const navigation = { destination: 'character-outfits', characterId: 'id', variantId: 'raincoat' }
-assert.deepEqual(await registered.get('navigate_character')!.execute(navigation, {}), {
-  status: 'ok', data: { trigger: 'navigate-character', input: navigation }, effects: { navigation: { path: '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } },
+const navigation = { resource: 'character', id: 'id', view: 'outfits', itemId: 'raincoat' }
+assert.deepEqual(await registered.get('navigate_workspace')!.execute(navigation, {}), {
+  status: 'ok', data: { trigger: 'navigate-workspace', input: navigation }, effects: { navigation: { path: '/characters/id/outfits/raincoat', mode: 'push', reason: 'review' } },
 })
 assert.equal(navigated, undefined)
 let navigationCount = 0
 controller.setNavigate((path) => { navigated = path; view.location.pathname = path; navigationCount++ })
 assert.equal(navigated, '/characters/id/outfits/raincoat')
-await registered.get('navigate_character')!.execute(navigation, {})
+await registered.get('navigate_workspace')!.execute(navigation, {})
 assert.equal(navigationCount, 1, 'The website must not push the same route twice')
-await registered.get('navigate_character')!.execute({ destination: 'characters' }, {})
+await registered.get('navigate_workspace')!.execute({ resource: 'collections' }, {})
 assert.equal(navigated, '/collections')
 const boundSignal = registrationSignal
 controller.dispose()
@@ -127,8 +127,8 @@ registered.clear()
 await bindMantleWebMcpTools(document, plan, async () => ({
   ok: false,
   diagnostic: runtimeDiagnostic({ code: 'CONFLICT', severity: 'error', path: 'character/revision', message: 'stale' }),
-}), new Set(['navigate-character']))
-await assert.rejects(registered.get('navigate_character')!.execute({ destination: 'characters' }, {}), /stale/)
+}), new Set(['navigate-workspace']))
+await assert.rejects(registered.get('navigate_workspace')!.execute({ resource: 'collections' }, {}), /stale/)
 
 console.log('webmcp: ok')
 
