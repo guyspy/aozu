@@ -92,7 +92,9 @@ try {
   const bad = structuredClone(library); bad.boardBooks.bad = 'missing'
   await assert.rejects(service.save(bad), /book not found/)
   assert.deepEqual(await service.load(), library, 'Rejected saves are atomic')
-  const collections = createIndexedDbCharacterCollectionRepository(), collection = await collections.create('Temporary world')
+  const collections = createIndexedDbCharacterCollectionRepository(), collection = await collections.create({ name: 'Temporary world', description: 'A temporary setting.', backstory: 'Built for this check.' })
+  assert.equal(collection.description, 'A temporary setting.')
+  assert.equal(collection.backstory, 'Built for this check.')
   library.locations.push({ ...location('orphan', null), collectionId: collection.id })
   library = await service.save(library)
   const beforeDelete = structuredClone(library)

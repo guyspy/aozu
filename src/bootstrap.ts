@@ -354,7 +354,7 @@ export function createApplication(document: Document) {
       return result
     },
     async createCollection(name: string) {
-      const collection = await collections.create(name)
+      const collection = await collections.create({ name, description: '', backstory: '' })
       characterChanges.publish({ characterId: collection.id, revision: null })
       await requestPersistentStorage(browser?.navigator.storage)
       return collection
@@ -733,7 +733,7 @@ export function createApplication(document: Document) {
     const input = rawInput as Record<string, unknown> & { resource: string; action: string; id?: string; expectedRevision?: number; collectionId?: string; collectionIds?: string[] }
     if (input.resource === 'collection') {
       if (input.action === 'create') {
-        const collection = await collections.create(String(input.name ?? '')); characterChanges.publish({ characterId: collection.id, revision: null })
+        const collection = await collections.create({ name: String(input.name ?? ''), description: String(input.description ?? ''), backstory: String(input.backstory ?? '') }); characterChanges.publish({ characterId: collection.id, revision: null })
         return { status: 'ok', data: { resource: input.resource, action: input.action, id: collection.id, revision: collection.version }, effects: { navigation: { path: `/collections/${collection.id}`, mode: 'push', reason: 'Open the created Collection.' } } }
       }
       if (!input.id || input.expectedRevision === undefined) throw new Error('Collection ID and expectedRevision are required')
