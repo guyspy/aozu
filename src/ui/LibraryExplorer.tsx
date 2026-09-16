@@ -1,4 +1,4 @@
-import { DownloadIcon, FolderTreeIcon } from 'lucide-react'
+import { CloudOffIcon, DownloadIcon, FolderTreeIcon } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -68,11 +68,15 @@ export function LibraryExplorer({ application, world, collections, characters, r
   const storyboardLinks = (book?: string) => boards.filter((board) => world.boardBooks[board.id] === book).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>
-    <Button type="button" variant="ghost" onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}</Button>
+    <Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}<span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CloudOffIcon /><span className="hidden lg:inline">{text('localOnly')}</span></span></Button>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="library-explorer" closeLabel={t('common.close')} aria-describedby={undefined}>
         <SheetTitle>{text('library')}</SheetTitle>
         <WorkspaceScroll>
+          <section className="mb-3 rounded-lg border bg-muted/40 p-3" aria-label={text('localOnly')}>
+            <div className="flex items-center gap-2 font-medium"><CloudOffIcon className="size-4" />{text('localOnly')}</div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{text('localOnlyDescription')}</p>
+          </section>
           <section className="library-tree-transfer">
             <DataControls exportData={() => exportLibraryArchive(services)} exportFilename="aozu-library.zip" exportLabel={text('downloadComplete')} importLabel={text('importComplete')} prepareImport={async (blob) => { await importLibraryArchive(blob, services); await refresh(); await loadBoards() }} />
           </section>
