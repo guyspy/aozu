@@ -857,12 +857,12 @@ body::before {
 .album-photo .workspace-card-label { align-self: center; margin: 0.75rem 0 -1.35rem; padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-size: 1rem; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 2px 5px #47321f24; transform: rotate(-1deg); }
 .album-add { border: 1px dashed #9b784f; background: #fffdf8; box-shadow: none; }
 .album-add .workspace-card-label { background: #e9f0d1; }
-.album-photo-detail { display: grid; gap: 1rem; padding: 0.25rem 0.75rem 2rem; }
-.album-photo-print { padding: clamp(0.6rem, 1.5vw, 1rem); background: #fff; box-shadow: 0 0.6rem 1.4rem #47321f2b, 0 1px 3px #47321f33; }
+.album-photo-detail { display: grid; gap: 1rem; padding: 0.25rem 0.75rem 3rem; }
+.album-photo-print { margin-top: 1rem; padding: clamp(0.6rem, 1.5vw, 1rem) clamp(0.6rem, 1.5vw, 1rem) 0; background: #fff; box-shadow: 0 0.6rem 1.4rem #47321f2b, 0 1px 3px #47321f33; }
 .album-photo-stage { position: relative; overflow: hidden; }
 .album-photo-print .world-picture { max-height: none; background: #eeeae2; }
 .album-photo-title { position: absolute; z-index: 1; top: 1rem; left: 0.65rem; max-width: calc(100% - 2rem); padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-size: clamp(1rem, 2vw, 1.35rem); line-height: 1.3; box-shadow: 0 2px 5px #47321f3d; transform: rotate(-1deg); }
-.album-photo-description { position: absolute; right: 0; bottom: 0; left: 0; padding: clamp(2.5rem, 8vw, 5rem) 1rem 1rem; background: linear-gradient(transparent, rgb(31 23 17 / 82%)); color: #fffdf8; font-size: clamp(0.875rem, 1.7vw, 1.05rem); line-height: 1.6; text-shadow: 0 1px 2px #000; }
+.album-photo-description { width: fit-content; max-width: min(85%, 65ch); margin: 0.9rem auto -1.5rem; padding: 0.65rem 1.1rem; background: #fff0a8; color: #594124; font-size: clamp(0.875rem, 1.7vw, 1.05rem); line-height: 1.6; box-shadow: 0 2px 5px #47321f3d; transform: rotate(0.35deg); }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }
 .world-home-card > a:first-child { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 24px; width: 100%; flex: 1; }
