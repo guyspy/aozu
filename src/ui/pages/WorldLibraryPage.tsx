@@ -78,7 +78,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
   const condition = place?.conditions.find((item) => item.id === conditionId)
   if (conditionId && !condition) return <Navigate to={`/collections/${collectionId}/locations/${locationId}/conditions`} replace />
   const locationActions = place && <WorkspaceActions aria-label={place.name}><TooltipProvider>
-    <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={text('parent')} disabled={busy} onClick={() => begin('location', place)}><FolderInputIcon /></Button></TooltipTrigger><TooltipContent>{text('parent')}</TooltipContent></Tooltip>
+    <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={text('edit')} disabled={busy} onClick={() => begin('location', place)}><PencilIcon /></Button></TooltipTrigger><TooltipContent>{text('edit')}</TooltipContent></Tooltip>
     <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={text('duplicate')} disabled={busy} onClick={() => void run(async () => { const result = await service.update({ resource: 'location', action: 'duplicate', id: place.id }, library.revision); navigate(`/collections/${collectionId}/locations/${result.id}`) })}><CopyIcon /></Button></TooltipTrigger><TooltipContent>{text('duplicate')}</TooltipContent></Tooltip>
     <Tooltip><TooltipTrigger asChild><Button size="icon" variant="outline" aria-label={text('remove')} disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{text('remove')}</TooltipContent></Tooltip>
   </TooltipProvider></WorkspaceActions>
@@ -110,7 +110,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     {error && <p role="alert" className="story-error">{error}</p>}{busy && <p role="status">{text('working')}</p>}
     {place && locationView === 'images' && <section className="world-section"><div className="world-heading"><h2>{text('images')}</h2></div>{settingImages(place.images)}</section>}
     {place && locationView === 'profile' && <div className="book-profile flex flex-col gap-4" aria-label={text('locationProfile')}>
-      <WorkspaceProfileHeading label={text('locationProfile')} title={place.name} action={<Button size="icon" variant="ghost" aria-label={text('edit')} onClick={() => begin('location', place)}><PencilIcon /></Button>} />
+      <WorkspaceProfileHeading label={text('locationProfile')} title={place.name} />
       <p className="whitespace-pre-wrap text-sm leading-7">{place.description || text('noDescription')}</p>
       <div className="world-tags">{place.tags.map((item) => <span key={item}>{item}</span>)}</div>
       <div><h3 className="font-heading text-lg font-semibold">{text('consistency')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{place.consistency || text('noConsistency')}</p></div>

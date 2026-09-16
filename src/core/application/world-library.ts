@@ -48,6 +48,8 @@ const requiredName = (name: string | undefined) => {
 }
 
 export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLibraryCommand): { library: WorldLibrary; id: string | null } {
+  const allowed = { album: ['create', 'update', 'delete'], photo: ['update', 'move', 'delete'], location: ['create', 'update', 'delete', 'duplicate'], condition: ['create', 'update', 'delete', 'duplicate'], reference: ['create', 'delete'], 'story-book': ['create', 'update', 'delete'], 'storyboard-book': ['move'] } as const
+  if (!(allowed[command.resource] as readonly string[]).includes(command.action)) throw new Error(`Unsupported ${command.resource} action: ${command.action}`)
   const library = structuredClone(current), now = Date.now(), patch = command as GroupPatch
   const group = (fallback?: { name: string; description: string }) => ({
     name: patch.name === undefined ? fallback?.name ?? requiredName(patch.name) : requiredName(patch.name),

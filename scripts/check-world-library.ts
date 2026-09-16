@@ -26,6 +26,8 @@ try {
   const location = (id: string, parentId: string | null): LocationSetting => ({ id, parentId, collectionId: 'default', name: id, description: '', consistency: '', updatedAt: 1, tags: [], images: [], conditions: [] })
   library.locations = [location('city', null), location('house', 'city'), location('room', 'house')]
   library = await service.save(library)
+  await assert.rejects(service.update({ resource: 'location', action: 'move' } as never, library.revision), /Unsupported location action/)
+  await assert.rejects(service.update({ resource: 'reference', action: 'update' } as never, library.revision), /Unsupported reference action/)
   assert.deepEqual(locationAncestors(library, 'room').map((l) => l.id), ['city', 'house', 'room'])
   const invalid = structuredClone(library); invalid.locations[0].parentId = 'room'
   await assert.rejects(service.save(invalid), /ancestor/)

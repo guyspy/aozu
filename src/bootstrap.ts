@@ -730,7 +730,7 @@ export function createApplication(document: Document) {
 
   async function updateLibrary(rawInput: unknown) {
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing the Library')
-    const input = rawInput as Record<string, unknown> & { resource: string; action: string; id?: string; expectedRevision?: number; collectionId?: string }
+    const input = rawInput as Record<string, unknown> & { resource: string; action: string; id?: string; expectedRevision?: number; collectionId?: string; collectionIds?: string[] }
     if (input.resource === 'collection') {
       if (input.action === 'create') {
         const collection = await collections.create(String(input.name ?? '')); characterChanges.publish({ characterId: collection.id, revision: null })
@@ -753,13 +753,17 @@ export function createApplication(document: Document) {
     }
     if (input.expectedRevision === undefined) throw new Error('expectedRevision is required')
     if (input.resource === 'storyboard-book' && input.action === 'move') await storyboards.get(String(input.boardId ?? ''))
+    const knownCollections = await collections.list()
+    if (input.resource === 'location' && input.collectionId && !knownCollections.some(({ id }) => id === input.collectionId)) throw new Error('Collection not found')
+    if (input.resource === 'story-book' && Array.isArray(input.collectionIds) && input.collectionIds.some((id) => !knownCollections.some((collection) => collection.id === id))) throw new Error('Collection not found')
+    const originalLocation = input.resource === 'location' && input.id ? (await worldLibrary.load()).locations.find((item) => item.id === input.id) : undefined
     const { expectedRevision, ...command } = input
     const result = await worldLibrary.update(command as unknown as WorldLibraryCommand, expectedRevision)
     const changedLocation = result.library.locations.find((item) => item.id === (command.resource === 'condition' ? input.locationId : result.id))
     const changedPhoto = result.library.photos.find((item) => item.id === result.id)
     const path = command.resource === 'album' ? (command.action === 'delete' ? '/albums' : `/albums/${result.id}`)
       : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : '/albums')
-      : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${input.collectionId ?? 'default'}/locations` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
+      : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${originalLocation?.collectionId ?? 'default'}/locations${originalLocation?.parentId ? `/${originalLocation.parentId}` : ''}` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
       : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
       : command.resource === 'story-book' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/books/${result.id}`)
       : command.resource === 'storyboard-book' ? `/storyboards/${input.boardId}` : undefined
