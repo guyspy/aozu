@@ -76,9 +76,11 @@ const dynamic = new Set([
   ...['draft', 'needs-work', 'confirmed'].map((review) => `storyboard.${review}`),
   ...['inspiration', 'design'].map((purpose) => `world.${purpose}`),
   ...['locationProfile', 'conditions'].map((view) => `world.${view}`),
-  'world.images', 'world.profile', 'books.characterCount', 'books.bookCount',
+  'world.images',
 ])
 
+const staleDynamic = [...dynamic].filter((key) => !english.has(key))
+assert.deepEqual(staleDynamic, [], `dynamic i18n allowlist has stale keys: ${staleDynamic.join(', ')}`)
 const unresolved = [...used].filter((key) => !english.has(key) && !dynamic.has(key))
 assert.deepEqual(unresolved, [], `UI asks for keys English does not define: ${unresolved.join(', ')}`)
 
