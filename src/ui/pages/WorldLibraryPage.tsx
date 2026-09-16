@@ -1,4 +1,4 @@
-import { WorkspaceSheet, Workspace, WorkspaceActions, WorkspaceCard, WorkspaceMenuSelect, WorkspaceSurface, WorkspaceTabs, WorkspaceScroll } from '@/ui/Workspace'
+import { WorkspaceSheet, Workspace, WorkspaceActions, WorkspaceCard, WorkspaceMenuSelect, WorkspaceProfileHeading, WorkspaceSurface, WorkspaceTabs, WorkspaceScroll } from '@/ui/Workspace'
 import { LibraryTabs } from '@/ui/LibraryTabs'
 import { LibraryBookCard, WatermarkAddCard } from '@/ui/LibraryCards'
 import { DataControls } from '@/ui/DataControls'
@@ -110,7 +110,7 @@ export function WorldLibraryPage({ service, library, collections, actions }: { s
     {error && <p role="alert" className="story-error">{error}</p>}{busy && <p role="status">{text('working')}</p>}
     {place && locationView === 'images' && <section className="world-section"><div className="world-heading"><h2>{text('images')}</h2></div>{settingImages(place.images)}</section>}
     {place && locationView === 'profile' && <div className="book-profile flex flex-col gap-4" aria-label={text('locationProfile')}>
-      <div className="character-profile-heading"><div className="min-w-0"><span>{text('locationProfile')}</span><h2>{place.name}</h2></div><Button size="icon" variant="ghost" aria-label={text('edit')} onClick={() => begin('location', place)}><PencilIcon /></Button></div>
+      <WorkspaceProfileHeading label={text('locationProfile')} title={place.name} action={<Button size="icon" variant="ghost" aria-label={text('edit')} onClick={() => begin('location', place)}><PencilIcon /></Button>} />
       <p className="whitespace-pre-wrap text-sm leading-7">{place.description || text('noDescription')}</p>
       <div className="world-tags">{place.tags.map((item) => <span key={item}>{item}</span>)}</div>
       <div><h3 className="font-heading text-lg font-semibold">{text('consistency')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{place.consistency || text('noConsistency')}</p></div>

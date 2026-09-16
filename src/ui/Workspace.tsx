@@ -25,6 +25,9 @@ export function WorkspaceSurface({ surface, className, ...props }: ComponentProp
 export function WorkspaceToolbar({ className, ...props }: ComponentProps<'div'>) {
   return <div className={cn('workspace-toolbar', className)} {...props} />
 }
+export function WorkspaceProfileHeading({ label, title, description, action }: { label?: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode }) {
+  return <div className="character-profile-heading"><div className="min-w-0">{label && <span>{label}</span>}<h2>{title}</h2>{description && <p>{description}</p>}</div>{action}</div>
+}
 export function WorkspaceScroll({ surface, className, ...props }: ComponentProps<'div'> & { surface?: 'paper' }) {
   return <div tabIndex={0} data-workspace-surface={surface} className={cn('workspace-scroll', className)} {...props} />
 }

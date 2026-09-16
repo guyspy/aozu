@@ -1,4 +1,4 @@
-import { WorkspaceSheet, Workspace, WorkspaceCard, WorkspaceSurface, WorkspaceTabs, WorkspaceScroll } from '@/ui/Workspace'
+import { WorkspaceSheet, Workspace, WorkspaceCard, WorkspaceProfileHeading, WorkspaceSurface, WorkspaceTabs, WorkspaceScroll } from '@/ui/Workspace'
 import { LibraryTabs } from '@/ui/LibraryTabs'
 import { CollectionBookCard, WatermarkAddCard } from '@/ui/LibraryCards'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -104,7 +104,7 @@ export function CharacterLibraryPage({ characters, loadThumbnail, collections, c
     <WorkspaceSurface className="book-page" aria-label={book ? nameOf(book) : t('books.shelf')}>
     <WorkspaceScroll>
     {book && isProfile ? <div className="book-profile flex flex-col gap-4" aria-label={t('books.profile')}>
-      <div className="character-profile-heading"><div className="min-w-0"><span>{t('books.profile')}</span><h2>{nameOf(book)}</h2></div>{profileAction}</div>
+      <WorkspaceProfileHeading label={t('books.profile')} title={nameOf(book)} action={profileAction} />
       <p className="whitespace-pre-wrap text-sm leading-7">{book.description || t('books.noDescription')}</p>
       <div><h3 className="font-heading text-lg font-semibold">{t('books.world')}</h3>
         <p className="mt-2 whitespace-pre-wrap text-sm leading-7">{book.backstory || t('books.noWorld')}</p></div>
