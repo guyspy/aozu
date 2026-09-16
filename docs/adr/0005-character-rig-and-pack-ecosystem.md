@@ -135,9 +135,9 @@ rejected rather than relying on manifest insertion order.
 
 The local authoring draft groups appearances by semantic intent rather than by
 PNG filename: `body`, `expression`, `outfit`, `hair`, `headwear`, and `prop`.
-The base body is the canonical A-pose in plain, opaque, close-fitting technical
-basewear: a sleeveless athletic top and fitted mid-thigh shorts with ordinary
-coverage. Outfits, hair, headwear,
+The base body is the canonical A-pose rendered as a neutral, non-explicit
+skin-tone design mannequin. Featureless coverage replaces intimate anatomical
+detail without adding visible underwear seams or styling. Outfits, hair, headwear,
 and props are transparent, registered front/back overlays and never contain body
 pixels. Outfit variants declare one slot: `top`, `bottom`, `one-piece`,
 `outerwear`, or `footwear`. One variant may be active per slot; `one-piece` is

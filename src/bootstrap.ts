@@ -1322,7 +1322,7 @@ export function createApplication(document: Document) {
             'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
             CHARACTER_A_POSE_GUIDANCE,
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
-            'The canonical body is bald or very short-haired, clean-shaven, neutral-faced, wearing only the neutral technical basewear specified above, and locked to the standard A-pose.',
+            'The canonical body is bald or very short-haired, clean-shaven, neutral-faced, rendered as the neutral skin-tone design mannequin specified above, and locked to the standard A-pose.',
             'For a garment, generate the complete dressed character in the exact canonical pose, then semantically isolate the garment. Do not subtract pixels mechanically. Split only truly behind-body pixels into back and visible garment pixels into front; both stay on the exact 512×768 registration.',
             'Wardrobe slots are top, bottom, one-piece, outerwear, and footwear. One garment may be active per slot; one-piece is mutually exclusive with top and bottom. Record slot, garment type, description, tags, and source hash through update_character_variant_metadata.',
             'Hair and headwear use the same registered front/back overlay method and contain no face or body pixels. Facial hair is never an overlay: create a Face Style and bake its beard or moustache into every expression head belonging to that style. Expression heads never include hair or headwear.',
