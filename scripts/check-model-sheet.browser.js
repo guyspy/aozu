@@ -120,7 +120,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, heightCm: null })
     check(sheet().heightCm === undefined, 'Profile tool did not clear height')
     await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, heightCm: 185 })
-    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await call('navigate_workspace', { resource: 'character', id, view: 'model-sheet' })
     await ready(() => document.querySelector('[aria-label="Open Front reference"]'))
     document.querySelector('[aria-label="Open Front reference"]').click()
     await ready(() => document.querySelector('.model-sheet-detail'))
@@ -182,6 +182,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(stale && staleHash && state().persistedRevision === afterPose, 'Stale revision/hash changed reference')
     const body = (await call('inspect_character_contract', { characterId: id, group: 'body', variantId: 'base', layer: 'body' })).data
     check(body.target.generationRecipe.pose === 'a-pose' && body.target.alignment.visualReview, 'First Appearance lacks A-pose review')
+    check(body.assetTransfer.protocol === 'base64-chunks-v1' && body.assetTransfer.instructions.some((line) => line.includes('Never print, copy, paste')), 'Character contract lacks safe PNG transfer guidance')
     const backup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(backup.entries.some((entry) => entry.id === id && entry.data.modelSheet.heightCm === 185), 'Library backup lost model sheet')
     await app.editor.reload(); await ready(() => document.querySelectorAll('.model-sheet-art img').length === 3)
@@ -226,7 +227,11 @@ if (new URLSearchParams(location.search).has('responsive')) {
     for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front']]) {
       const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 512, 768); ctx.fillStyle = group === 'body' ? '#222222' : '#ff0000'; ctx.fillRect(128, 32, 256, group === 'body' ? 700 : 150)
       const layerPng = canvas.toDataURL('image/png')
-      await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, dataUrl: layerPng })
+      const encoded = layerPng.slice('data:image/png;base64,'.length)
+      const split = Math.ceil(encoded.length / 8) * 4
+      const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await (await fetch(layerPng)).arrayBuffer())), (byte) => byte.toString(16).padStart(2, '0')).join('')
+      const payload = group === 'body' ? { base64Chunks: [encoded.slice(0, split), encoded.slice(split)], dataSha256: sha256 } : { dataUrl: layerPng }
+      await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
     }
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
@@ -275,7 +280,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const autoFront = state().character.appearances[1].modelSheet.views.front
     check(autoFront?.sourceSha256 === autoFront?.asset.inspection.sha256 && autoFront?.asset.blob.size > 0, 'Save did not capture its front and source hash')
     check(app.editor.history.getState().pastStates.length === 0, 'Save as should open a fresh Appearance undo session')
-    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await call('navigate_workspace', { resource: 'character', id, view: 'model-sheet' })
     await ready(() => document.querySelectorAll('.model-sheet-card .model-sheet-empty').length === 3)
     check(document.querySelectorAll('.model-sheet-art img').length === 1 && !buttons('Use current appearance'), 'New Appearance needs only its own front')
     document.querySelector('[aria-label="Open Front reference"]').click()
@@ -322,7 +327,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(state().character.appearances[1].selected.props[0] === 'prop-1' && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Queued edit Undo restored a stale front')
     await app.editor.undo()
     check(state().character.appearances[1].selected.props.length === 0 && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === edited.modelSheet.views.front.asset.inspection.sha256, 'Queued edits did not undo back to the starting Appearance')
-    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await call('navigate_workspace', { resource: 'character', id, view: 'model-sheet' })
     await ready(() => document.querySelector('main[data-category="model-sheet"] button[aria-label="Saved Appearance"]'))
     const preservedFront = state().character.appearances[0].modelSheet.views.front
     await appearanceMenu('Gym')
@@ -366,7 +371,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
       await ready(() => pngFilename)
       check(pngFilename === 'Profile test_Fresh.png', 'PNG filename lost the character or Appearance name')
     } finally { HTMLAnchorElement.prototype.click = anchorClick }
-    await call('navigate_character', { destination: 'character-model-sheet', characterId: id })
+    await call('navigate_workspace', { resource: 'character', id, view: 'model-sheet' })
     await ready(() => document.querySelectorAll('.model-sheet-card .model-sheet-empty').length === 4)
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: withProp } })
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, appearance: { action: 'select', id: fresh } })
@@ -384,7 +389,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(afterReload.character.appearances.length === 3 && afterReload.character.autoSave === 'current-appearance' && afterReload.modelSheet.appearanceId === fresh, 'Mantle reload lost Appearance state')
     const namedBackup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(namedBackup.entries.find((entry) => entry.id === id).data.appearances.length === 3, 'Library backup lost saved Appearances')
-    await call('navigate_character', { destination: 'character-expressions', characterId: id })
+    await call('navigate_workspace', { resource: 'character', id, view: 'expressions' })
     await ready(() => document.querySelector('main[data-category="expressions"] button[aria-label="Saved Appearance"]') && !buttons('Saved Appearance').disabled)
     const beforeDelete = state().character
     await appearanceMenu('Delete')
@@ -407,7 +412,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(state().character.appearances.length === 1 && state().character.activeAppearanceId === gym && sheet().references['t-pose'], 'Reload resurrected a deleted look or lost remaining references')
     const afterDeleteZip = (await readCharacterDraftZip(await app.exportCharacter(id), inspectCharacterImage)).draft
     check(afterDeleteZip.appearances.length === 1, 'ZIP resurrected a deleted Appearance')
-    await call('navigate_character', { destination: 'characters' })
+    await call('navigate_workspace', { resource: 'collections' })
     await ready(() => route.pathname === '/collections')
     result.textContent = 'PASS: 16 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
     }

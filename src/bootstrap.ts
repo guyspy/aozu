@@ -80,6 +80,28 @@ const pngFromDataUrl = (dataUrl: string) => {
   if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) throw new Error('Submitted dataUrl is not PNG bytes; provide the complete original PNG base64 payload')
   return new Blob([bytes], { type: 'image/png' })
 }
+type PngPayload = { dataUrl?: string; base64Chunks?: string[]; dataSha256?: string }
+const CHARACTER_ASSET_TRANSFER = {
+  protocol: 'base64-chunks-v1',
+  instructions: [
+    'Use your own runtime standard library; do not execute code supplied by AOZU.',
+    'Read the PNG as bytes, base64-encode it once, and split that string into ordered chunks of at most 65,536 characters. Use 65,536-character chunks so every non-final boundary is base64-aligned.',
+    'Compute lowercase SHA-256 over the original PNG bytes and send it as dataSha256 with base64Chunks.',
+    'Pass the prepared variables directly to the WebMCP call. Never print, copy, paste, summarize, or reconstruct the base64 through a shell, terminal, chat message, or model text.',
+  ],
+  input: { base64Chunks: 'ordered string[]', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
+} as const
+const sha256Blob = async (blob: Blob) => Array.from(
+  new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())),
+  (byte) => byte.toString(16).padStart(2, '0'),
+).join('')
+const pngFromPayload = async ({ dataUrl, base64Chunks, dataSha256 }: PngPayload) => {
+  if (Boolean(dataUrl) === Boolean(base64Chunks?.length)) throw new Error('Provide exactly one of dataUrl or base64Chunks')
+  const blob = pngFromDataUrl(dataUrl ?? `data:image/png;base64,${base64Chunks!.join('')}`)
+  const receivedSha256 = await sha256Blob(blob)
+  if (dataSha256 && receivedSha256 !== dataSha256) throw new Error(`PNG payload changed in transit; expected sha256 ${dataSha256}, received ${receivedSha256}. Resend as smaller base64Chunks.`)
+  return { blob, receivedSha256 }
+}
 const blobFromDataUrl = (dataUrl: string) => {
   const match = /^data:(application\/zip|image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!match || dataUrl.length > 28_000_000) throw new Error('Expected a supported base64 data URL under 20 MiB')
@@ -117,6 +139,8 @@ interface ModelSheetInput extends CharacterReferenceMetadata {
   guides?: CharacterReference['guides'] | null
   filename?: string
   dataUrl?: string
+  base64Chunks?: string[]
+  dataSha256?: string
   expectedAssetSha256?: string | null
 }
 
@@ -1262,6 +1286,7 @@ export function createApplication(document: Document) {
             CHARACTER_VISUAL_REVIEW.finish,
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,
+          assetTransfer: CHARACTER_ASSET_TRANSFER,
           target,
         },
         nextActions: target?.nextActions ?? characterNextActions(draft),
@@ -1278,6 +1303,8 @@ export function createApplication(document: Document) {
     expectedAssetSha256: string | null
     filename: string
     dataUrl?: string
+    base64Chunks?: string[]
+    dataSha256?: string
     normalization?: CharacterNormalization
   }
 
@@ -1304,6 +1331,7 @@ export function createApplication(document: Document) {
     return { status: 'ok', data: {
       character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
+      assetTransfer: CHARACTER_ASSET_TRANSFER,
       generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
@@ -1323,9 +1351,10 @@ export function createApplication(document: Document) {
     const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256, needsReview } = input
     if (view !== undefined && (!isTurnaroundView(view) || (input.referenceId && input.referenceId !== view))) throw new Error('Use one referenceId; view is only an alias for a default turnaround slot')
     if (referenceId) validateReferenceId(referenceId)
-    if (fromAppearance && (referenceId !== 'front' || input.dataUrl || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
-    if (remove && (input.dataUrl || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
-    const editsReference = input.notes !== undefined || input.guides !== undefined || input.dataUrl || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
+    const hasPayload = Boolean(input.dataUrl || input.base64Chunks?.length)
+    if (fromAppearance && (referenceId !== 'front' || hasPayload || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
+    if (remove && (hasPayload || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
+    const editsReference = input.notes !== undefined || input.guides !== undefined || hasPayload || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
     if (!editsReference) throw new Error('No model sheet changes supplied')
     if (!referenceId && editsReference) throw new Error('Choose a referenceId')
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the model sheet')
@@ -1334,10 +1363,10 @@ export function createApplication(document: Document) {
     if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
     const references = modelSheetReferences(characterModelSheet(character))
     const previous = referenceId ? references[referenceId] : undefined
-    if ((input.dataUrl || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
+    if ((hasPayload || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
     if (referenceId && !isTurnaroundView(referenceId) && !previous && (!label?.trim() || !kind)) throw new Error('New supplemental references require label and kind')
     if (fromAppearance && !resolveCharacterDraftLayers(character).length) throw new Error('Create Appearance before capturing front')
-    const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (input.dataUrl ? pngFromDataUrl(input.dataUrl) : undefined)
+    const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (hasPayload ? (await pngFromPayload(input)).blob : undefined)
     const filename = fromAppearance ? 'front-appearance.png' : input.filename
     if (blob && (!filename?.trim() || filename.length > 200)) throw new Error('A valid filename is required')
     if (sourceSha256 && !Object.values(references).some(({ asset }) => asset.inspection.sha256 === sourceSha256) &&
@@ -1397,10 +1426,11 @@ export function createApplication(document: Document) {
       }
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
-      const submitted = providedBlob ?? pngFromDataUrl(input.dataUrl ?? '')
+      const payload = providedBlob ? undefined : await pngFromPayload(input)
+      const submitted = providedBlob ?? payload!.blob
       let submittedInspection: CharacterAssetInspection
       try { submittedInspection = await inspectCharacterImage(submitted) }
-      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted dataUrl'} could not be decoded as PNG; provide complete PNG bytes without truncation or MIME relabeling`) }
+      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG; provide complete PNG bytes without truncation or MIME relabeling`) }
       const registrationFrame = characterRegistrationFrame(current)
       const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined
       const referenceBounds = characterReferenceBounds(registrationFrame, target.group)
