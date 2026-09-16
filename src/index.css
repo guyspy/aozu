@@ -8,6 +8,7 @@
 
 @theme {
     --font-heading: "Iowan Old Style", "Noto Serif TC", "Songti TC", Georgia, serif;
+    --font-paper: "LXGW WenKai TC", cursive;
 }
 
 @theme inline {
@@ -762,7 +763,7 @@ body::before {
 .model-sheet-content { padding: clamp(1rem, 3vw, 2.5rem); }
 .model-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 2.5rem 1.5rem; }
 .model-sheet-card { overflow: visible; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; box-shadow: none; }
-.model-sheet-content :is(h2, h3), .model-sheet-card > p { font-family: "LXGW WenKai TC", cursive; font-weight: 400; letter-spacing: 0.025em; color: #4a4a46; }
+.model-sheet-content :is(h2, h3), .model-sheet-card > p { font-weight: 400; letter-spacing: 0.025em; color: #4a4a46; }
 .model-sheet-card > p { line-height: 1.75; }
 .model-sheet-card h3 { overflow-wrap: anywhere; display: flex; align-items: center; gap: 0.5rem; }
 .model-sheet-art { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 0; border-radius: 0; background: transparent; }
@@ -845,7 +846,7 @@ body::before {
 .world-picture { position: relative; display: grid; width: 100%; min-width: 0; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); }
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 .album-page { background: #fffdf8; color: #3f3329; box-shadow: inset 0 0 0 1px #fff, 0 0.7rem 1.6rem #3f241212; }
-.album-heading h2 { font-family: var(--font-heading); font-size: clamp(1.6rem, 4vw, 2.25rem); }
+.album-heading h2 { font-size: clamp(1.6rem, 4vw, 2.25rem); }
 .album-heading p { margin-top: 0.35rem; max-width: 65ch; font-size: 0.875rem; line-height: 1.75; }
 .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); align-items: start; gap: 2.5rem 2rem; padding: 0.75rem 0.75rem 3rem; }
 .album-photo { overflow: visible; border: 0; border-radius: 0; padding: 0.65rem 0.65rem 0; background: #fff; box-shadow: 0 0.5rem 1rem #47321f2b, 0 1px 3px #47321f33; }
@@ -853,7 +854,7 @@ body::before {
 .album-photo:nth-child(3n + 2) { transform: rotate(0.3deg); }
 .album-photo .workspace-card-open { gap: 0; }
 .album-photo .workspace-card-preview { border-radius: 0; background: #eeeae2; }
-.album-photo .workspace-card-label { align-self: center; margin: 0.75rem 0 -1.35rem; padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-family: var(--font-heading); font-size: 1rem; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 2px 5px #47321f24; transform: rotate(-1deg); }
+.album-photo .workspace-card-label { align-self: center; margin: 0.75rem 0 -1.35rem; padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-size: 1rem; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 2px 5px #47321f24; transform: rotate(-1deg); }
 .album-add { border: 1px dashed #9b784f; background: #fffdf8; box-shadow: none; }
 .album-add .workspace-card-label { background: #e9f0d1; }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
