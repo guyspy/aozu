@@ -562,8 +562,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         </CharacterViewport>
         {!hasBase && baseVariant && <Dialog open={startOpen} onOpenChange={setStartOpen}><DialogContent className="max-h-[calc(100svh-2rem)] overflow-auto sm:max-w-md" closeLabel={t('common.close')} data-character-start>
           <DialogTitle className="pr-10">{t(webmcpReady ? 'characterDraft.start.title' : 'characterDraft.start.desktopTitle')}</DialogTitle>
-          <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
           <p className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm leading-6 text-muted-foreground"><CloudOffIcon className="mt-1 size-4 shrink-0" />{t('characterDraft.start.storage')}</p>
+          <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
           {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
           <div className="flex flex-wrap gap-2">
             {webmcpReady ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => void runBusy('copy-prompt', async () => {
