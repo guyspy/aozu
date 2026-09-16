@@ -13,6 +13,7 @@ import { DataControls } from '@/ui/DataControls'
 import { WorkspaceScroll } from '@/ui/Workspace'
 import { Button } from '@/ui/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/ui/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/components/ui/tooltip'
 import { cn } from '@/ui/lib/utils'
 
 const save = async (blob: Blob, filename: string) => {
@@ -68,7 +69,7 @@ export function LibraryExplorer({ application, world, collections, characters, r
   const storyboardLinks = (book?: string) => boards.filter((board) => world.boardBooks[board.id] === book).map((board) => <TreeLink key={board.id} to={`/storyboards/${board.id}`} action={<Button size="icon" variant="ghost" aria-label={t('storyboard.export')} onClick={() => void application.storyboards.export(board.id, board.revision).then((blob) => save(blob, `${board.name}.zip`), (caught) => setError(String(caught)))}><DownloadIcon /></Button>}>{board.name}</TreeLink>)
 
   return <>
-    <Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}<span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CloudOffIcon /><span className="hidden lg:inline">{text('localOnly')}</span></span></Button>
+    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}<CloudOffIcon className="size-3.5 text-muted-foreground" /></Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="library-explorer" closeLabel={t('common.close')} aria-describedby={undefined}>
         <SheetTitle>{text('library')}</SheetTitle>

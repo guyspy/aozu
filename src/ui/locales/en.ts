@@ -81,6 +81,7 @@ export const en = {
       agentHelp: 'Copy this prompt to your agent.',
       agentPrompt: 'Ask me about my character, then use inspect_workspace → inspect_character_contract → replace_character_asset to create it in AOZU.',
       manualHelp: 'AOZU works best with a WebMCP-compatible browser. Open this page in ChatGPT desktop to work with your agent.',
+      storage: 'Your character is stored in this browser and works offline. Nothing is uploaded to the cloud.',
       desktopTitle: 'Continue in ChatGPT desktop',
       continueBrowser: 'Continue in this browser',
       copy: 'Copy prompt', copied: 'Copied', chatgpt: 'Open ChatGPT desktop',

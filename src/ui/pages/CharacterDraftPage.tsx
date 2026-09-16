@@ -1,6 +1,6 @@
 import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
-import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, Trash2Icon } from 'lucide-react'
+import { ArrowLeftIcon, CircleSlash2Icon, CloudOffIcon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, Trash2Icon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -563,6 +563,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         {!hasBase && baseVariant && <Dialog open={startOpen} onOpenChange={setStartOpen}><DialogContent className="max-h-[calc(100svh-2rem)] overflow-auto sm:max-w-md" closeLabel={t('common.close')} data-character-start>
           <DialogTitle className="pr-10">{t(webmcpReady ? 'characterDraft.start.title' : 'characterDraft.start.desktopTitle')}</DialogTitle>
           <DialogDescription>{t(webmcpReady ? 'characterDraft.start.agentHelp' : 'characterDraft.start.manualHelp')}</DialogDescription>
+          <p className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm leading-6 text-muted-foreground"><CloudOffIcon className="mt-1 size-4 shrink-0" />{t('characterDraft.start.storage')}</p>
           {webmcpReady && <p className="mb-3 max-h-28 overflow-auto select-all text-sm text-muted-foreground">{t('characterDraft.start.agentPrompt')}</p>}
           <div className="flex flex-wrap gap-2">
             {webmcpReady ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => void runBusy('copy-prompt', async () => {

@@ -69,6 +69,7 @@ export const zhTW: Messages = {
       agentHelp: '複製這段提示詞給 agent。',
       agentPrompt: '先問我想要什麼角色，再用 inspect_workspace → inspect_character_contract → replace_character_asset 在 AOZU 建立角色。',
       manualHelp: '搭配支援 WebMCP 的瀏覽器，AOZU 體驗最佳。在 ChatGPT 桌面版開啟此頁，讓 agent 直接協助你建立角色。',
+      storage: '角色資料儲存在這個瀏覽器，可離線使用，也不會上傳到雲端。',
       desktopTitle: '在 ChatGPT 桌面版繼續',
       continueBrowser: '繼續使用目前瀏覽器',
       copy: '複製提示詞', copied: '已複製', chatgpt: '開啟 ChatGPT 桌面版',
