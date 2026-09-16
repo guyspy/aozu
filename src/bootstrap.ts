@@ -199,8 +199,7 @@ const CHARACTER_ASSET_POLICY = {
 const characterReferenceBounds = (
   frame: ReturnType<typeof characterRegistrationFrame>,
   group: CharacterVariantGroup,
-): CharacterBounds | undefined =>
-  group === 'expression' ? frame.headEnvelope?.bounds : ['outfit', 'hair', 'headwear'].includes(group) ? frame.bodyBounds : undefined
+): CharacterBounds | undefined => group === 'expression' ? frame.headEnvelope?.bounds : undefined
 
 /** What a submission may and should ask the website to normalize, from the same geometry submission validates against. */
 const characterNormalizationContract = (alignAvailable: boolean) => ({
@@ -1031,7 +1030,7 @@ export function createApplication(document: Document) {
 
   const measureCharacterFit = async (draft: CharacterDraft, target: Pick<CharacterAssetTarget, 'group' | 'variantId' | 'layer'>) => {
     const { asset, canonical, headRegistration, transform, alignmentReference, referenceTransform } = resolveCharacterAssetSources(draft, target)
-    const measurement = asset ? measureCharacterMaskAlignment(
+    const measurement = asset && target.group === 'expression' ? measureCharacterMaskAlignment(
       target.group,
       alignmentReference ? await readCharacterAlphaMask(alignmentReference.blob) : null,
       await readCharacterAlphaMask(asset.blob),
@@ -1106,7 +1105,7 @@ export function createApplication(document: Document) {
     const replacementAction = {
       tool: 'replace_character_asset',
       required: !current,
-      reason: current ? 'Replace this asset only when the user has a complete finished layer and the client can serialize its bytes directly.' : 'Install the final exact-canvas RGBA target layer only with direct client byte serialization; otherwise ask the user to use the visible file control.',
+      reason: current ? 'Replace this asset only when the user has a final target-owned layer and the client can serialize its bytes directly.' : 'Install the final exact-canvas RGBA target layer only with direct client byte serialization; otherwise ask the user to use the visible file control.',
       input: {
         characterId: draft.id,
         group: input.group,
@@ -1323,12 +1322,13 @@ export function createApplication(document: Document) {
             CHARACTER_A_POSE_GUIDANCE,
             'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
             'The canonical body is bald or very short-haired, clean-shaven, neutral-faced, uses the technical basewear or neutral skin-tone body-base direction chosen above, and stays locked to the standard A-pose.',
-            'For a garment, generate the complete dressed character in the exact canonical pose, then semantically isolate the garment. Do not subtract pixels mechanically. Split only truly behind-body pixels into back and visible garment pixels into front; both stay on the exact 512×768 registration.',
+            'WARDROBE SUBMISSION CONTRACT: every outfit asset contains garment pixels only on the registered transparent canvas. Never submit body pixels, a full character, or a dressed character composite to a Wardrobe slot.',
+            'Optional garment production method: temporarily generate or compose the complete dressed character in the exact canonical pose, then semantically isolate the garment. The dressed character is an intermediate reference only and must be discarded before submission. Do not subtract pixels mechanically. Split only truly behind-body garment pixels into back and visible garment pixels into front; both stay on the exact 512×768 registration.',
             'Wardrobe slots are top, bottom, one-piece, outerwear, and footwear. One garment may be active per slot; one-piece is mutually exclusive with top and bottom. Record slot, garment type, description, tags, and source hash through update_character_variant_metadata.',
             'Hair and headwear use the same registered front/back overlay method and contain no face or body pixels. Facial hair is never an overlay: create a Face Style and bake its beard or moustache into every expression head belonging to that style. Expression heads never include hair or headwear.',
             'Generate at 1024×1536. When the inspected target recommends exact-aspect-downscale, request it during submission; otherwise finalize externally at the exact 512×768 canvas. Never crop, reframe, or stretch.',
             CHARACTER_BACKGROUND_GUIDANCE,
-            'Use replace_character_asset for every outfit and any other complete finished layer; it never preserves old pixels. Use repair_character_asset only for an existing expression; transparent mask pixels are editable, opaque pixels are protected, and protectedRegionDelta must be 0.',
+            'Use replace_character_asset for every finished outfit overlay and other finished layer; “finished layer” means the target-owned pixels only, never a complete dressed character. Use repair_character_asset only for an existing expression; transparent mask pixels are editable, opaque pixels are protected, and protectedRegionDelta must be 0.',
             'Submit only full-canvas RGBA PNG proposals, either already at 512×768 or with the explicit normalization allowed by the inspected target. The website never generates, removes backgrounds, or guesses geometry; expression repair alone uses the deterministic editable region.',
             'Expression layers contain only the whole aligned head. Facial hair follows the expression through its Face Style; every pixel outside head ownership is transparent.',
             'No expression overlay means the default face baked into the body. Optional whole-head variants include happy, sad, angry, surprised, and sleepy; additional variants are allowed.',
@@ -1479,7 +1479,7 @@ export function createApplication(document: Document) {
       const assetSha256 = sources.asset?.inspection.sha256 ?? null
       if (assetSha256 !== input.expectedAssetSha256) throw new Error('Character asset changed; inspect the target again')
       if (mode === 'repair' && (target.group !== 'expression' || target.layer !== 'head' || !sources.current || !sources.editSource)) {
-        throw new Error('Repair requires a current expression head; use replace_character_asset for outfits and complete layers')
+        throw new Error('Repair requires a current expression head; use replace_character_asset for outfits and other replacement-only target layers')
       }
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
@@ -1580,10 +1580,11 @@ export function createApplication(document: Document) {
       // 2. One uniform scale plus translation onto the reference bounds this contract published.
       const referenceMask = sources.alignmentReference ? await readCharacterAlphaMask(sources.alignmentReference.blob) : null
       const candidateMask = await readCharacterAlphaMask(resized)
-      if (target.group === 'expression') {
-        ownership = inspectCharacterAssetOwnership(target.group, candidateMask, { headBounds: registrationFrame.headEnvelope?.bounds })
-        if (ownership.status === 'invalid' && ownership.code === 'EXPRESSION_NOT_HEAD_ONLY') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
-      }
+      ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
+        headBounds: registrationFrame.headEnvelope?.bounds,
+        bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
+      })
+      if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
       afterResize = measureCharacterMaskAlignment(target.group, referenceMask, candidateMask, undefined, sources.referenceTransform)
       const align = planCharacterAlignment(requested.align, target.group, inspection.visibleBounds, referenceBounds)
       if (!align.ok) return rejected(align.message, { code: align.code, message: align.message })
@@ -1604,6 +1605,7 @@ export function createApplication(document: Document) {
       const autoFit = alignTransform ?? highConfidenceCharacterAutoFit(alignment)
       ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
         headBounds: registrationFrame.headEnvelope?.bounds,
+        bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
         transform: autoFit ?? undefined,
       })
       if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })

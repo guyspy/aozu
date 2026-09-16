@@ -138,6 +138,7 @@ export function inspectCharacterAssetOwnership(
   candidate: CharacterAlphaMask,
   options: {
     headBounds?: Bounds
+    bodyMask?: CharacterAlphaMask
     transform?: CharacterVariantTransform
   } = {},
 ) {
@@ -182,6 +183,30 @@ export function inspectCharacterAssetOwnership(
       visiblePixels,
       bounds: { x: left, y: top, width: right - left, height: bottom - top },
     }
+  }
+  if (['outfit', 'hair', 'headwear'].includes(group) && options.bodyMask) {
+    const placed = transformMask(candidate, options.transform ?? IDENTITY_CHARACTER_TRANSFORM)
+    let bodyPixels = 0
+    let overlayPixels = 0
+    let overlapPixels = 0
+    for (let index = 0; index < placed.alpha.length; index++) {
+      const body = options.bodyMask.alpha[index]! > 16
+      const overlay = placed.alpha[index]! > 16
+      if (body) bodyPixels++
+      if (overlay) overlayPixels++
+      if (body && overlay) overlapPixels++
+    }
+    const bodyCoverage = bodyPixels ? overlapPixels / bodyPixels : 0
+    const overlayCoverage = overlayPixels ? overlapPixels / overlayPixels : 0
+    if (bodyCoverage >= 0.85 && overlayCoverage >= 0.75) return {
+      status: 'invalid' as const,
+      code: 'OVERLAY_CONTAINS_COMPLETE_CHARACTER',
+      message: 'This looks like a complete dressed character. Submit only the garment or style pixels on the registered transparent canvas; never put body pixels or the dressed intermediate in this slot.',
+      bodyCoverage,
+      overlayCoverage,
+      overlapPixels,
+    }
+    return { status: 'valid' as const, bodyCoverage, overlayCoverage, overlapPixels }
   }
   return { status: 'valid' as const }
 }
@@ -258,6 +283,11 @@ export function measureCharacterMaskAlignment(
       diagnostics: rawStats.edgeTouchPixels ? [{ code: 'ALPHA_TOUCHES_CANVAS_EDGE', severity: 'warning' as const, message: `${rawStats.edgeTouchPixels} visible alpha pixels touch the canvas edge; verify that this is intentional.` }] : [],
     }
   }
+  if (group !== 'expression') return {
+    status: 'unverified' as const,
+    metrics: { candidateBounds: rawStats.bounds, edgeTouchPixels: rawStats.edgeTouchPixels },
+    diagnostics: [{ code: 'OVERLAY_VISUAL_REVIEW_REQUIRED', severity: 'warning' as const, message: 'Registered overlays are verified in the browser Composite, Overlay, Difference, and Align views; their alpha shape must not be fitted to the body silhouette.' }],
+  }
   if (!reference) return {
     status: 'unverified' as const,
     metrics: { candidateBounds: rawStats.bounds, edgeTouchPixels: rawStats.edgeTouchPixels },
@@ -268,9 +298,7 @@ export function measureCharacterMaskAlignment(
   const suggestion = suggestedTransform(expected, candidate)
   const suggested = suggestion ? compareMasks(expected, transformMask(candidate, suggestion)) : current
   const best = suggested.iou > current.iou ? suggested : current
-  const structurallyValid = group === 'expression'
-    ? best.iou >= 0.65 && best.referenceCoverage >= 0.75 && best.candidateCoverage >= 0.75
-    : best.iou >= 0.6 && best.referenceCoverage >= 0.7 && best.candidateCoverage >= 0.65
+  const structurallyValid = best.iou >= 0.65 && best.referenceCoverage >= 0.75 && best.candidateCoverage >= 0.75
   if (!structurallyValid) {
     return {
       status: 'invalid' as const,
@@ -278,18 +306,14 @@ export function measureCharacterMaskAlignment(
       suggestedMetrics: suggested,
       suggestedTransform: suggestion,
       diagnostics: [{
-        code: group === 'expression' ? 'EXPRESSION_MUST_INCLUDE_COMPLETE_HEAD' : 'OUTFIT_REFERENCE_SHAPE_INCOMPATIBLE',
+        code: 'EXPRESSION_MUST_INCLUDE_COMPLETE_HEAD',
         severity: 'error' as const,
-        message: group === 'expression'
-          ? 'Expression must be a complete whole-head replacement aligned to the canonical head.'
-          : 'Outfit must be a complete dressed character skin whose pose and registration are compatible with the canonical reference.',
+        message: 'Expression must be a complete whole-head replacement aligned to the canonical head.',
       }],
     }
   }
   const centered = current.centerDelta && Math.abs(current.centerDelta.x) <= 12 && Math.abs(current.centerDelta.y) <= 12
-  const aligned = group === 'outfit'
-    ? current.iou >= 0.8 && current.referenceCoverage >= 0.85 && current.candidateCoverage >= 0.8 && Math.abs(current.footLineDelta ?? Infinity) <= 12
-    : current.iou >= 0.85 && centered
+  const aligned = current.iou >= 0.85 && centered
   return {
     status: aligned ? 'aligned' as const : 'misaligned' as const,
     metrics: current,
@@ -449,8 +473,8 @@ export function planCharacterAlignment(
   referenceBounds: Bounds | undefined,
 ): { ok: true; transform: CharacterVariantTransform | null; bounds?: Bounds } | NormalizationRejection {
   if (mode !== 'reference-visible-bounds') return { ok: true, transform: null }
-  if (group !== 'expression' && group !== 'outfit') {
-    return reject('ALIGNMENT_TARGET_NOT_SUPPORTED', 'Reference alignment applies only to expression and outfit targets.')
+  if (group !== 'expression') {
+    return reject('ALIGNMENT_TARGET_NOT_SUPPORTED', 'Reference-bounds alignment applies only to whole-head expression targets. Registered overlays must keep their authored canvas position.')
   }
   if (!referenceBounds || !candidateBounds) {
     return reject('ALIGNMENT_REFERENCE_UNAVAILABLE', 'This target has no deterministic reference visible bounds; submit an exact-canvas asset instead.')

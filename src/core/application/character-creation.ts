@@ -550,7 +550,9 @@ export function saveCharacterDraftAsset(
   }
   const existing = draft.variants.find((variant) => variant.group === target.group && variant.id === target.variantId)
   if (!existing && ['expression', 'outfit', 'hair', 'headwear'].includes(target.group)) {
-    throw new Error('Create the variant metadata before installing its asset')
+    throw new Error(target.group === 'outfit'
+      ? 'Create the outfit metadata first. Wardrobe accepts garment-only transparent overlays; never include body pixels or a dressed character composite.'
+      : 'Create the variant metadata before installing its asset')
   }
   const variants = existing
     ? draft.variants.map((variant) => variant === existing

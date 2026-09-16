@@ -73,10 +73,7 @@ assert.deepEqual(planCharacterAlignment('none', 'expression', bounds(0, 0, 10, 1
 assert.equal(rejection(planCharacterAlignment('reference-visible-bounds', 'prop', bounds(0, 0, 10, 10), bounds(0, 0, 20, 20))).code, 'ALIGNMENT_TARGET_NOT_SUPPORTED')
 assert.equal(rejection(planCharacterAlignment('reference-visible-bounds', 'body', bounds(0, 0, 10, 10), bounds(0, 0, 20, 20))).code, 'ALIGNMENT_TARGET_NOT_SUPPORTED')
 assert.equal(rejection(planCharacterAlignment('reference-visible-bounds', 'expression', bounds(0, 0, 10, 10), undefined)).code, 'ALIGNMENT_REFERENCE_UNAVAILABLE')
-assert.equal(rejection(planCharacterAlignment('reference-visible-bounds', 'outfit', undefined, bounds(0, 0, 20, 20))).code, 'ALIGNMENT_REFERENCE_UNAVAILABLE')
-
-const aligned = planCharacterAlignment('reference-visible-bounds', 'outfit', bounds(60, 80, 200, 400), bounds(40, 20, 300, 600))
-assert.deepEqual(aligned, { ok: true, transform: { scale: 1.5, x: -50, y: -100 }, bounds: bounds(40, 20, 300, 600) })
+assert.equal(rejection(planCharacterAlignment('reference-visible-bounds', 'outfit', bounds(60, 80, 200, 400), bounds(40, 20, 300, 600))).code, 'ALIGNMENT_TARGET_NOT_SUPPORTED')
 
 // Report the bounds produced by the rounded transform, not idealized reference coordinates.
 assert.deepEqual(
@@ -89,10 +86,6 @@ assert.deepEqual(
 )
 
 // A reference that would push visible pixels off the canvas is rejected, never clamped.
-assert.equal(
-  rejection(planCharacterAlignment('reference-visible-bounds', 'outfit', bounds(0, 0, 100, 100), bounds(canvas.width - 40, 10, 80, 80))).code,
-  'ALIGNMENT_LEAVES_CANVAS',
-)
 assert.equal(
   rejection(planCharacterAlignment('reference-visible-bounds', 'expression', bounds(0, 0, 10, 10), bounds(10, 10, 200, 200))).code,
   'ALIGNMENT_TRANSFORM_OUT_OF_RANGE',
@@ -112,9 +105,10 @@ assert.equal(fullBodyExpression.status === 'invalid' && fullBodyExpression.code,
 const shiftedHead = inspectCharacterAssetOwnership('expression', mask({ ...head, x: 0 }), { headBounds: head })
 assert.equal(shiftedHead.status === 'invalid' && shiftedHead.code, 'PIXELS_OUTSIDE_LAYER_OWNERSHIP')
 const completeSkin = mask(bounds(150, 80, 220, 650))
-const skinWithTransparentDetail = structuredClone(completeSkin)
-for (let y = 300; y < 340; y++) for (let x = 230; x < 270; x++) skinWithTransparentDetail.alpha[y * canvas.width + x] = 0
-assert.notEqual(measureCharacterMaskAlignment('outfit', completeSkin, skinWithTransparentDetail).status, 'invalid')
+const garment = mask(bounds(150, 300, 220, 180))
+assert.equal(inspectCharacterAssetOwnership('outfit', completeSkin, { bodyMask: completeSkin }).status, 'invalid')
+assert.equal(inspectCharacterAssetOwnership('outfit', garment, { bodyMask: completeSkin }).status, 'valid')
+assert.equal(measureCharacterMaskAlignment('outfit', completeSkin, garment).status, 'unverified')
 // One shared read of the existing diagnostics decides the fit the editor offers and WebMCP reports.
 assert.deepEqual(suggestCharacterFit({ measurement: measureCharacterMaskAlignment('expression', mask(head), mask(head)) }), { status: 'aligned' })
 assert.deepEqual(suggestCharacterFit({ measurement: measureCharacterMaskAlignment('expression', null, mask(head)) }), { status: 'unavailable' })

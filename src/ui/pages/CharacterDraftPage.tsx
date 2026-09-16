@@ -2,7 +2,7 @@ import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar,
 import { Input } from '@/ui/components/ui/input'
 import { Textarea } from '@/ui/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
-import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, Trash2Icon } from 'lucide-react'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, CrownIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, ShapesIcon, ShirtIcon, SmileIcon, Trash2Icon, WavesIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -17,7 +17,7 @@ import { activeCharacterAppearance } from '@/core/application/character-appearan
 import { CharacterViewport } from '@/ui/CharacterViewport'
 import { CharacterAppearances } from '@/ui/CharacterAppearances'
 import type { CharacterAppearanceCommand } from '@/core/application/character-appearances'
-import { AozuIcon, type AozuIconName } from '@/ui/AozuIcon'
+import { AozuIcon } from '@/ui/AozuIcon'
 import { CharacterAssetThumbnail, CharacterRenderer, CharacterSlotPlaceholder } from '@/ui/CharacterRenderer'
 import { Button } from '@/ui/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui/components/ui/dialog'
@@ -37,14 +37,14 @@ import { DataControls } from '@/ui/DataControls'
 import { StatusPage } from '@/ui/pages/StatusPage'
 
 type CharacterCategoryId = 'expressions' | 'wardrobe' | 'hair' | 'headwear' | 'props'
-type CharacterCategory = { id: CharacterCategoryId; group: CharacterVariantGroup; icon: AozuIconName }
+type CharacterCategory = { id: CharacterCategoryId; group: CharacterVariantGroup; icon: LucideIcon }
 
 const characterCategories: CharacterCategory[] = [
-  { id: 'expressions', group: 'expression', icon: 'expressions' },
-  { id: 'wardrobe', group: 'outfit', icon: 'outfits' },
-  { id: 'hair', group: 'hair', icon: 'expressions' },
-  { id: 'headwear', group: 'headwear', icon: 'outfits' },
-  { id: 'props', group: 'prop', icon: 'props' },
+  { id: 'expressions', group: 'expression', icon: SmileIcon },
+  { id: 'wardrobe', group: 'outfit', icon: ShirtIcon },
+  { id: 'hair', group: 'hair', icon: WavesIcon },
+  { id: 'headwear', group: 'headwear', icon: CrownIcon },
+  { id: 'props', group: 'prop', icon: ShapesIcon },
 ]
 const categoryForGroup = (group: CharacterVariantGroup) => characterCategories.find((category) => category.group === group)!.id
 const expressionIcons = ['happy', 'sad', 'angry', 'surprised', 'sleepy']
@@ -350,12 +350,14 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
-        {!selectedVariant && <TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-5">
-          {characterCategories.map(({ id, icon }) => <TabsTrigger key={id} value={id} className="min-w-0">
-            <AozuIcon name={icon} />
-            <span>{t(`characterDraft.categories.${id}`)}</span>
-          </TabsTrigger>)}
-        </TabsList>}
+        {!selectedVariant && <TooltipProvider><TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-5">
+          {characterCategories.map(({ id, icon: Icon }) => <Tooltip key={id}>
+            <TooltipTrigger asChild><TabsTrigger value={id} aria-label={t(`characterDraft.categories.${id}`)}>
+              <Icon aria-hidden="true" />
+            </TabsTrigger></TooltipTrigger>
+            <TooltipContent>{t(`characterDraft.categories.${id}`)}</TooltipContent>
+          </Tooltip>)}
+        </TabsList></TooltipProvider>}
 
         <TabsContent value={category.id} className="workbench-content workspace-scroll">
         {!selectedVariant && <>

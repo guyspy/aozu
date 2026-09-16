@@ -299,19 +299,18 @@ const canonicalMask = characterMask(
   { x: 282, y: 660, width: 80, height: 70 },
 )
 const wholeHeadMask = characterMask({ x: 100, y: 20, width: 312, height: 300 }, { x: 220, y: 320, width: 72, height: 20 })
-assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, canonicalMask).status, 'aligned')
+assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, canonicalMask).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, characterMask(
   { x: 100, y: 20, width: 312, height: 300 },
   { x: 200, y: 320, width: 112, height: 20 },
   { x: 110, y: 340, width: 292, height: 320 },
   { x: 150, y: 660, width: 80, height: 70 },
   { x: 282, y: 660, width: 80, height: 70 },
-)).status, 'aligned')
-assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, characterMask({ x: 140, y: 340, width: 232, height: 250 })).status, 'invalid')
+)).status, 'unverified')
+assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, characterMask({ x: 140, y: 340, width: 232, height: 250 })).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('expression', wholeHeadMask, wholeHeadMask).status, 'aligned')
 assert.equal(measureCharacterMaskAlignment('expression', null, wholeHeadMask).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('expression', wholeHeadMask, characterMask({ x: 190, y: 130, width: 132, height: 80 })).status, 'invalid')
-assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, canonicalMask, { x: 20, y: 20, scale: 1 }).status, 'misaligned')
 assert.equal(measureCharacterMaskAlignment('outfit', canonicalMask, characterMask({ x: 0, y: 0, width: 10, height: 10 })).diagnostics[0]?.code, 'ALPHA_TOUCHES_CANVAS_EDGE')
 const boarHeadMask = characterMask({ x: 100, y: 100, width: 300, height: 300 })
 const boarHeadTransform = { x: 105, y: -40, scale: 0.55 }

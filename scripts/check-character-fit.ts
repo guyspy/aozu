@@ -30,11 +30,11 @@ try {
     front: { blob, filename: 'outfit.png', source: 'user', inspection, canonicalSha256: inspection.sha256 },
   } })
   application.editor.store.setState({ activeCharacterId: character.id, character, persistedRevision: 1 })
-  assert.equal((await application.characterFitSuggestion('outfit', 'test-outfit')).status, 'aligned')
-  assert.equal(decoded, 2)
+  assert.equal((await application.characterFitSuggestion('outfit', 'test-outfit')).status, 'unavailable')
+  assert.equal(decoded, 0)
   assert.equal(closed, decoded)
   await assert.rejects(application.characterFitSuggestion('outfit', 'missing'), /empty or missing/)
-  assert.equal(decoded, 2)
+  assert.equal(decoded, 0)
   application.webmcp.dispose()
 } finally {
   for (const [key, descriptor] of originals) {
