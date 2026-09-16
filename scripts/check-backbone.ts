@@ -5,7 +5,7 @@ import { compileAuthoringBackbone, compileFixedBackbone, FIXED_BACKBONE_VERSION 
 const plan = compileFixedBackbone()
 const authoring = compileAuthoringBackbone()
 
-assert.equal(FIXED_BACKBONE_VERSION, "6")
+assert.equal(FIXED_BACKBONE_VERSION, "7")
 assert.deepEqual(Object.keys(plan.schemas).sort(), ["character-loadouts", "character-packs", "character-states", "inventory-items", "item-definitions", "journal-entries", "pending-agent-turns", "progress-events", "rules", "runs", "scene-assets", "scene-compositions", "stages"])
 assert.deepEqual(Object.keys(authoring.schemas).sort(), ['character-collections', 'character-workspaces', 'experience-drafts', 'world-library'])
 assert.equal(plan.views["current-stage"]?.query.kind, "declarative")

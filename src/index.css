@@ -844,6 +844,18 @@ body::before {
 .world-card-remove { margin: 0 16px 16px; }
 .world-picture { position: relative; display: grid; width: 100%; min-width: 0; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: var(--muted); }
 .world-picture img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
+.album-page { background: #fffdf8; color: #3f3329; box-shadow: inset 0 0 0 1px #fff, 0 0.7rem 1.6rem #3f241212; }
+.album-heading h2 { font-family: var(--font-heading); font-size: clamp(1.6rem, 4vw, 2.25rem); }
+.album-heading p { margin-top: 0.35rem; max-width: 65ch; font-size: 0.875rem; line-height: 1.75; }
+.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); align-items: start; gap: 2.5rem 2rem; padding: 0.75rem 0.75rem 3rem; }
+.album-photo { overflow: visible; border: 0; border-radius: 0; padding: 0.65rem 0.65rem 0; background: #fff; box-shadow: 0 0.5rem 1rem #47321f2b, 0 1px 3px #47321f33; }
+.album-photo:nth-child(3n + 1) { transform: rotate(-0.35deg); }
+.album-photo:nth-child(3n + 2) { transform: rotate(0.3deg); }
+.album-photo .workspace-card-open { gap: 0; }
+.album-photo .workspace-card-preview { border-radius: 0; background: #eeeae2; }
+.album-photo .workspace-card-label { align-self: center; margin: 0.75rem 0 -1.35rem; padding: 0.55rem 1rem; background: #fff0a8; color: #594124; font-family: var(--font-heading); font-size: 1rem; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 2px 5px #47321f24; transform: rotate(-1deg); }
+.album-add { border: 1px dashed #9b784f; background: #fffdf8; box-shadow: none; }
+.album-add .workspace-card-label { background: #e9f0d1; }
 .world-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .world-home-card.collection-cover { padding: 0; gap: 0; justify-content: space-between; overflow: hidden; }
 .world-home-card > a:first-child { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 24px; width: 100%; flex: 1; }

@@ -34,6 +34,10 @@ try {
   const file = new File([Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=', 'base64'))], 'room.png', { type: 'image/png' })
   library = await service.upload(library, 'reference', [file])
   const photo = library.photos[0]
+  library = (await service.update({ resource: 'photo', action: 'move', id: photo.id, albumId: 'default' }, library.revision)).library
+  assert.equal(library.photos[0].albumId, 'default')
+  await assert.rejects(service.update({ resource: 'photo', action: 'move', id: photo.id, albumId: 'missing' }, library.revision), /Album not found/)
+  library = (await service.update({ resource: 'photo', action: 'move', id: photo.id, albumId: 'reference' }, library.revision)).library
   const photoCount = library.photos.length
   const direct = await service.uploadSetting(library, 'room', file, 'Room design', 'design', undefined, 'Direct setting asset')
   library = direct.library

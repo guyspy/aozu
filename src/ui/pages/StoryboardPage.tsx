@@ -2,7 +2,6 @@ import { WorkspaceSheet, Workspace, WorkspaceActions, WorkspaceAddCard, Workspac
 import { LibraryTabs } from '@/ui/LibraryTabs'
 import { LibraryBookCard, WatermarkAddCard } from '@/ui/LibraryCards'
 import { Breadcrumbs } from '@/ui/Breadcrumbs'
-import { WorldPicture } from '@/ui/WorldPicture'
 import { StoryboardSettingPicker } from '@/ui/StoryboardSettingPicker'
 import type { Application } from '@/bootstrap'
 import type { CharacterLibraryItem } from '@/ui/pages/CharacterLibraryPage'
@@ -11,7 +10,7 @@ import type { WorldLibrary } from '@/core/domain/world-library'
 import type { CharacterCollection } from '@/core/domain/character-collection'
 import { StoryboardFolders } from '@/ui/StoryboardFolders'
 import { useEffect, useRef, useState } from 'react'
-import { useMatch, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useMatch, useNavigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { StoryboardService } from '@/core/application/storyboard'
 import type { BoardCommand, Storyboard } from '@/core/domain/storyboard'
@@ -35,9 +34,6 @@ export function StoryboardPage({ service, worldService, world, collections, appl
   const text = (key: string) => t(`storyboard.${key}`)
   const { boardId, folderId } = useParams()
   const navigate = useNavigate()
-  const [search, setSearch] = useSearchParams()
-  const pendingPhoto = world.photos.find((p) => p.id === search.get('photo'))
-  const photoQuery = pendingPhoto ? `?photo=${pendingPhoto.id}` : ''
   const [boards, setBoards] = useState<Storyboard[]>([])
   const [board, setBoard] = useState<Storyboard>()
   const [error, setError] = useState('')
@@ -116,14 +112,9 @@ export function StoryboardPage({ service, worldService, world, collections, appl
         onUndo={() => void run(async () => { await update({ action: 'undo' }) })} onRedo={() => void run(async () => { await update({ action: 'redo' }) })} />
         <span role="status" className="ml-1 text-xs text-muted-foreground">{dirty ? text('unsavedStatus') : text('saved')}</span></div>}
 
-    {pendingPhoto && <section className="world-section"><h2>{pendingPhoto.name}</h2><WorldPicture service={worldService} hash={pendingPhoto.image.sha256} alt={pendingPhoto.name} />{board ? <Button disabled={busy || dirty} onClick={() => void run(async () => {
-      const blob = await worldService.png(pendingPhoto.image)
-      const next = await update({ action: 'add-frame', title: pendingPhoto.name, filename: `${pendingPhoto.name}.png`.slice(0, 200), source: `album:${pendingPhoto.albumId}/${pendingPhoto.id} · ${pendingPhoto.image.sha256} · ${pendingPhoto.source}`.slice(0, 2000) }, blob)
-      open(next.frames.at(-1)!.id); setSearch({})
-    })}>{t('world.useInStoryboard')}</Button> : <p>{t('world.storyboardsHint')}</p>}</section>}
     {error && <p role="alert" className="story-error">{error}</p>}
     {busy && <p role="status">{text('working')}</p>}
-    {!boardId ? <section className="bookshelf-grid">{boards.filter((b) => !folderId || (folderId === 'unfiled' ? !world.boardFolders[b.id] : world.boardFolders[b.id] === folderId)).map((b) => <LibraryBookCard key={b.id} icon="storyboards" to={`/storyboards/${b.id}${photoQuery}`} label={b.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={text('create')} onClick={() => { setCreating(true); setError('') }} /></section> : !board ? <p>{text('working')}</p> : details ?
+    {!boardId ? <section className="bookshelf-grid">{boards.filter((b) => !folderId || (folderId === 'unfiled' ? !world.boardFolders[b.id] : world.boardFolders[b.id] === folderId)).map((b) => <LibraryBookCard key={b.id} icon="storyboards" to={`/storyboards/${b.id}`} label={b.name} />)}<WatermarkAddCard className="collection-cover" icon="storyboards" label={text('create')} onClick={() => { setCreating(true); setError('') }} /></section> : !board ? <p>{text('working')}</p> : details ?
       <WorkspaceScroll className="story-details"><div className="book-profile flex flex-col gap-4" aria-label={text('settings')}>
         <div className="character-profile-heading"><div className="min-w-0"><span>{text('settings')}</span><h2>{board.name}</h2></div><Button type="button" size="icon" variant="ghost" aria-label={text('editDetails')} onClick={() => { setSettings({ action: 'rename', name: board.name, notes: board.notes }); setDetailsOpen(true) }}><PencilIcon /></Button></div>
         <div><h3 className="font-heading text-lg font-semibold">{text('notes')}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7">{board.notes || text('emptyNotes')}</p></div>
@@ -179,7 +170,7 @@ export function StoryboardPage({ service, worldService, world, collections, appl
           void run(async () => {
             const created = await service.update({ action: 'create', name })
             try { if (folderId && folderId !== 'unfiled') await worldService.save({ ...world, boardFolders: { ...world.boardFolders, [created.id]: folderId } }) }
-            finally { setCreating(false); navigate(`/storyboards/${created.id}${photoQuery}`) }
+            finally { setCreating(false); navigate(`/storyboards/${created.id}`) }
           })
         }}>
           <label>{text('name')}<input autoFocus required name="name" maxLength={120} disabled={busy} /></label>

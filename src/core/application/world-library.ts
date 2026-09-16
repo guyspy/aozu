@@ -34,7 +34,7 @@ export function validateAlbumComposition(input: AlbumCompositionInput, character
 
 export type WorldLibraryCommand =
   | ({ resource: 'album'; action: 'create' | 'update' | 'delete'; id?: string } & GroupPatch)
-  | ({ resource: 'photo'; action: 'update' | 'delete'; id: string; albumId?: string; source?: string } & GroupPatch)
+  | ({ resource: 'photo'; action: 'update' | 'delete' | 'move'; id: string; albumId?: string; source?: string } & GroupPatch)
   | ({ resource: 'location'; action: 'create' | 'update' | 'delete' | 'duplicate'; id?: string; collectionId?: string; parentId?: string | null; tags?: string[]; consistency?: string } & GroupPatch)
   | ({ resource: 'condition'; action: 'create' | 'update' | 'delete' | 'duplicate'; locationId: string; id?: string } & GroupPatch)
   | ({ resource: 'reference'; action: 'create' | 'delete'; locationId: string; conditionId?: string; id?: string; photoId?: string; label?: string; purpose?: SettingImage['purpose'] })
@@ -63,7 +63,11 @@ export function applyWorldLibraryCommand(current: WorldLibrary, command: WorldLi
   if (command.resource === 'photo') {
     const photo = library.photos.find((item) => item.id === command.id); if (!photo) throw new Error('Photo not found')
     if (command.action === 'delete') library.photos = library.photos.filter((item) => item.id !== photo.id)
-    else Object.assign(photo, group(photo), command.albumId === undefined ? {} : { albumId: command.albumId }, command.source === undefined ? {} : { source: command.source })
+    else {
+      if (command.action === 'move' && !command.albumId) throw new Error('Album ID is required')
+      if (command.albumId && !library.albums.some((item) => item.id === command.albumId)) throw new Error('Album not found')
+      Object.assign(photo, group(photo), command.albumId === undefined ? {} : { albumId: command.albumId }, command.source === undefined ? {} : { source: command.source })
+    }
     return { library, id: photo.id }
   }
   if (command.resource === 'location') {

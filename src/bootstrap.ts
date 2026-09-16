@@ -756,7 +756,9 @@ export function createApplication(document: Document) {
     const { expectedRevision, ...command } = input
     const result = await worldLibrary.update(command as unknown as WorldLibraryCommand, expectedRevision)
     const changedLocation = result.library.locations.find((item) => item.id === (command.resource === 'condition' ? input.locationId : result.id))
+    const changedPhoto = result.library.photos.find((item) => item.id === result.id)
     const path = command.resource === 'album' ? (command.action === 'delete' ? '/albums' : `/albums/${result.id}`)
+      : command.resource === 'photo' ? (changedPhoto ? `/albums/${changedPhoto.albumId}/photos/${changedPhoto.id}` : '/albums')
       : command.resource === 'location' ? (command.action === 'delete' ? `/collections/${input.collectionId ?? 'default'}/locations` : `/collections/${input.collectionId ?? result.library.locations.find((item) => item.id === result.id)?.collectionId ?? 'default'}/locations/${result.id}`)
       : command.resource === 'condition' && changedLocation ? `/collections/${changedLocation.collectionId}/locations/${changedLocation.id}/conditions${command.action === 'delete' ? '' : `/${result.id}`}`
       : command.resource === 'folder' ? (command.action === 'delete' ? '/storyboards' : `/storyboards/folders/${result.id}`)
