@@ -5,7 +5,7 @@ import type { WebMcpTool } from '@aotter/mantle-web/webmcp'
 import { createWebMcpController, readWorkspaceView } from '../src/adapters/webmcp/controller.ts'
 import { bindMantleWebMcpTools, createAgentCapability } from '../src/adapters/webmcp/tools.ts'
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
-import { CHARACTER_VISUAL_REVIEW, modelSheetGenerationGuidance } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_A_POSE_GUIDANCE, CHARACTER_VISUAL_REVIEW, modelSheetGenerationGuidance } from '../src/core/application/character-agent-guidance.ts'
 
 // A fresh inspection follows UI-only changes, independent of the saved variant selection.
 const page = {
@@ -98,6 +98,9 @@ assert.match(registered.get('replace_character_asset')!.description, /one comple
 assert.match(registered.get('replace_character_asset')!.description, /Never print or route base64 through model text/)
 assert.match(registered.get('replace_character_asset')!.description, /node:fs\/promises/)
 assert.match(registered.get('replace_character_asset')!.description, /browser-file-chooser fallback/)
+assert.match(registered.get('replace_character_asset')!.description, /neutral technical basewear/)
+assert.match(CHARACTER_A_POSE_GUIDANCE, /ordinary coverage of the chest, pelvis, and buttocks/)
+assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /wearing underwear/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
 assert.ok(!replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
 assert.ok(replaceSchema.required.includes('dataUrl'))
