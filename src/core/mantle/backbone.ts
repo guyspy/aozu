@@ -82,11 +82,10 @@ const characterHistoryInputSchema = objectSchema({
 
 const pngPayloadProperties = {
   dataUrl: { type: 'string', pattern: '^data:image/png;base64,', maxLength: 7_100_000 },
-  base64Chunks: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'string', minLength: 1, maxLength: 65_536, pattern: '^[A-Za-z0-9+/]+={0,2}$' } },
   dataSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
 } satisfies Record<string, JsonSchema>
 
-const PNG_WEBMCP_TRANSFER_GUIDANCE = 'Only use dataUrl or base64Chunks when the client can serialize local file bytes directly into WebMCP arguments. Never route image bytes through model text. If that capability is unavailable, stop after one attempt and ask the user to upload the PNG with the visible file control, then continue through WebMCP.'
+const PNG_WEBMCP_TRANSFER_GUIDANCE = 'In ChatGPT Browser Use host JavaScript, read the trusted local PNG with node:fs/promises, keep its Buffer in memory, build one data:image/png;base64 dataUrl, and pass it directly to this WebMCP call. Never print or route base64 through model text, terminal output, or the clipboard. If host file access is unavailable or the first decode fails, stop and use the browser-file-chooser fallback returned by inspect_character_contract.'
 
 const stageProjectionSchema = objectSchema({
   stageId: { type: 'string', minLength: 1 },
@@ -890,7 +889,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-model-sheet.yaml',
     envelope('Procedure', 'update-character-model-sheet', {
       title: 'Update Character Model Sheet',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Edit the active Appearance’s model sheet after inspect_character_contract with scope:model-sheet. References belong to modelSheet.appearanceId; switch saved sets through set_character_variant_selection, then re-inspect. Composition edits autosave into the current Appearance and synchronize linked front images. Other references may have needsReview:true; visually compare against the updated Appearance, then replace them or set needsReview:false. This is a consistency flag, not user approval. Optional shared height is edited through update_character_profile. Use referenceId for one image: front/three-quarter/side/back are the default turnaround slots; other IDs create supplemental references with label and kind. view is a compatibility alias for a default slot. Optional viewpoint and pose describe that reference. PNGs may be opaque and keep original dimensions up to 4096 × 4096 / 5 MiB. For replacement supply filename, exact expectedAssetSha256 (null for empty), and exactly one of dataUrl or base64Chunks. If chunks are available, split on 4-character boundaries at no more than 65,536 characters each and include dataSha256 so AOZU can detect transport corruption. Alternatively fromAppearance:true captures the current composition into front with its source hash; do not supply image input or filename. sourceSha256 identifies the source image used for generated art. remove:true deletes only this reference and requires its exact hash. All edits use expectedRevision. Replacement clears old guides and source hash unless a new source is supplied. Notes and guides need existing art; guides are original-image y fractions with head above feet, excluding hats, raised arms and props. Never infer height from pixels; null clears guides. Omitted fields remain unchanged. accepted:true means stored, not visually verified or user-approved. Follow visualReview on the exact reference. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Edit the active Appearance’s model sheet after inspect_character_contract with scope:model-sheet. References belong to modelSheet.appearanceId; switch saved sets through set_character_variant_selection, then re-inspect. Composition edits autosave into the current Appearance and synchronize linked front images. Other references may have needsReview:true; visually compare against the updated Appearance, then replace them or set needsReview:false. This is a consistency flag, not user approval. Optional shared height is edited through update_character_profile. Use referenceId for one image: front/three-quarter/side/back are the default turnaround slots; other IDs create supplemental references with label and kind. view is a compatibility alias for a default slot. Optional viewpoint and pose describe that reference. PNGs may be opaque and keep original dimensions up to 4096 × 4096 / 5 MiB. For replacement supply filename, exact expectedAssetSha256 (null for empty), dataUrl, and optional dataSha256. Alternatively fromAppearance:true captures the current composition into front with its source hash; do not supply image input or filename. sourceSha256 identifies the source image used for generated art. remove:true deletes only this reference and requires its exact hash. All edits use expectedRevision. Replacement clears old guides and source hash unless a new source is supplied. Notes and guides need existing art; guides are original-image y fractions from the top with head above feet, excluding hats, raised arms and props. Never infer height from pixels; null clears guides. Omitted fields remain unchanged. accepted:true means stored, not visually verified or user-approved. Follow visualReview on the exact reference. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -919,7 +918,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Install one complete canonical Character layer after inspect_character_contract with scope:appearance. ${CHARACTER_A_POSE_GUIDANCE} Follow its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Supply exactly one of dataUrl or base64Chunks. If chunks are available, split on 4-character boundaries at no more than 65,536 characters each and include dataSha256 so AOZU can detect transport corruption. Both forms must reconstruct the complete, unmodified bytes of a real PNG. Do not submit a URL, attachment reference, truncated text, or JPEG/WebP bytes relabeled as PNG. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Install one complete canonical Character layer after inspect_character_contract with scope:appearance. ${CHARACTER_A_POSE_GUIDANCE} Follow its backgroundPreparation workflow: solid-color generation, removal with a permitted environment tool, then alpha/edge verification. This is a true replacement without preserving old pixels. Expressions contain only a complete whole head with transparency elsewhere. Outfits contain the complete dressed character skin compatible with the reference pose; exact base-pixel coverage is not required. Opaque input is rejected; AOZU never removes backgrounds. Rejected or stale input does not mutate or navigate. Supply one complete dataUrl and optional dataSha256. Do not submit a URL, attachment reference, truncated text, or JPEG/WebP bytes relabeled as PNG. Submit exact ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height} RGBA or explicitly request the inspected normalization. After variant acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset; review the canonical body in its regular Composite preview. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },
@@ -931,7 +930,7 @@ const ALL_BACKBONE_SOURCES = [
         filename: { type: 'string', minLength: 1, maxLength: 200 },
         ...pngPayloadProperties,
         normalization: characterNormalizationSchema,
-      }, ['characterId', 'group', 'variantId', 'label', 'layer', 'expectedRevision', 'expectedAssetSha256', 'filename']),
+      }, ['characterId', 'group', 'variantId', 'label', 'layer', 'expectedRevision', 'expectedAssetSha256', 'filename', 'dataUrl']),
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.replace-character-asset' },
     }),
@@ -947,7 +946,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/repair-character-asset.yaml',
     envelope('Procedure', 'repair-character-asset', {
       title: 'Repair Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Repair one existing expression after inspect_character_contract and its backgroundPreparation workflow. The current head asset and editable-region mask are the only edit source; this tool never falls back to the canonical body. Accepted pixels are deterministically stitched into that current asset, preserving protected pixels. Supply exactly one of dataUrl or base64Chunks. If chunks are available, include dataSha256 so AOZU can detect transport corruption. Outfits and other complete layers must use replace_character_asset. After acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Repair one existing expression after inspect_character_contract and its backgroundPreparation workflow. The current head asset and editable-region mask are the only edit source; this tool never falls back to the canonical body. Accepted pixels are deterministically stitched into that current asset, preserving protected pixels. Supply one complete dataUrl and optional dataSha256. Outfits and other complete layers must use replace_character_asset. After acceptance, follow the returned alignment.visualReview through all four browser modes before the next asset. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { const: 'expression' },
@@ -959,7 +958,7 @@ const ALL_BACKBONE_SOURCES = [
         filename: { type: 'string', minLength: 1, maxLength: 200 },
         ...pngPayloadProperties,
         normalization: characterNormalizationSchema,
-      }, ['characterId', 'group', 'variantId', 'label', 'layer', 'expectedRevision', 'expectedAssetSha256', 'filename']),
+      }, ['characterId', 'group', 'variantId', 'label', 'layer', 'expectedRevision', 'expectedAssetSha256', 'filename', 'dataUrl']),
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.repair-character-asset' },
     }),

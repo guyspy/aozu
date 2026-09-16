@@ -284,7 +284,9 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   }
   const fileInput = (variant: CharacterDraftVariant, layer: CharacterVariantLayer) => {
     const targetKey = `${variantKey(variant)}:${layer}`
-    return <input className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)} onChange={async (event) => {
+    return <input className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)}
+      data-webmcp-upload="character-asset" data-group={variant.group} data-variant-id={variant.id} data-layer={layer}
+      onChange={async (event) => {
         const file = event.target.files?.[0]
         if (!file) return
         setBusy(targetKey); setError(undefined)

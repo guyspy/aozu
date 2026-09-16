@@ -93,12 +93,13 @@ assert.match(registered.get('set_character_variant_transform')!.description, /x 
 assert.match(registered.get('set_character_variant_transform')!.description, /Composite, Overlay, Difference, and Align/)
 assert.match(registered.get('inspect_workspace')!.description, /model-sheet reference/)
 assert.match(registered.get('inspect_workspace')!.description, /snapshot, not a live subscription/)
-assert.match(registered.get('replace_character_asset')!.description, /complete, unmodified bytes of a real PNG/)
-assert.match(registered.get('replace_character_asset')!.description, /Never route image bytes through model text/)
-assert.match(registered.get('replace_character_asset')!.description, /visible file control/)
+assert.match(registered.get('replace_character_asset')!.description, /one complete dataUrl/)
+assert.match(registered.get('replace_character_asset')!.description, /Never print or route base64 through model text/)
+assert.match(registered.get('replace_character_asset')!.description, /node:fs\/promises/)
+assert.match(registered.get('replace_character_asset')!.description, /browser-file-chooser fallback/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
-assert.ok(replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
-assert.ok(!replaceSchema.required.includes('dataUrl'))
+assert.ok(!replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
+assert.ok(replaceSchema.required.includes('dataUrl'))
 for (const tool of registered.values()) {
   if (!tool.annotations.readOnlyHint) assert.match(tool.description, /AOZU itself handles effects.navigation/)
 }

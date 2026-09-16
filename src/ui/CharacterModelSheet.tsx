@@ -42,6 +42,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
     if (view && reference) edit(withCharacterModelSheet(draft, setModelSheetReference(sheet, view, { ...reference, ...patch })))
   }
   const fileInput = (id: string) => <Input className="hidden" type="file" accept="image/png" disabled={busy}
+    data-webmcp-upload="model-sheet-reference" data-reference-id={id}
     aria-label={t('modelSheet.uploadView', { view: label(id) })}
     onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) upload(id, file) }} />
 
@@ -52,7 +53,8 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
       <h3><span className="text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>{label(id)}</h3>
       {item ? <Button type="button" variant="ghost" className="model-sheet-art h-auto p-0" style={{ aspectRatio: item.asset.inspection.width / item.asset.inspection.height }} aria-label={t('modelSheet.openView', { view: label(id) })} onClick={(event) => { trigger.current = event.currentTarget; revert(); openReference(id) }}>
         <BlobImage blob={item.asset.blob} alt={label(id)} className="size-full object-contain" />
-      </Button> : <><Button type="button" variant="ghost" className="model-sheet-art model-sheet-empty h-auto p-0" disabled={busy} aria-label={t('modelSheet.uploadView', { view: label(id) })} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span></Button>{fileInput(id)}</>}
+      </Button> : <Button type="button" variant="ghost" className="model-sheet-art model-sheet-empty h-auto p-0" disabled={busy} aria-label={t('modelSheet.uploadView', { view: label(id) })} onClick={(event) => event.currentTarget.parentElement?.querySelector('input')?.click()}><ImagePlusIcon className="size-6" /><span>{t('modelSheet.add')}</span></Button>}
+      {fileInput(id)}
       {item?.notes && <p className="line-clamp-2 wrap-anywhere text-sm text-muted-foreground">{item.notes}</p>}
     </Card>
   }
@@ -98,7 +100,7 @@ export function CharacterModelSheet({ draft, edit, commit, revert, upload, appea
           <Label className="grid gap-1">{t('modelSheet.kind')}<Select name="kind" defaultValue="structure"><SelectTrigger className="w-full" aria-label={t('modelSheet.kind')}><SelectValue /></SelectTrigger><SelectContent>{CHARACTER_REFERENCE_KINDS.map((kind) => <SelectItem key={kind} value={kind}>{t(`modelSheet.kinds.${kind}`)}</SelectItem>)}</SelectContent></Select></Label>
           <Label className="grid gap-1">{t('modelSheet.viewpoint')}<Input name="viewpoint" maxLength={80} /></Label>
           <Label className="grid gap-1">{t('modelSheet.pose')}<Input name="pose" maxLength={80} /></Label>
-          <Input className="min-w-0 max-w-full" type="file" name="file" accept="image/png" required aria-label={t('modelSheet.add')} />
+          <Input className="min-w-0 max-w-full" type="file" name="file" accept="image/png" required aria-label={t('modelSheet.add')} data-webmcp-upload="model-sheet-new-reference" />
           <Button type="submit" disabled={busy}>{t('modelSheet.add')}</Button>
         </form>
           {error && <p role="alert" className="text-destructive">{error}</p>}

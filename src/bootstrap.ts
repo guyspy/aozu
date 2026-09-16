@@ -80,26 +80,32 @@ const pngFromDataUrl = (dataUrl: string) => {
   if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) throw new Error('Submitted dataUrl is not PNG bytes; provide the complete original PNG base64 payload')
   return new Blob([bytes], { type: 'image/png' })
 }
-type PngPayload = { dataUrl?: string; base64Chunks?: string[]; dataSha256?: string }
-const CHARACTER_ASSET_TRANSFER = {
-  protocol: 'base64-chunks-v1',
-  instructions: [
-    'Only use dataUrl or base64Chunks when your client can serialize local file bytes directly into WebMCP arguments.',
-    'Never route image bytes through model text. If direct byte serialization is unavailable, stop after one attempt and ask the user to upload the PNG with the visible file control, then continue through WebMCP.',
-    'When direct byte serialization is available, use your runtime standard library to base64-encode the PNG once. Split base64Chunks on 4-character boundaries at no more than 65,536 characters each and send lowercase dataSha256 for the original bytes.',
-    'dataSha256 detects transport corruption; it does not provide a local-file bridge.',
-  ],
-  input: { base64Chunks: 'ordered string[]', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
-} as const
+type PngPayload = { dataUrl?: string; dataSha256?: string }
+const characterAssetTransfer = (fallback?: { path: string; selector: string }) => ({
+  protocol: 'chatgpt-host-data-url-v1',
+  toolkit: {
+    runtime: 'ChatGPT Browser Use host JavaScript',
+    read: "const { readFile } = await import('node:fs/promises'); const bytes = await readFile(trustedLocalPngPath)",
+    hash: "const { createHash } = await import('node:crypto'); const dataSha256 = createHash('sha256').update(bytes).digest('hex')",
+    encode: "const dataUrl = `data:image/png;base64,${bytes.toString('base64')}`",
+    call: 'const webmcp = await aozuTab.capabilities.get("webmcp"); const tools = await webmcp.fetchTools(); await tools.call(toolName, { ...requiredInput, filename, dataUrl, dataSha256 })',
+    rule: 'Read, encode, and call WebMCP in the same host-runtime execution. Keep bytes in memory; never print or route base64 through model text, terminal output, or the clipboard.',
+  },
+  input: { dataUrl: 'one complete data:image/png;base64 string', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
+  ...(fallback ? { fallback: {
+    kind: 'browser-file-chooser', accept: 'image/png', ...fallback,
+    instruction: 'Navigate to path, start Browser Use waitForEvent("filechooser"), click selector, and set the trusted local PNG path.',
+  } } : {}),
+})
 const sha256Blob = async (blob: Blob) => Array.from(
   new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())),
   (byte) => byte.toString(16).padStart(2, '0'),
 ).join('')
-const pngFromPayload = async ({ dataUrl, base64Chunks, dataSha256 }: PngPayload) => {
-  if (Boolean(dataUrl) === Boolean(base64Chunks?.length)) throw new Error('Provide exactly one of dataUrl or base64Chunks')
-  const blob = pngFromDataUrl(dataUrl ?? `data:image/png;base64,${base64Chunks!.join('')}`)
+const pngFromPayload = async ({ dataUrl, dataSha256 }: PngPayload) => {
+  if (!dataUrl) throw new Error('Provide one complete PNG dataUrl built directly from local file bytes in the ChatGPT Browser Use host runtime')
+  const blob = pngFromDataUrl(dataUrl)
   const receivedSha256 = await sha256Blob(blob)
-  if (dataSha256 && receivedSha256 !== dataSha256) throw new Error(`PNG payload changed in transit; expected sha256 ${dataSha256}, received ${receivedSha256}. Resend as smaller base64Chunks.`)
+  if (dataSha256 && receivedSha256 !== dataSha256) throw new Error(`PNG payload changed in transit; expected sha256 ${dataSha256}, received ${receivedSha256}. Re-read the local PNG and rebuild dataUrl in the same Browser Use host-runtime call.`)
   return { blob, receivedSha256 }
 }
 const blobFromDataUrl = (dataUrl: string) => {
@@ -139,7 +145,6 @@ interface ModelSheetInput extends CharacterReferenceMetadata {
   guides?: CharacterReference['guides'] | null
   filename?: string
   dataUrl?: string
-  base64Chunks?: string[]
   dataSha256?: string
   expectedAssetSha256?: string | null
 }
@@ -1268,7 +1273,10 @@ export function createApplication(document: Document) {
             sha256: canonical.inspection.sha256,
             ...(target ? {} : { dataUrl: await readDataUrl(canonical.blob) }),
           } : null,
-          assetTransfer: CHARACTER_ASSET_TRANSFER,
+          assetTransfer: characterAssetTransfer(target ? {
+            path: target.alignment.reviewPath,
+            selector: `input[data-webmcp-upload="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
+          } : undefined),
           productionBrief: [
             'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
             CHARACTER_A_POSE_GUIDANCE,
@@ -1303,7 +1311,6 @@ export function createApplication(document: Document) {
     expectedAssetSha256: string | null
     filename: string
     dataUrl?: string
-    base64Chunks?: string[]
     dataSha256?: string
     normalization?: CharacterNormalization
   }
@@ -1331,7 +1338,13 @@ export function createApplication(document: Document) {
     return { status: 'ok', data: {
       character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
       collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
-      assetTransfer: CHARACTER_ASSET_TRANSFER,
+      assetTransfer: characterAssetTransfer(referenceId ? current || isTurnaroundView(referenceId) ? {
+        path: modelSheetPath(draft.id, referenceId),
+        selector: `input[data-webmcp-upload="model-sheet-reference"][data-reference-id="${referenceId}"]`,
+      } : {
+        path: modelSheetPath(draft.id, 'new'),
+        selector: 'input[data-webmcp-upload="model-sheet-new-reference"]',
+      } : undefined),
       generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
@@ -1351,7 +1364,7 @@ export function createApplication(document: Document) {
     const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256, needsReview } = input
     if (view !== undefined && (!isTurnaroundView(view) || (input.referenceId && input.referenceId !== view))) throw new Error('Use one referenceId; view is only an alias for a default turnaround slot')
     if (referenceId) validateReferenceId(referenceId)
-    const hasPayload = Boolean(input.dataUrl || input.base64Chunks?.length)
+    const hasPayload = Boolean(input.dataUrl)
     if (fromAppearance && (referenceId !== 'front' || hasPayload || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
     if (remove && (hasPayload || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
     const editsReference = input.notes !== undefined || input.guides !== undefined || hasPayload || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
@@ -1430,7 +1443,7 @@ export function createApplication(document: Document) {
       const submitted = providedBlob ?? payload!.blob
       let submittedInspection: CharacterAssetInspection
       try { submittedInspection = await inspectCharacterImage(submitted) }
-      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG. Do not retry image bytes through model text; use the visible file control if direct byte serialization is unavailable.`) }
+      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG. Do not retry through model text; re-inspect the contract and use its browser-file-chooser fallback.`) }
       const registrationFrame = characterRegistrationFrame(current)
       const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined
       const referenceBounds = characterReferenceBounds(registrationFrame, target.group)

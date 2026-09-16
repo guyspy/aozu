@@ -79,7 +79,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
           await ready(() => copied === i18n.t('characterDraft.start.agentPrompt'))
           check(!panel.querySelector('a'), 'Agent branch showed external action')
         }
-        check(!panel.querySelector('input[type=file]') && document.querySelector('.character-stage-upload input[type=file]'), 'Upload should remain on the preview, not in the dialog')
+        check(!panel.querySelector('input[type=file]') && document.querySelector('.character-stage-upload input[data-webmcp-upload="character-asset"]'), 'Upload should remain on the preview with a stable WebMCP fallback locator')
         const bounds = panel.getBoundingClientRect()
         check(bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight, 'Start dialog escaped the viewport')
         check(Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2 && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2, 'Start dialog is not centered')
@@ -182,7 +182,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(stale && staleHash && state().persistedRevision === afterPose, 'Stale revision/hash changed reference')
     const body = (await call('inspect_character_contract', { characterId: id, group: 'body', variantId: 'base', layer: 'body' })).data
     check(body.target.generationRecipe.pose === 'a-pose' && body.target.alignment.visualReview, 'First Appearance lacks A-pose review')
-    check(body.assetTransfer.protocol === 'base64-chunks-v1' && body.assetTransfer.instructions.some((line) => line.includes('Never route image bytes through model text')) && body.assetTransfer.instructions.some((line) => line.includes('visible file control')), 'Character contract lacks safe PNG transfer guidance')
+    check(body.assetTransfer.protocol === 'chatgpt-host-data-url-v1' && body.assetTransfer.toolkit.read.includes('node:fs/promises') && body.assetTransfer.toolkit.call.includes('capabilities.get("webmcp")') && body.assetTransfer.fallback.selector.includes('data-webmcp-upload'), 'Character contract lacks direct PNG transfer and uploader fallback guidance')
     const backup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(backup.entries.some((entry) => entry.id === id && entry.data.modelSheet.heightCm === 185), 'Library backup lost model sheet')
     await app.editor.reload(); await ready(() => document.querySelectorAll('.model-sheet-art img').length === 3)
@@ -227,10 +227,8 @@ if (new URLSearchParams(location.search).has('responsive')) {
     for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front']]) {
       const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 512, 768); ctx.fillStyle = group === 'body' ? '#222222' : '#ff0000'; ctx.fillRect(128, 32, 256, group === 'body' ? 700 : 150)
       const layerPng = canvas.toDataURL('image/png')
-      const encoded = layerPng.slice('data:image/png;base64,'.length)
-      const split = Math.ceil(encoded.length / 8) * 4
       const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await (await fetch(layerPng)).arrayBuffer())), (byte) => byte.toString(16).padStart(2, '0')).join('')
-      const payload = group === 'body' ? { base64Chunks: [encoded.slice(0, split), encoded.slice(split)], dataSha256: sha256 } : { dataUrl: layerPng }
+      const payload = group === 'body' ? { dataUrl: layerPng, dataSha256: sha256 } : { dataUrl: layerPng }
       await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
     }
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
