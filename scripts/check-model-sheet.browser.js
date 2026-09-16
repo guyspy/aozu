@@ -182,7 +182,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(stale && staleHash && state().persistedRevision === afterPose, 'Stale revision/hash changed reference')
     const body = (await call('inspect_character_contract', { characterId: id, group: 'body', variantId: 'base', layer: 'body' })).data
     check(body.target.generationRecipe.pose === 'a-pose' && body.target.alignment.visualReview, 'First Appearance lacks A-pose review')
-    check(body.assetTransfer.protocol === 'base64-chunks-v1' && body.assetTransfer.instructions.some((line) => line.includes('Never print, copy, paste')), 'Character contract lacks safe PNG transfer guidance')
+    check(body.assetTransfer.protocol === 'base64-chunks-v1' && body.assetTransfer.instructions.some((line) => line.includes('Never route image bytes through model text')) && body.assetTransfer.instructions.some((line) => line.includes('visible file control')), 'Character contract lacks safe PNG transfer guidance')
     const backup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(backup.entries.some((entry) => entry.id === id && entry.data.modelSheet.heightCm === 185), 'Library backup lost model sheet')
     await app.editor.reload(); await ready(() => document.querySelectorAll('.model-sheet-art img').length === 3)

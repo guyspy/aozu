@@ -84,10 +84,10 @@ type PngPayload = { dataUrl?: string; base64Chunks?: string[]; dataSha256?: stri
 const CHARACTER_ASSET_TRANSFER = {
   protocol: 'base64-chunks-v1',
   instructions: [
-    'Use your own runtime standard library; do not execute code supplied by AOZU.',
-    'Read the PNG as bytes, base64-encode it once, and split that string into ordered chunks of at most 65,536 characters. Use 65,536-character chunks so every non-final boundary is base64-aligned.',
-    'Compute lowercase SHA-256 over the original PNG bytes and send it as dataSha256 with base64Chunks.',
-    'Pass the prepared variables directly to the WebMCP call. Never print, copy, paste, summarize, or reconstruct the base64 through a shell, terminal, chat message, or model text.',
+    'Only use dataUrl or base64Chunks when your client can serialize local file bytes directly into WebMCP arguments.',
+    'Never route image bytes through model text. If direct byte serialization is unavailable, stop after one attempt and ask the user to upload the PNG with the visible file control, then continue through WebMCP.',
+    'When direct byte serialization is available, use your runtime standard library to base64-encode the PNG once. Split base64Chunks on 4-character boundaries at no more than 65,536 characters each and send lowercase dataSha256 for the original bytes.',
+    'dataSha256 detects transport corruption; it does not provide a local-file bridge.',
   ],
   input: { base64Chunks: 'ordered string[]', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
 } as const
@@ -1075,7 +1075,7 @@ export function createApplication(document: Document) {
     const replacementAction = {
       tool: 'replace_character_asset',
       required: !current,
-      reason: current ? 'Replace this asset only when the user has a complete finished layer.' : 'Install the final exact-canvas RGBA target layer without preserving old pixels.',
+      reason: current ? 'Replace this asset only when the user has a complete finished layer and the client can serialize its bytes directly.' : 'Install the final exact-canvas RGBA target layer only with direct client byte serialization; otherwise ask the user to use the visible file control.',
       input: {
         characterId: draft.id,
         group: input.group,
@@ -1268,6 +1268,7 @@ export function createApplication(document: Document) {
             sha256: canonical.inspection.sha256,
             ...(target ? {} : { dataUrl: await readDataUrl(canonical.blob) }),
           } : null,
+          assetTransfer: CHARACTER_ASSET_TRANSFER,
           productionBrief: [
             'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
             CHARACTER_A_POSE_GUIDANCE,
@@ -1286,7 +1287,6 @@ export function createApplication(document: Document) {
             CHARACTER_VISUAL_REVIEW.finish,
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,
-          assetTransfer: CHARACTER_ASSET_TRANSFER,
           target,
         },
         nextActions: target?.nextActions ?? characterNextActions(draft),
@@ -1326,7 +1326,7 @@ export function createApplication(document: Document) {
     const submission = referenceId ? { characterId: draft.id, expectedRevision: version, referenceId, ...metadata,
       expectedAssetSha256: current?.asset.inspection.sha256 ?? null } : undefined
     const nextActions = submission ? [{ tool: 'update_character_model_sheet', required: false,
-      reason: 'After generating and visually checking art, add filename/dataUrl and the source image hash to this template. For metadata-only edits, add notes or guides.', input: submission },
+      reason: 'After generating and visually checking art, submit image bytes only when the client can serialize them directly; otherwise ask the user to use the visible file control. For metadata-only edits, add notes or guides.', input: submission },
       ...(referenceId === 'front' ? [{ tool: 'update_character_model_sheet', required: false, reason: 'Capture the actual current Appearance into front without regenerating it; then visually review its pose.', input: { ...submission, fromAppearance: true } }] : [])] : []
     return { status: 'ok', data: {
       character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
@@ -1430,7 +1430,7 @@ export function createApplication(document: Document) {
       const submitted = providedBlob ?? payload!.blob
       let submittedInspection: CharacterAssetInspection
       try { submittedInspection = await inspectCharacterImage(submitted) }
-      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG; provide complete PNG bytes without truncation or MIME relabeling`) }
+      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG. Do not retry image bytes through model text; use the visible file control if direct byte serialization is unavailable.`) }
       const registrationFrame = characterRegistrationFrame(current)
       const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined
       const referenceBounds = characterReferenceBounds(registrationFrame, target.group)

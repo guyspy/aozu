@@ -94,6 +94,8 @@ assert.match(registered.get('set_character_variant_transform')!.description, /Co
 assert.match(registered.get('inspect_workspace')!.description, /model-sheet reference/)
 assert.match(registered.get('inspect_workspace')!.description, /snapshot, not a live subscription/)
 assert.match(registered.get('replace_character_asset')!.description, /complete, unmodified bytes of a real PNG/)
+assert.match(registered.get('replace_character_asset')!.description, /Never route image bytes through model text/)
+assert.match(registered.get('replace_character_asset')!.description, /visible file control/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
 assert.ok(replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
 assert.ok(!replaceSchema.required.includes('dataUrl'))
