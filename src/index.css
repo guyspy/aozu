@@ -294,6 +294,10 @@ body::before {
 .book-character-card .workspace-card-preview [role="img"] { border: 0; border-radius: 0; background-color: transparent; }
 .book-character-card .workspace-card-label { color: #4e2d19; font-size: 0.95rem; }
 .bookshelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 1.5rem; }
+.storyboard-list { display: grid; gap: 0.75rem; }
+.storyboard-list-card .workspace-card-open { min-height: 4.5rem; flex-direction: row; align-items: center; gap: 1rem; padding: 0.75rem 1rem; text-align: left; }
+.storyboard-list-card .workspace-card-preview { width: 3rem; flex: 0 0 3rem; border-right: 1px solid #804f2333; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.storyboard-list-card .workspace-card-label { font-size: 1.05rem; }
 .collection-cover { display: flex; min-width: 0; min-height: 19rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; border: 1px solid #986637; border-left: 0.5rem solid #644126; border-radius: 0.4rem 1rem 1rem 0.4rem; background: linear-gradient(120deg, #79522e, #51361f); color: #f3d899; text-align: center; box-shadow: inset 0 0 0 5px #deb46e33, 0.25rem 0.35rem 0 #d6b374, 0.4rem 0.6rem 1rem #45250f22; }
 .collection-cover .workspace-card-open { align-items: center; justify-content: center; gap: 0.75rem; text-align: center; }
 .collection-cover .workspace-card-label { font-size: 1.35rem; }
