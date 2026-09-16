@@ -216,7 +216,9 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   const previewLayers = resolveCharacterDraftLayers(draft, selectedVariant)
   const referenceLayers = selectedVariant ? resolveCharacterDraftReferenceLayers(draft, selectedVariant) : []
   const registration = characterRegistrationFrame(draft)
-  const selectedPrimaryLayer = selectedVariant && (selectedVariant.group === 'prop' ? selectedVariant.layers.front ? 'front' : 'back' : CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!.layers[0])
+  const selectedPrimaryLayer = selectedVariant && (['outfit', 'hair', 'headwear', 'prop'].includes(selectedVariant.group)
+    ? selectedVariant.layers.front ? 'front' : 'back'
+    : CHARACTER_CREATION_GROUPS.find(({ group }) => group === selectedVariant.group)!.layers[0])
   const selectedAsset = selectedVariant && selectedPrimaryLayer ? selectedVariant.layers[selectedPrimaryLayer] : undefined
   const referenceBounds = selectedVariant?.group === 'expression' ? registration.head?.bounds
     : selectedVariant?.group === 'outfit' ? registration.bodyBounds : undefined
@@ -416,7 +418,9 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               />
               {required && <span className="required-status">{t('characterDraft.required')}</span>}
             </div>
-            <div className="mt-3 grid gap-3 rounded-lg border bg-background/50 p-3">
+            <details className="variant-metadata mt-3">
+              <summary>{t('characterDraft.metadata.description')} · {t('characterDraft.metadata.tags')}</summary>
+              <div className="grid gap-3 border-t p-3">
               {selectedVariant.group === 'outfit' && <div className="grid grid-cols-2 gap-2">
                 <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.slot')}</span>
                   <Select value={selectedVariant.metadata?.outfit?.slot ?? 'top'} onValueChange={(slot) => updateVariantMetadata(selectedVariant, { outfit: { slot: slot as CharacterOutfitSlot, garmentType: selectedVariant.metadata?.outfit?.garmentType ?? slot } })}>
@@ -448,7 +452,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
                 <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.description')}</span><Textarea rows={2} defaultValue={selectedVariant.metadata?.description ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { description: event.currentTarget.value })} /></label>
                 <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.tags')}</span><Input placeholder={t('characterDraft.metadata.tagsHelp')} defaultValue={selectedVariant.metadata?.tags?.join(', ') ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { tags: event.currentTarget.value.split(',') })} /></label>
               </>}
-            </div>
+              </div>
+            </details>
             {(primaryAsset || behindAsset) && <TooltipProvider><div className="transform-grid" aria-label={t('characterDraft.transform.label')}>
               {([['x', MoveHorizontalIcon], ['y', MoveVerticalIcon], ['scale', ScalingIcon]] as const).map(([field, Icon]) => <Tooltip key={field}><TooltipTrigger asChild><label className="relative min-w-0 text-muted-foreground">
                 <Icon className="pointer-events-none mx-auto mb-1 size-4 sm:absolute sm:left-2 sm:top-1/2 sm:mb-0 sm:-translate-y-1/2" aria-hidden="true" />

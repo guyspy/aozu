@@ -636,6 +636,21 @@ body::before {
   font-weight: 800;
 }
 
+.variant-metadata {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: rgb(255 252 235 / 32%);
+}
+
+.variant-metadata summary {
+  padding: 0.55rem 0.7rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .transform-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
