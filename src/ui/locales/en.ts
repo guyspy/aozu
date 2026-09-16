@@ -317,5 +317,5 @@ export const en = {
 } as const
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> }
-/** Every locale carries every key; English is the shape and the fallback. */
+/** Every locale carries every key; English defines the message shape. */
 export type Messages = Widen<typeof en>

@@ -25,12 +25,12 @@ export function StoryboardSettingPicker({ application, world, collections, chara
         setting = { id: crypto.randomUUID(), kind, sourceId: id, revision, name: character.name, details: [character.description, character.backstory, ...Object.entries(character.attributes ?? {}).map(([key, value]) => `${key}: ${value}`), collection?.backstory].filter(Boolean).join('\n\n') }
         blob = png; source = `character:${id}@${revision}`
       } else if (kind === 'location') {
-        if (!location) throw new Error('Choose a location')
+        if (!location) throw new Error(text('chooseLocation'))
         const collection = collections.find((c) => c.id === location.collectionId)
         setting = { id: crypto.randomUUID(), kind, sourceId: id, revision: world.revision, name: `${location.name}${condition ? ` · ${condition.name}` : ''}`, details: [location.description, `${text('consistency')}: ${location.consistency}`, condition && `${text('condition')}: ${condition.name}\n${condition.description}`, `${text('parent')}: ${locationAncestors(world, id).slice(0, -1).map((l) => `${l.name}: ${l.description}`).join(' / ')}`, collection?.backstory].filter(Boolean).join('\n\n') }
         if (image) { blob = await application.worldLibrary.png(image.image); source = `${image.source} · ${image.image.sha256}`; purpose = `${text(image.purpose)} · ${image.label}`; filename = `${image.label}.png` }
       } else {
-        if (!photo) throw new Error('Choose an image')
+        if (!photo) throw new Error(text('chooseImage'))
         setting = { id: crypto.randomUUID(), kind, sourceId: id, revision: world.revision, name: photo.name, details: [photo.description, `${text('source')}: ${photo.source}`].filter(Boolean).join('\n\n') }
         blob = await application.worldLibrary.png(photo.image); source = `${photo.source} · album:${photo.albumId}/${photo.id} · ${photo.image.sha256}`; filename = `${photo.name}.png`; purpose = text('inspiration')
       }

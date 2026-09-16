@@ -36,8 +36,9 @@ export function WorkspaceAdd({ className, ...props }: ComponentProps<'div'>) {
 }
 
 /** Same document surface in a Radix portal; content alone scrolls. */
-export function WorkspaceSheet({ children, title, surface, className, ...props }: Omit<ComponentProps<typeof SheetContent>, 'title'> & { title: ReactNode; surface?: 'paper' }) {
-  return <SheetContent className={cn('workspace-sheet', className)} {...props}>
+export function WorkspaceSheet({ children, title, surface, className, closeLabel, ...props }: Omit<ComponentProps<typeof SheetContent>, 'title'> & { title: ReactNode; surface?: 'paper' }) {
+  const { t } = useTranslation()
+  return <SheetContent className={cn('workspace-sheet', className)} closeLabel={closeLabel ?? t('common.close')} {...props}>
     <SheetTitle className="workspace-sheet-title">{title}</SheetTitle>
     <WorkspaceScroll surface={surface}>{children}</WorkspaceScroll>
   </SheetContent>

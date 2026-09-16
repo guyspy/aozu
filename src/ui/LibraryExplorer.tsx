@@ -9,7 +9,6 @@ import type { WorldLibrary } from '@/core/domain/world-library'
 import type { CharacterLibraryItem } from '@/ui/pages/CharacterLibraryPage'
 import { exportLibraryArchive, importLibraryArchive } from '@/core/application/library-archive'
 import { AozuIcon } from '@/ui/AozuIcon'
-import { CharacterLibraryTransfer } from '@/ui/CharacterLibraryTransfer'
 import { DataControls } from '@/ui/DataControls'
 import { WorkspaceScroll } from '@/ui/Workspace'
 import { Button } from '@/ui/components/ui/button'
@@ -75,14 +74,6 @@ function ExplorerBody({ application, world, collections, characters, refresh, cl
     </section>
     <section className="library-tree-transfer">
       <DataControls exportData={() => exportLibraryArchive(services)} exportFilename="aozu-library.zip" exportLabel={text('downloadComplete')} importLabel={text('importComplete')} prepareImport={async (blob) => { await importLibraryArchive(blob, services); await refresh(); await loadBoards() }} />
-    </section>
-    {/* Characters keep their own reviewed restore, the only place that can replace rather than merge. */}
-    <section className="library-tree-transfer mt-2">
-      <CharacterLibraryTransfer
-        exportLibrary={application.exportCharacterLibrary}
-        prepareLibraryImport={application.prepareCharacterLibraryImport}
-        importLibrary={async (snapshot, mode) => { await application.importCharacterLibrary(snapshot, mode); await refresh() }}
-      />
     </section>
     <nav className="library-tree" aria-label={text('library')} onClick={(event) => { if ((event.target as Element).closest('a')) close() }}>
       <TreeDetails initialOpen={pathname.startsWith('/collections') || pathname.startsWith('/characters')} label={<><AozuIcon name="collections" />{t('books.shelf')}</>}>

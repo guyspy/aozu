@@ -17,6 +17,8 @@ const leaves = (value: Tree, path: string[] = []): string[] =>
   Object.entries(value).flatMap(([key, child]) => typeof child === 'string' ? [[...path, key].join('.')] : leaves(child, [...path, key]))
 
 const english = new Set(leaves(en as unknown as Tree))
+const read = (tree: Tree, path: string) => path.split('.').reduce<string | Tree>((value, part) => (value as Tree)[part], tree)
+const tokens = (value: string | Tree) => [...String(value).matchAll(/\{\{[^}]+\}\}/g)].map(([token]) => token).sort()
 
 // Every locale carries the whole English shape, so no screen can silently fall back mid-sentence.
 for (const [name, locale] of Object.entries({ de, es, fr, ja, ko, ptBR, zhCN, zhTW })) {
@@ -25,9 +27,17 @@ for (const [name, locale] of Object.entries({ de, es, fr, ja, ko, ptBR, zhCN, zh
   const extra = [...keys].filter((key) => !english.has(key))
   assert.deepEqual(missing, [], `${name} is missing keys: ${missing.join(', ')}`)
   assert.deepEqual(extra, [], `${name} has keys English dropped: ${extra.join(', ')}`)
+  for (const key of english) {
+    const value = read(locale as unknown as Tree, key)
+    assert.ok(String(value).trim(), `${name}.${key} is empty`)
+    assert.deepEqual(tokens(value), tokens(read(en as unknown as Tree, key)), `${name}.${key} changed interpolation tokens`)
+    assert.doesNotMatch(String(value), /[\uE000-\uF8FF]/, `${name}.${key} contains a translation marker`)
+  }
+  const source = readFileSync(join('src/ui/locales', `${name === 'ptBR' ? 'pt-BR' : name === 'zhCN' ? 'zh-CN' : name === 'zhTW' ? 'zh-TW' : name}.ts`), 'utf8')
+    .replace(/^import .*$/gm, '')
+  assert.doesNotMatch(source, /\ben\.[A-Za-z]/, `${name} directly falls back to English`)
 }
 
-const read = (tree: Tree, path: string) => path.split('.').reduce<string | Tree>((value, part) => (value as Tree)[part], tree)
 const untranslatedJapanese = [...english].filter((key) => key !== 'common.productName' && read(ja as unknown as Tree, key) === read(en as unknown as Tree, key))
 assert.deepEqual(untranslatedJapanese, [], `Japanese still uses English: ${untranslatedJapanese.join(', ')}`)
 
