@@ -13,10 +13,11 @@ export type AlbumCompositionInput = { characterSources?: AlbumCharacterSource[];
  * answers before "Park"; a name that only appears inside a longer referenced name is not its own mention.
  */
 export function unreferencedMention<T>(text: string, records: { name: string; referenced: boolean; value: T }[]): T | undefined {
-  const referenced = records.filter((record) => record.referenced).map(({ name }) => name)
+  const remaining = records.filter((record) => record.referenced && record.name)
+    .sort((left, right) => right.name.length - left.name.length)
+    .reduce((value, record) => value.replaceAll(record.name, ' '.repeat(record.name.length)), text)
   return [...records].sort((left, right) => right.name.length - left.name.length)
-    .find((record) => record.name && !record.referenced && text.includes(record.name)
-      && !referenced.some((other) => other.includes(record.name) && text.includes(other)))?.value
+    .find((record) => record.name && !record.referenced && remaining.includes(record.name))?.value
 }
 
 export function validateAlbumComposition(input: AlbumCompositionInput, characters: { id: string; name: string; revision: number; sha256: string }[], locations: LocationSetting[]) {

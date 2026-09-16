@@ -1,7 +1,7 @@
 import { createIndexedDbCharacterCollectionRepository } from '../src/adapters/indexeddb/character-collection-repository.ts'
 import assert from 'node:assert/strict'
 import 'fake-indexeddb/auto'
-import { createWorldLibraryService, validateAlbumComposition } from '../src/core/application/world-library.ts'
+import { createWorldLibraryService, unreferencedMention, validateAlbumComposition } from '../src/core/application/world-library.ts'
 import { locationAncestors, validateWorldLibrary, type LocationSetting } from '../src/core/domain/world-library.ts'
 import { createStoryboardService } from '../src/core/application/storyboard.ts'
 import { exportLibraryArchive, importLibraryArchive } from '../src/core/application/library-archive.ts'
@@ -15,6 +15,9 @@ try {
   const composedLocation = { id: 'field', parentId: null, collectionId: 'default', name: 'Field', description: '', consistency: '', updatedAt: 1, tags: [], images: [], conditions: [{ id: 'rain', name: 'Rain', description: '', updatedAt: 1, images: [] }] }
   assert.match(validateAlbumComposition({ characterSources: [{ characterId: 'hero', revision: 2, sha256: 'a'.repeat(64) }], sourceLocationId: 'field', sourceConditionId: 'rain', prompt: 'Hero repairs the Field in Rain' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: 'a'.repeat(64) }], [composedLocation]), /Hero.*Field.*Rain/)
   assert.doesNotThrow(() => validateAlbumComposition({ characterSources: [{ characterId: 'hero-real', revision: 1, sha256: 'b'.repeat(64) }], prompt: 'Hero｜Real crosses an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }, { id: 'hero-real', name: 'Hero｜Real', revision: 1, sha256: 'b'.repeat(64) }], [composedLocation]))
+  const overlapping = [{ name: 'Central Park', referenced: true, value: 'central' }, { name: 'Park', referenced: false, value: 'park' }]
+  assert.equal(unreferencedMention('Central Park', overlapping), undefined)
+  assert.equal(unreferencedMention('Central Park and Park', overlapping), 'park')
   assert.match(validateAlbumComposition({ prompt: 'An undefined traveler crosses an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }], [composedLocation]), /undefined traveler/)
   assert.throws(() => validateAlbumComposition({ prompt: 'Hero repairs an unknown bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: '' }], [composedLocation]), /requires a Character reference/)
   assert.throws(() => validateAlbumComposition({ characterSources: [{ characterId: 'hero', revision: 1, sha256: 'a'.repeat(64) }], prompt: 'Hero repairs a bridge' }, [{ id: 'hero', name: 'Hero', revision: 2, sha256: 'a'.repeat(64) }], [composedLocation]), /changed/)
