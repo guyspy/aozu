@@ -240,6 +240,25 @@ if (new URLSearchParams(location.search).has('responsive')) {
         const next = (await call('inspect_character_contract', { characterId: id, group, variantId, layer })).data
         check(next.target.metadataStatus.complete && next.target.workflow.nextStep === 'prepare-and-submit', 'Metadata completion did not advance the live contract')
         check(next.authoringGuide.path === '/character-authoring.md', 'Authoring guide is missing')
+        const preflightRevision = state().persistedRevision
+        const preflightPoints = {
+          referenceSha256: next.target.alignmentReference.sha256,
+          points: [
+            { label: 'left contact', candidate: { x: 128, y: 32 }, reference: { x: 138, y: 52 } },
+            { label: 'right contact', candidate: { x: 384, y: 32 }, reference: { x: 394, y: 52 } },
+            { label: 'lower contact', candidate: { x: 256, y: 182 }, reference: { x: 266, y: 202 } },
+          ],
+        }
+        const preflight = await call('inspect_character_contract', { characterId: id, group, variantId, layer,
+          candidate: { filename: `${variantId}.png`, ...payload, preflightPoints } })
+        check(preflight.data.candidatePreflight.persisted === false && preflight.data.candidatePreflight.canSubmit, 'Candidate preflight did not pass usable pixels')
+        check(preflight.data.candidatePreflight.previewDataUrl.startsWith('data:image/png;base64,') && preflight.data.candidatePreflight.alignment.pointFit.after.max === 0, 'Candidate preflight omitted normalized pixels or point fit')
+        check(state().persistedRevision === preflightRevision, 'Candidate preflight mutated the Character')
+        const conflicting = preflightPoints.points.map((point, index) => ({ ...point, reference: { ...point.reference, x: point.reference.x + (index === 2 ? 50 : 0) } }))
+        const blocked = await call('inspect_character_contract', { characterId: id, group, variantId, layer,
+          candidate: { filename: `${variantId}.png`, ...payload, preflightPoints: { ...preflightPoints, points: conflicting } } })
+        check(!blocked.data.candidatePreflight.canSubmit && blocked.data.candidatePreflight.status === 'needs-artwork-correction' && !blocked.nextActions.length, 'Candidate deformation was allowed to proceed')
+        check(state().persistedRevision === preflightRevision, 'Rejected candidate preflight mutated the Character')
       }
       await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
     }

@@ -101,6 +101,14 @@ the final 512×768 canvas: reference points on the reference after its reported
 transform; candidate points before the candidate's current transform. Spread
 observed corresponding contacts across the item, never invent them to get a fit.
 
+Before storing new pixels, pass the PNG through the same inspect call as
+`candidate:{filename,dataUrl,dataSha256?,normalization?,preflightPoints?}`.
+This performs the production normalization, alpha, ownership, overflow and
+alignment checks without changing the Character. Actually view its returned
+`previewDataUrl`. When contacts are observable, `preflightPoints` contains the
+current reference hash and the same 3–12 point pairs; conflicting residuals set
+`canSubmit:false`. A technical pass without points still needs visual review.
+
 `alignment.pointFit` reports current and best-fit per-point residuals in pixels,
 RMS/max error, and a suggested absolute transform when one uniform scale and
 translation fits every supplied point within 4 px. This tolerance only describes

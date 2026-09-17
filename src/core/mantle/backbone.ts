@@ -199,6 +199,14 @@ const characterNormalizationSchema = objectSchema({
   align: { enum: CHARACTER_ALIGN_MODES },
 }, ['resize', 'align'])
 
+const characterAlignmentPointsSchema = {
+  type: 'array', minItems: 3, maxItems: 12, items: objectSchema({
+    label: { type: 'string', minLength: 1, maxLength: 80 },
+    reference: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
+    candidate: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
+  }, ['label', 'reference', 'candidate']),
+} satisfies JsonSchema
+
 const characterInspectionSchema = objectSchema({
   width: { const: CHARACTER_RIG.canvas.width },
   height: { const: CHARACTER_RIG.canvas.height },
@@ -853,7 +861,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Inspect the exact target before edits. Read authoringGuide once; follow workflow, metadataStatus, generationGuidance and review feedback. scope:appearance returns source images, hashes and overlap diagnostics; optional alignmentPoints fits observed correspondences without mutation. scope:model-sheet with images requests original reference images. Refresh after edits. Stored and visually verified are distinct.`,
+      description: `Inspect the exact target before edits. Read authoringGuide once; follow workflow, metadataStatus, generationGuidance and review feedback. scope:appearance returns source images, hashes and overlap diagnostics. Optional candidate performs the same PNG normalization and safety checks without storing it; view previewDataUrl, and supply candidate.preflightPoints when attachment points are observable. Optional alignmentPoints rechecks a stored asset. scope:model-sheet with images requests original references. Refresh after edits. Stored and visually verified are distinct.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -865,12 +873,18 @@ const ALL_BACKBONE_SOURCES = [
             expectedRevision: { type: 'integer', minimum: 0 },
             assetSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
             referenceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
-            points: { type: 'array', minItems: 3, maxItems: 12, items: objectSchema({
-              label: { type: 'string', minLength: 1, maxLength: 80 },
-              reference: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
-              candidate: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
-            }, ['label', 'reference', 'candidate']) },
+            points: characterAlignmentPointsSchema,
           }, ['expectedRevision', 'assetSha256', 'referenceSha256', 'points']),
+          candidate: objectSchema({
+            filename: { type: 'string', minLength: 1, maxLength: 200 },
+            ...pngPayloadProperties,
+            normalization: characterNormalizationSchema,
+            rebaseDerivedAssets: { type: 'boolean' },
+            preflightPoints: objectSchema({
+              referenceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+              points: characterAlignmentPointsSchema,
+            }, ['referenceSha256', 'points']),
+          }, ['filename', 'dataUrl']),
           referenceId: referenceIdSchema,
           ...referenceMetadataProperties,
           images: { type: 'array', maxItems: 5, uniqueItems: true, items: referenceIdSchema },
