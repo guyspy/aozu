@@ -109,7 +109,7 @@ const garment = mask(bounds(150, 300, 220, 180))
 assert.equal(inspectCharacterAssetOwnership('outfit', completeSkin, { bodyMask: completeSkin }).status, 'invalid')
 assert.equal(inspectCharacterAssetOwnership('outfit', garment, { bodyMask: completeSkin }).status, 'unverified')
 const fullCoverageGarment = mask(bounds(150, 80, 220, 650))
-for (let row = head.y; row < head.y + head.height; row++) for (let column = head.x; column < head.x + head.width; column++) fullCoverageGarment.alpha[row * canvas.width + column] = 0
+for (let row = head.y; row < head.y + head.height * 0.4; row++) for (let column = head.x; column < head.x + head.width; column++) fullCoverageGarment.alpha[row * canvas.width + column] = 0
 assert.equal(inspectCharacterAssetOwnership('outfit', fullCoverageGarment, { bodyMask: completeSkin, headBounds: head }).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('outfit', completeSkin, garment).status, 'unverified')
 // One shared read of the existing diagnostics decides the fit the editor offers and WebMCP reports.
