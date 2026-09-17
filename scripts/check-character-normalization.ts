@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  characterCoverageContract,
   fitCharacterBoundsTransform,
   inspectCharacterAssetOwnership,
   measureCharacterMaskAlignment,
@@ -110,7 +111,19 @@ assert.equal(inspectCharacterAssetOwnership('outfit', completeSkin, { bodyMask: 
 assert.equal(inspectCharacterAssetOwnership('outfit', garment, { bodyMask: completeSkin }).status, 'unverified')
 const fullCoverageGarment = mask(bounds(150, 80, 220, 650))
 for (let row = head.y; row < head.y + head.height * 0.4; row++) for (let column = head.x; column < head.x + head.width; column++) fullCoverageGarment.alpha[row * canvas.width + column] = 0
-assert.equal(inspectCharacterAssetOwnership('outfit', fullCoverageGarment, { bodyMask: completeSkin, headBounds: head }).status, 'unverified')
+assert.equal(inspectCharacterAssetOwnership('outfit', fullCoverageGarment, { bodyMask: completeSkin, headBounds: head, outfitSlot: 'one-piece' }).status, 'unverified')
+
+// Metadata selects a fixed contract; the harness owns thresholds and rejects contradictory pixels.
+assert.equal(characterCoverageContract('outfit', 'top').id, 'outfit.top.v1')
+assert.equal(characterCoverageContract('outfit').id, 'outfit.unclassified.v1')
+assert.equal(characterCoverageContract('hair').id, 'hair.v1')
+const top = inspectCharacterAssetOwnership('outfit', mask(bounds(150, 160, 220, 280)), { bodyMask: completeSkin, headBounds: head, outfitSlot: 'top' })
+assert.equal(top.status, 'unverified')
+assert.equal(top.status === 'unverified' && top.coverage.contract.declaredBy, 'outfit.slot')
+const trousersDeclaredAsTop = inspectCharacterAssetOwnership('outfit', mask(bounds(150, 380, 220, 340)), { bodyMask: completeSkin, headBounds: head, outfitSlot: 'top' })
+assert.equal(trousersDeclaredAsTop.status === 'invalid' && trousersDeclaredAsTop.code, 'COVERAGE_CONTRACT_VIOLATION')
+assert.equal(inspectCharacterAssetOwnership('outfit', mask(bounds(150, 380, 220, 320)), { bodyMask: completeSkin, headBounds: head, outfitSlot: 'bottom' }).status, 'unverified')
+assert.equal(inspectCharacterAssetOwnership('outfit', mask(bounds(175, 650, 160, 80)), { bodyMask: completeSkin, headBounds: head, outfitSlot: 'footwear' }).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('outfit', completeSkin, garment).status, 'unverified')
 // One shared read of the existing diagnostics decides the fit the editor offers and WebMCP reports.
 assert.deepEqual(suggestCharacterFit({ measurement: measureCharacterMaskAlignment('expression', mask(head), mask(head)) }), { status: 'aligned' })

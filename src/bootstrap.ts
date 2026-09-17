@@ -60,7 +60,7 @@ import {
 import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
 import { changeCharacterAppearance, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
-import { measureCharacterPointAlignment, type CharacterAlignmentPoint, highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
+import { characterCoverageContract, measureCharacterPointAlignment, type CharacterAlignmentPoint, highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
 import { createCharacterWorkspaceEvents } from './adapters/browser/character-workspace-events.ts'
@@ -177,7 +177,7 @@ const CHARACTER_ASSET_POLICY = {
         suppliedArt: 'Preserve requested alpha, glow and edge treatment; skip background removal for finished transparent art.',
         generateOn: 'one flat high-contrast color absent from the subject',
         avoid: ['painted checkerboard', 'cropped silhouette'],
-        beforeSubmission: ['discover a permitted background-removal tool, image editor, or local image-processing CLI/library', 'remove the solid background without cropping or reframing', 'verify real alpha and inspect edges on light and dark backgrounds', 'submit RGBA PNG'],
+        beforeSubmission: ['discover a permitted background-removal tool, image editor, or local image-processing CLI/library (for example Apple Vision foreground masking on macOS)', 'remove the solid background without cropping or reframing', 'verify real alpha and inspect edges on light and dark backgrounds', 'submit genuine RGBA PNG; AOZU rejects indexed or opaque PNGs'],
       },
     },
   },
@@ -1060,6 +1060,7 @@ export function createApplication(document: Document) {
     if (input.group === 'body' && input.variantId !== 'base') throw new Error('The body group only supports body/base/body')
     const { asset, headRegistration, current, transform, alignmentReference, referenceTransform, editSource, editSourceTransform } = resolveCharacterAssetSources(draft, input as CharacterAssetTarget)
     const variant = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)
+    const coverageContract = characterCoverageContract(input.group, variant?.metadata?.outfit?.slot)
     const label = variant?.label ?? input.variantId
     const registrationFrame = characterRegistrationFrame(draft)
     const allowedOperations = [
@@ -1192,6 +1193,7 @@ export function createApplication(document: Document) {
       } : { filled: false, current: false, transform },
       required: REQUIRED_CHARACTER_TARGETS.some((target) => target.group === input.group && target.variantId === input.variantId && target.layer === input.layer),
       acceptance: CHARACTER_ASSET_POLICY.layers[input.group],
+      coverageContract,
       placement: { slot: placement.slot, slotOrder: CHARACTER_RIG.slots.find(({ id }) => id === placement.slot)!.order, layerOrder: placement.order },
       alignmentReference: alignmentReference ? {
         filename: alignmentReference.filename,
@@ -1517,6 +1519,8 @@ export function createApplication(document: Document) {
         throw new Error('Repair requires a current expression head; use replace_character_asset for outfits and other replacement-only target layers')
       }
       const metadataStatus = characterMetadataStatus(current, target.group, target.variantId)
+      const targetVariant = current.variants.find(({ group, id }) => group === target.group && id === target.variantId)
+      const outfitSlot = targetVariant?.metadata?.outfit?.slot
       if (source === 'agent' && !metadataStatus.complete) throw new Error(`Complete variant metadata before submitting pixels: ${metadataStatus.missing.join(', ')}. Use update_character_variant_metadata, then inspect_character_contract for a fresh revision.`)
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
@@ -1622,6 +1626,7 @@ export function createApplication(document: Document) {
       ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
         headBounds: registrationFrame.headEnvelope?.bounds,
         bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
+        outfitSlot,
       })
       if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
       afterResize = measureCharacterMaskAlignment(target.group, referenceMask, candidateMask, undefined, sources.referenceTransform)
@@ -1663,6 +1668,7 @@ export function createApplication(document: Document) {
         headBounds: registrationFrame.headEnvelope?.bounds,
         bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
         transform: autoFit ?? undefined,
+        outfitSlot,
       })
       if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
       const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
