@@ -4,6 +4,7 @@ import {
   IDENTITY_CHARACTER_TRANSFORM,
   validateCharacterVariantTransform,
   type CharacterAlignMode,
+  type CharacterOutfitSlot,
   type CharacterResizeMode,
   type CharacterVariantGroup,
   type CharacterVariantTransform,
@@ -24,6 +25,67 @@ export interface CharacterVisualSample {
 
 type Bounds = { x: number; y: number; width: number; height: number }
 type MaskStats = { bounds?: Bounds; visiblePixels: number; edgeTouchPixels: number; center?: { x: number; y: number } }
+
+type CoverageRegion = 'head-core' | 'head' | 'upper-body' | 'lower-body' | 'below-knee' | 'feet' | 'above-chest' | 'above-ankle' | 'below-shoulders'
+type CoverageRule = { region: CoverageRegion; minRatio?: number; maxRatio?: number; reason: string }
+
+export type CharacterCoverageContract = {
+  id: string
+  declaredBy: 'group' | 'outfit.slot'
+  semanticType: string
+  rules: CoverageRule[]
+  agentDeclaration: string
+  browserSafenet: string
+}
+
+/** The agent declares semantics; AOZU owns the numerical coverage rules. */
+export function characterCoverageContract(group: CharacterVariantGroup, outfitSlot?: CharacterOutfitSlot): CharacterCoverageContract {
+  const common = {
+    agentDeclaration: 'Declare the real asset type in metadata before generating pixels. Do not invent coverage percentages or loosen this contract.',
+    browserSafenet: 'After acceptance, inspect Composite, Overlay, Difference, and Align in the browser. Mechanical coverage is a guardrail, not visual approval.',
+  }
+  if (group === 'outfit') {
+    if (!outfitSlot) return {
+      id: 'outfit.unclassified.v1', declaredBy: 'outfit.slot', semanticType: 'unclassified', rules: [],
+      agentDeclaration: 'Set outfit.slot metadata first, then re-inspect to receive the enforceable coverage contract. Do not submit pixels under this placeholder.',
+      browserSafenet: common.browserSafenet,
+    }
+    const slot = outfitSlot
+    const rules: Record<CharacterOutfitSlot, CoverageRule[]> = {
+      top: [
+        { region: 'upper-body', minRatio: 0.35, reason: 'A top must materially occupy the upper body.' },
+        { region: 'below-knee', maxRatio: 0.08, reason: 'A top must not silently contain trousers or footwear.' },
+      ],
+      bottom: [
+        { region: 'lower-body', minRatio: 0.5, reason: 'A bottom must materially occupy the lower body.' },
+        { region: 'above-chest', maxRatio: 0.05, reason: 'A bottom must not silently contain a shirt, head, or upper-body character pixels.' },
+      ],
+      'one-piece': [
+        { region: 'upper-body', minRatio: 0.15, reason: 'A one-piece must occupy the upper body.' },
+        { region: 'lower-body', minRatio: 0.15, reason: 'A one-piece must continue into the lower body.' },
+        { region: 'head-core', maxRatio: 0.08, reason: 'A one-piece must not contain the character head.' },
+      ],
+      outerwear: [
+        { region: 'upper-body', minRatio: 0.2, reason: 'Outerwear must materially occupy the upper body.' },
+        { region: 'head-core', maxRatio: 0.08, reason: 'Outerwear must not contain the character head.' },
+      ],
+      footwear: [
+        { region: 'feet', minRatio: 0.65, reason: 'Footwear pixels must be concentrated at the feet.' },
+        { region: 'above-ankle', maxRatio: 0.2, reason: 'Footwear must not silently contain legs or a complete character.' },
+      ],
+    }
+    return { id: `outfit.${slot}.v1`, declaredBy: 'outfit.slot', semanticType: slot, rules: rules[slot], ...common }
+  }
+  if (group === 'hair' || group === 'headwear') return {
+    id: `${group}.v1`, declaredBy: 'group', semanticType: group,
+    rules: [
+      { region: 'head', minRatio: 0.15, reason: `${group} must visibly attach to the head.` },
+      ...(group === 'headwear' ? [{ region: 'below-shoulders' as const, maxRatio: 0.2, reason: 'Headwear must not silently contain a torso or complete character.' }] : []),
+    ],
+    ...common,
+  }
+  return { id: `${group}.v1`, declaredBy: 'group', semanticType: group, rules: [], ...common }
+}
 
 const round = (value: number) => Math.round(value * 10_000) / 10_000
 
@@ -173,6 +235,47 @@ const transformMask = (mask: CharacterAlphaMask, transform: CharacterVariantTran
   return { ...mask, alpha }
 }
 
+const coverageRegionContains = (region: CoverageRegion, x: number, y: number, height: number, headBounds?: Bounds) => {
+  const headBottom = headBounds ? headBounds.y + headBounds.height : height * 0.3
+  switch (region) {
+    case 'head-core': return headBounds
+      ? x >= headBounds.x && x < headBounds.x + headBounds.width && y >= headBounds.y && y < headBounds.y + headBounds.height * 0.4
+      : y < height * 0.14
+    case 'head': {
+      const margin = headBounds ? Math.max(6, Math.ceil(Math.max(headBounds.width, headBounds.height) * 0.08)) : 0
+      return headBounds
+        ? x >= headBounds.x - margin && x < headBounds.x + headBounds.width + margin && y >= headBounds.y - margin && y < headBottom + margin
+        : y < height * 0.32
+    }
+    case 'upper-body': return y >= height * 0.14 && y < height * 0.62
+    case 'lower-body': return y >= height * 0.48 && y < height * 0.92
+    case 'below-knee': return y >= height * 0.68
+    case 'feet': return y >= height * 0.82
+    case 'above-chest': return y < height * 0.36
+    case 'above-ankle': return y < height * 0.78
+    case 'below-shoulders': return y > Math.max(headBottom + height * 0.03, height * 0.34)
+  }
+}
+
+const inspectCoverageContract = (candidate: CharacterAlphaMask, contract: CharacterCoverageContract, headBounds?: Bounds) => {
+  const counts = Object.fromEntries(contract.rules.map(({ region }) => [region, 0])) as Partial<Record<CoverageRegion, number>>
+  let visiblePixels = 0
+  for (let index = 0; index < candidate.alpha.length; index++) {
+    if (candidate.alpha[index]! <= 16) continue
+    visiblePixels++
+    const x = index % candidate.width, y = Math.floor(index / candidate.width)
+    for (const { region } of contract.rules) if (coverageRegionContains(region, x, y, candidate.height, headBounds)) counts[region] = (counts[region] ?? 0) + 1
+  }
+  const ratios = Object.fromEntries(Object.entries(counts).map(([region, count]) => [region, round(visiblePixels ? count / visiblePixels : 0)])) as Partial<Record<CoverageRegion, number>>
+  const violations = contract.rules.flatMap((rule) => {
+    const ratio = ratios[rule.region] ?? 0
+    return (rule.minRatio !== undefined && ratio < rule.minRatio) || (rule.maxRatio !== undefined && ratio > rule.maxRatio)
+      ? [{ ...rule, actualRatio: ratio }]
+      : []
+  })
+  return { contract, visiblePixels, ratios, violations, status: violations.length ? 'invalid' as const : 'valid' as const }
+}
+
 export function inspectCharacterAssetOwnership(
   group: CharacterVariantGroup,
   candidate: CharacterAlphaMask,
@@ -180,6 +283,7 @@ export function inspectCharacterAssetOwnership(
     headBounds?: Bounds
     bodyMask?: CharacterAlphaMask
     transform?: CharacterVariantTransform
+    outfitSlot?: CharacterOutfitSlot
   } = {},
 ) {
   if (group === 'expression') {
@@ -226,6 +330,13 @@ export function inspectCharacterAssetOwnership(
   }
   if (['outfit', 'hair', 'headwear'].includes(group) && options.bodyMask) {
     const placed = transformMask(candidate, options.transform ?? IDENTITY_CHARACTER_TRANSFORM)
+    const coverage = inspectCoverageContract(placed, characterCoverageContract(group, options.outfitSlot), options.headBounds)
+    if (coverage.status === 'invalid') return {
+      status: 'invalid' as const,
+      code: 'COVERAGE_CONTRACT_VIOLATION',
+      message: coverage.violations.map(({ reason, actualRatio, minRatio, maxRatio }) => `${reason} Observed ${(actualRatio * 100).toFixed(1)}%; expected ${minRatio !== undefined ? `at least ${minRatio * 100}%` : `at most ${maxRatio! * 100}%`}.`).join(' '),
+      coverage,
+    }
     let bodyPixels = 0
     let overlayPixels = 0
     let overlapPixels = 0
@@ -250,9 +361,9 @@ export function inspectCharacterAssetOwnership(
       message: 'This looks like a complete dressed character. Submit only the garment or style pixels on the registered transparent canvas; never put body pixels or the dressed intermediate in this slot.',
       bodyCoverage,
       overlayCoverage, headCoreCoverage,
-      overlapPixels,
+      overlapPixels, coverage,
     }
-    return { status: 'unverified' as const, bodyCoverage, overlayCoverage, headCoreCoverage, overlapPixels,
+    return { status: 'unverified' as const, bodyCoverage, overlayCoverage, headCoreCoverage, overlapPixels, coverage,
       message: 'No complete-character heuristic triggered. Pixel ownership and visual alignment still require review.' }
   }
   return { status: 'valid' as const }

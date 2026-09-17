@@ -865,7 +865,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Inspect the exact target before edits. Read authoringGuide once; follow workflow, metadataStatus, generationGuidance and review feedback. scope:appearance returns source images, hashes and overlap diagnostics. Optional candidate performs the same PNG normalization and safety checks without storing it; view previewDataUrl, and supply candidate.preflightPoints when attachment points are observable. Optional alignmentPoints rechecks a stored asset. scope:model-sheet with images requests original references. Refresh after edits. Stored and visually verified are distinct.`,
+      description: `Inspect the exact target before edits. Read authoringGuide once; follow workflow, metadataStatus, generationGuidance, coverageContract and review feedback. The declared group and outfit.slot select AOZU-owned coverage rules; agents never invent percentages. scope:appearance returns source images, hashes and overlap diagnostics. Optional candidate performs the same PNG normalization, RGBA, coverage and safety checks without storing it; view previewDataUrl, and supply candidate.preflightPoints when attachment points are observable. Optional alignmentPoints rechecks a stored asset. scope:model-sheet with images requests original references. Refresh after edits. Stored and visually verified are distinct.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -932,7 +932,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-variant-metadata.yaml',
     envelope('Procedure', 'update-character-variant-metadata', {
       title: 'Update Character Variant Metadata',
-      description: `Describe one independently editable item before its pixels: label, description, tags and known sourceSha256. Outfits need slot and garmentType. Facial Variants use faceStyle/faceStyleId and complete expression heads. Omitted fields stay unchanged. Follow the inspected decomposition rules; do not combine independent items without user agreement. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Describe one independently editable item before its pixels: label, description, tags and known sourceSha256. Outfits need slot and garmentType; slot selects the fixed AOZU coverage contract used by candidate preflight and submission. Facial Variants use faceStyle/faceStyleId and complete expression heads. Omitted fields stay unchanged. Follow the inspected decomposition rules; do not combine independent items without user agreement. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -991,7 +991,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Replace one target-owned layer after inspecting its contract and completing metadataStatus. Preserve the inspected canvas and pixel ownership; outfit is garment pixels only. Agent submissions for outfit, hair, and headwear require the same preflightPoints used to inspect the candidate; AOZU applies their uniform alignment transform and rejects missing or conflicting observations before storing. Use rebaseDerivedAssets:true only for compatible small base corrections. Accepted means stored; follow alignment.visualReview before continuing. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Replace one target-owned genuine RGBA PNG layer after inspecting its contract and completing metadataStatus. Preserve the inspected canvas and pixel ownership; outfit is garment pixels only. AOZU derives and enforces coverageContract from group and outfit.slot; agents do not provide thresholds. Agent submissions for outfit, hair, and headwear require the same preflightPoints used to inspect the candidate; AOZU applies their uniform alignment transform and rejects missing or conflicting observations before storing. Use rebaseDerivedAssets:true only for compatible small base corrections. Accepted means stored; use the browser Composite, Overlay, Difference, and Align views as the required visual safenet before continuing. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },

@@ -89,6 +89,7 @@ assert.deepEqual([
 ], [true, false, false])
 assert.match(registered.get('inspect_character_contract')!.description, /metadataStatus/)
 assert.match(registered.get('inspect_character_contract')!.description, /generationGuidance/)
+assert.match(registered.get('inspect_character_contract')!.description, /coverageContract/)
 assert.match(registered.get('inspect_character_contract')!.description, /without storing it/)
 const inspectSchema = registered.get('inspect_character_contract')!.inputSchema
 assert.ok(inspectSchema.properties.candidate.required.includes('dataUrl'))
@@ -103,6 +104,8 @@ assert.match(registered.get('replace_character_asset')!.description, /one comple
 assert.match(registered.get('replace_character_asset')!.description, /never print or route base64 through model text/)
 assert.match(registered.get('replace_character_asset')!.description, /browser-file-chooser fallback/)
 assert.match(registered.get('replace_character_asset')!.description, /outfit is garment pixels only/)
+assert.match(registered.get('replace_character_asset')!.description, /genuine RGBA PNG/)
+assert.match(registered.get('replace_character_asset')!.description, /Composite, Overlay, Difference, and Align/)
 assert.match(registered.get('replace_character_asset')!.description, /rebaseDerivedAssets:true/)
 assert.match(CHARACTER_A_POSE_GUIDANCE, /whichever best fits the user’s prompt/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /no nipples/)

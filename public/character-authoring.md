@@ -54,13 +54,22 @@ For layering, prefer minimal technical basewear or a neutral skin-tone character
 body base, according to the user's brief. Keep optional hairstyles and facial
 variants separable when useful; do not remove features from approved source art.
 
-For newly generated art, prepare a permitted background-removal tool first.
+AOZU accepts only genuine RGBA PNG layers. For newly generated art, prepare a
+permitted background-removal tool available in the environment first—for example
+Apple Vision foreground masking on macOS, an image editor, or a local image-processing library.
 Generate on one flat high-contrast color absent from the subject, then remove the
 background. Alpha is file data, not a visual style. Never generate a checkerboard.
 If a generation paints a grid, stop retrying transparency prompts and use the
 prepared removal method. A PNG uploader transfers bytes; it does not remove backgrounds.
 Verify genuine RGBA, visible pixels, real alpha and edges on light/dark backgrounds.
 AOZU does not generate images or remove backgrounds.
+
+The asset type selects a fixed coverage contract. Declare the real group and, for
+wardrobe, `outfit.slot` before generating pixels. AOZU owns the numerical region
+thresholds; agents must not invent percentages or relax them. Candidate preflight
+reports the measured regions and rejects pixels that contradict the declared type.
+After acceptance, use the browser's Composite, Overlay, Difference and Align views
+as the visual safenet; mechanical coverage is not visual approval.
 
 For finished user-supplied art, preserve intentional alpha, glow, texture and
 edge treatment. Do not perform background removal merely because it is the
