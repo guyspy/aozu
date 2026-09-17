@@ -89,6 +89,10 @@ assert.deepEqual([
 ], [true, false, false])
 assert.match(registered.get('inspect_character_contract')!.description, /metadataStatus/)
 assert.match(registered.get('inspect_character_contract')!.description, /generationGuidance/)
+assert.match(registered.get('inspect_character_contract')!.description, /without storing it/)
+const inspectSchema = registered.get('inspect_character_contract')!.inputSchema
+assert.ok(inspectSchema.properties.candidate.required.includes('dataUrl'))
+assert.equal(inspectSchema.properties.candidate.properties.preflightPoints.properties.points.minItems, 3)
 assert.ok(!registered.get('update_character_variant_metadata')!.inputSchema.properties.faceStyle.required.includes('facialHair'))
 assert.match(registered.get('set_character_variant_transform')!.description, /expression whole head/)
 assert.match(registered.get('set_character_variant_transform')!.description, /x moves right, y moves down/)

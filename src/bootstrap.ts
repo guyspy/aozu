@@ -455,7 +455,7 @@ export function createApplication(document: Document) {
         expectedAssetSha256: current?.inspection.sha256 ?? null,
         filename: blob instanceof File ? blob.name : `${target.variantId}-${target.layer}.png`,
       }, blob, 'user')
-      if (!result.data.accepted) throw new Error('rejection' in result.data ? result.data.rejection?.message : 'Character asset was rejected')
+      if (!('accepted' in result.data) || !result.data.accepted) throw new Error('rejection' in result.data ? result.data.rejection?.message : 'Character asset was rejected')
       return result.data
     },
     async replaceCharacterReference(characterId: string, referenceId: string, blob?: Blob, metadata: CharacterReferenceMetadata = {}) {
@@ -1299,15 +1299,24 @@ export function createApplication(document: Document) {
   }
 
   async function inspectCharacterContract(rawInput: unknown) {
-      const { characterId, scope = 'appearance', ...targetInput } = rawInput as { characterId: string; scope?: 'appearance' | 'model-sheet' }
+      const { characterId, scope = 'appearance', candidate, ...targetInput } = rawInput as { characterId: string; scope?: 'appearance' | 'model-sheet'; candidate?: Pick<CharacterAssetMutationInput, 'filename' | 'dataUrl' | 'dataSha256' | 'normalization' | 'rebaseDerivedAssets' | 'preflightPoints'> }
       if (scope === 'model-sheet') {
-        if ('alignmentPoints' in targetInput) throw new Error('Alignment points require scope:appearance and an exact target')
+        if ('alignmentPoints' in targetInput || candidate) throw new Error('Candidate images and alignment points require scope:appearance and an exact target')
         return inspectModelSheetContract(rawInput)
       }
       if (['referenceId', 'images', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].some((key) => key in targetInput)) throw new Error('Reference inputs require scope:model-sheet')
       const { character: draft, version } = await editor.view(characterId)
       const canonical = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body
       const target = await characterTarget(draft, version, targetInput)
+      if (candidate && !target) throw new Error('Candidate preflight requires group, variantId, and layer')
+      const candidatePreflight = candidate && target ? await mutateCharacterAsset('replace', {
+        ...candidate,
+        characterId: draft.id,
+        ...target.input,
+        label: draft.variants.find(({ group, id }) => group === target.input.group && id === target.input.variantId)?.label ?? target.input.variantId,
+        expectedRevision: version,
+        expectedAssetSha256: target.current?.sha256 ?? null,
+      }, undefined, 'agent', true) : null
       return {
         status: 'ok',
         data: {
@@ -1359,8 +1368,9 @@ export function createApplication(document: Document) {
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,
           target,
+          candidatePreflight: candidatePreflight?.data ?? null,
         },
-        nextActions: target?.nextActions ?? characterNextActions(draft),
+        nextActions: candidatePreflight?.nextActions ?? target?.nextActions ?? characterNextActions(draft),
       }
   }
 
@@ -1377,6 +1387,7 @@ export function createApplication(document: Document) {
     dataSha256?: string
     normalization?: CharacterNormalization
     rebaseDerivedAssets?: boolean
+    preflightPoints?: { referenceSha256: string; points: CharacterAlignmentPoint[] }
   }
 
   async function inspectModelSheetContract(rawInput: unknown) {
@@ -1482,6 +1493,7 @@ export function createApplication(document: Document) {
     input: CharacterAssetMutationInput,
     providedBlob?: Blob,
     source: 'user' | 'agent' = 'agent',
+    dryRun = false,
   ) {
       const requested = input.normalization ?? NO_CHARACTER_NORMALIZATION
       const target: CharacterAssetTarget = {
@@ -1493,9 +1505,10 @@ export function createApplication(document: Document) {
       const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === target.group)
       if (!group || !group.layers.includes(target.layer) || (target.group === 'body' && target.variantId !== 'base')) throw new Error('Unknown character asset target')
       if (input.rebaseDerivedAssets !== undefined && target.group !== 'body') throw new Error('rebaseDerivedAssets is only valid for body/base/body')
-      // Targeting another Character settles the active queue and switches sessions before validation.
-      await editor.open(input.characterId)
-      const { character: current, revision } = activeCharacter()
+      // Mutations target the active editing session; preflight only reads persisted state.
+      if (!dryRun) await editor.open(input.characterId)
+      const viewed = dryRun ? await editor.view(input.characterId) : null
+      const { character: current, revision } = viewed ? { character: viewed.character, revision: viewed.version } : activeCharacter()
       if (revision !== input.expectedRevision) throw new Error(`Character changed; expected revision ${input.expectedRevision}, current ${revision}`)
       const sources = resolveCharacterAssetSources(current, target)
       const assetSha256 = sources.asset?.inspection.sha256 ?? null
@@ -1557,7 +1570,7 @@ export function createApplication(document: Document) {
       const rejected = (reason: string, rejection?: { code: string; message: string }) => ({
         status: 'ok',
         data: {
-          accepted: false,
+          ...(dryRun ? { preflight: true, persisted: false, canSubmit: false } : { accepted: false }),
           target,
           filename,
           ...(rejection ? { rejection } : {}),
@@ -1573,7 +1586,7 @@ export function createApplication(document: Document) {
           alignment: { mode: alignmentMode, measurement: afterAlignment ?? afterResize },
           ownership,
         },
-        nextActions: [{
+        nextActions: dryRun ? [] : [{
           tool: mode === 'replace' ? 'replace_character_asset' : 'repair_character_asset',
           required: true,
           reason,
@@ -1633,6 +1646,46 @@ export function createApplication(document: Document) {
         transform: autoFit ?? undefined,
       })
       if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
+      const pointFit = input.preflightPoints ? (() => {
+        if (!sources.alignmentReference || sources.alignmentReference.inspection.sha256 !== input.preflightPoints!.referenceSha256) throw new Error('Alignment reference changed; inspect the exact target again')
+        return measureCharacterPointAlignment(input.preflightPoints!.points)
+      })() : null
+      const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
+      const needsRebaseDecision = target.group === 'body' && dependentAssetCount > 0 && inspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true
+      if (dryRun) {
+        const canSubmit = !needsRebaseDecision && pointFit?.status !== 'needs-artwork-correction'
+        return {
+          status: 'ok',
+          data: {
+            preflight: true,
+            persisted: false,
+            canSubmit,
+            status: needsRebaseDecision ? 'needs-rebase-decision' : pointFit ? pointFit.status : 'needs-visual-review',
+            target,
+            filename,
+            inspection: {
+              width: inspection.width,
+              height: inspection.height,
+              genuineRgba: inspection.genuineRgba,
+              hasTransparentPixels: inspection.hasTransparentPixels,
+              visibleBounds: inspection.visibleBounds,
+              visiblePixelCount: inspection.visiblePixelCount,
+              sha256: inspection.sha256,
+            },
+            previewDataUrl: await readDataUrl(resized),
+            normalization: report(),
+            alignment: { mode: alignmentMode, measurement: alignment, pointFit },
+            ownership,
+            autoFit: autoFit ? { suggested: true, transform: autoFit } : { suggested: false },
+          },
+          nextActions: canSubmit ? [{
+            tool: 'replace_character_asset',
+            required: false,
+            reason: pointFit ? 'Candidate pixels and supplied correspondences passed preflight. Visually review previewDataUrl before storing.' : 'Candidate pixels passed technical preflight. Visually review previewDataUrl and add observed correspondences when alignment is uncertain.',
+            input: { characterId: current.id, ...target, expectedRevision: revision, expectedAssetSha256: assetSha256, filename, normalization: requested },
+          }] : [],
+        }
+      }
       const stitchedBlob = mode === 'repair' && sources.editSource && editableRegion
         ? await renderStitchedCharacterEditBlob(
             sources.editSource.blob,
@@ -1644,7 +1697,6 @@ export function createApplication(document: Document) {
         : null
       const savedBlob = stitchedBlob ?? resized
       const savedInspection = stitchedBlob ? await inspectCharacterImage(stitchedBlob) : inspection
-      const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
       if (target.group === 'body' && dependentAssetCount && savedInspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true) {
         throw new Error(`Replacing this body affects ${dependentAssetCount} registered layers. For a compatible small correction set rebaseDerivedAssets:true to preserve existing layers. For changed pose, proportions, identity or registration, create a new Character instead; do not invalidate this one.`)
       }
