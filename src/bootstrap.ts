@@ -1589,12 +1589,6 @@ export function createApplication(document: Document) {
       // 2. One uniform scale plus translation onto the reference bounds this contract published.
       const referenceMask = sources.alignmentReference ? await readCharacterAlphaMask(sources.alignmentReference.blob) : null
       const candidateMask = await readCharacterAlphaMask(resized)
-      if (target.group === 'body' && !candidateMask.alpha.includes(255)) {
-        return rejected('Regenerate a clean body layer with a solid subject and transparent background.', {
-          code: 'BODY_HAS_NO_OPAQUE_CORE',
-          message: 'Body artwork has no fully opaque pixels; semi-transparent subjects, glow, and background haze cannot establish a stable base.',
-        })
-      }
       ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
         headBounds: registrationFrame.headEnvelope?.bounds,
         bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,

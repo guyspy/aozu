@@ -102,7 +102,7 @@ assert.match(registered.get('replace_character_asset')!.description, /minimal te
 assert.match(registered.get('replace_character_asset')!.description, /outfit is garment pixels only/)
 assert.match(registered.get('replace_character_asset')!.description, /never submit that intermediate or any body pixels/)
 assert.match(registered.get('replace_character_asset')!.description, /rebaseDerivedAssets: true/)
-assert.match(registered.get('replace_character_asset')!.description, /without a fully opaque subject core/)
+assert.match(registered.get('replace_character_asset')!.description, /user explicitly wants the submitted alpha, glow, or edge treatment preserved/)
 assert.match(registered.get('inspect_character_contract')!.description, /garment-only transparent overlays/)
 assert.match(CHARACTER_A_POSE_GUIDANCE, /whichever best fits the user’s prompt/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /no nipples/)

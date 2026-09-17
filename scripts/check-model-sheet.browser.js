@@ -240,10 +240,6 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const rebased = await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: currentBodySha, group: 'body', variantId: 'base', layer: 'body', label: 'base', filename: 'replacement.png', dataUrl: replacementDataUrl, rebaseDerivedAssets: true })
     const replacementSha = state().character.variants.find(({ group, id }) => group === 'body' && id === 'base').layers.body.inspection.sha256
     check(rebased.data.rebasedDerivedAssets === 1 && state().character.variants.find(({ group, id }) => group === 'prop' && id === 'prop-1').layers.front.canonicalSha256 === replacementSha, 'Explicit body rebase lost a registered layer')
-    const translucentCanvas = document.createElement('canvas'); translucentCanvas.width = 512; translucentCanvas.height = 768
-    const translucentContext = translucentCanvas.getContext('2d'); translucentContext.fillStyle = 'rgba(50,50,50,.5)'; translucentContext.fillRect(128, 32, 256, 700)
-    const translucent = await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: replacementSha, group: 'body', variantId: 'base', layer: 'body', label: 'base', filename: 'translucent.png', dataUrl: translucentCanvas.toDataURL('image/png'), rebaseDerivedAssets: true })
-    check(!translucent.data.accepted && translucent.data.rejection.code === 'BODY_HAS_NO_OPAQUE_CORE', 'A fully translucent body was accepted')
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
     check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.props[0] === 'prop-1', 'Current Appearance was not autosaved')
