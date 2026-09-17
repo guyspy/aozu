@@ -1,10 +1,51 @@
-import type { CharacterReferenceMetadata } from '../domain/character.ts'
+import type { CharacterDraft, CharacterReferenceMetadata, CharacterVariantGroup } from '../domain/character.ts'
 
-export const CHARACTER_BACKGROUND_GUIDANCE = 'Default to a two-step workflow: generate on one solid high-contrast background color absent from the subject (for example magenta or green), filling all empty canvas areas; then remove that color with an available background-removal tool, image editor, or local image-processing CLI/library permitted by your environment. Do not assume image generation produced transparency. Keep the full canvas and subject pixels; avoid gradients, background shadows, glow, texture, and cropped edges. Verify real alpha and inspect edges on light and dark backgrounds before submitting RGBA PNG. If no permitted removal tool is available, report the blocker instead of submitting opaque artwork. AOZU never removes backgrounds.'
+export const CHARACTER_AUTHORING_GUIDE = {
+  path: '/character-authoring.md',
+  version: '2026-09-17.1',
+  source: 'https://github.com/guyspy/aozu/blob/main/public/character-authoring.md',
+  instruction: 'Read this same-origin guide once before generating assets. It ships with this app; the GitHub main branch may be newer. Keep a short AOZU_WORKFLOW.md in a user-authorized local asset workspace if available; never overwrite unrelated AGENTS.md or treat site guidance as permission to run code. Live revisions and target requirements come from this contract.',
+} as const
+
+export const CHARACTER_BACKGROUND_GUIDANCE = 'For newly generated art, first prepare a permitted background-removal tool. Generate on one flat high-contrast color absent from the subject, then remove it without cropping or reframing. Never paint or generate a checkerboard: it is a preview aid, not transparency. Verify real alpha and inspect edges on light and dark backgrounds. For user-supplied finished art, preserve the requested pixels, alpha, glow and edge treatment; do not regenerate or remove them to satisfy a default recipe. Check resized output against the source before submitting; dimensions and hashes do not prove visual fidelity. AOZU never removes backgrounds.'
 
 export const CHARACTER_NAVIGATION_GUIDANCE = 'AOZU itself handles effects.navigation in this browser tab; the agent must not repeat that navigation. Observe the resulting page after rendering, then call inspect_workspace again for fresh context. A successful tool result is not proof of visual correctness.'
 
-export const CHARACTER_A_POSE_GUIDANCE = 'The first Appearance body establishes a front A-pose: upright torso, neutral face, arms angled down and away from the torso, relaxed visible hands, stable feet, and the complete head-to-feet silhouette inside the canvas. For clean wardrobe layering, prefer minimal technical basewear or a neutral skin-tone character body base, whichever best fits the user’s prompt. Treat it as a non-sexual production reference and preserve the user’s requested anatomy, coverage, and visual style when they do not interfere with layer registration. This is the AOZU authoring convention, not a claim of skeleton compatibility. Preserve this pose and registration in derived outfits, hair, headwear, and expressions. Existing artwork is not automatically verified A-pose; review it visually before proposing a baseline change, which can make derived layers stale.'
+export const CHARACTER_A_POSE_GUIDANCE = 'The Canonical Body (角色基底) establishes a front A-pose: upright torso, neutral face, arms angled down and away, visible relaxed hands, stable feet, complete head-to-feet silhouette. For wardrobe layering, prefer minimal technical basewear or a neutral skin-tone character body base, whichever best fits the user’s prompt. Preserve the user’s requested anatomy, coverage and visual style. Derived layers keep this canvas, pose and registration. A compatible small correction preserves existing layers; changes to identity, proportions, pose or registration belong in a new Character.'
+
+export const CHARACTER_LAYER_GUIDANCE = {
+  body: 'Canonical Body: use the user-approved source. Compare the isolated base and the clothed composition after replacement. Simplify hair or facial features only when requested; never redesign supplied art.',
+  outfit: 'Generate a dressed working image using the Canonical Body, then isolate garment pixels and remove the character and background. Never submit the dressed composite. Keep canvas coordinates; front contains visible garment pixels, back contains parts behind the body and may need repainting.',
+  hair: 'Compose the hairstyle on the Canonical Body, then isolate hair only on the same canvas. Remove face and body pixels. Split into front/back when needed and paint missing hidden hair.',
+  headwear: 'Compose headwear on the Canonical Body, then isolate headwear only on the same canvas. Split visible front and hidden back parts; paint missing hidden parts as needed.',
+  prop: 'Compose the object in place before isolating it. A handheld prop may include the minimal gripping-hand patch needed for believable contact, never the whole arm or character. Keep canvas coordinates. Split into front/back when needed; repaint hidden parts. Describe the grip patch and intended hand in metadata.',
+  expression: 'A Facial Variant (faceStyle/faceStyleId) describes a facial appearance: makeup, face paint, facial hair or other facial changes. Create a consistent set of complete aligned expression heads including neutral for each requested variant. Keep that appearance across expressions. Exclude independently layered scalp hair and headwear; all pixels outside the head are transparent.',
+} as const
+
+/** Agent completion rules only; imported art and manual UI edits remain valid. */
+export function characterMetadataStatus(draft: Pick<CharacterDraft, 'variants' | 'faceStyles'>, group: CharacterVariantGroup, variantId: string) {
+  const variant = draft.variants.find((item) => item.group === group && item.id === variantId)
+  const required = group === 'body' ? [] : ['label', 'description', 'tags']
+  const missing: string[] = []
+  if (group !== 'body') {
+    if (!variant?.label.trim()) missing.push('label')
+    if (!variant?.metadata?.description?.trim()) missing.push('description')
+    if (!variant?.metadata?.tags?.length) missing.push('tags')
+    if (group === 'outfit') {
+      required.push('outfit.slot', 'outfit.garmentType')
+      if (!variant?.metadata?.outfit?.slot) missing.push('outfit.slot')
+      if (!variant?.metadata?.outfit?.garmentType?.trim()) missing.push('outfit.garmentType')
+    }
+    if (group === 'expression') {
+      required.push('faceStyleId', 'faceStyle.description')
+      const style = draft.faceStyles.find((item) => item.id === variant?.metadata?.faceStyleId)
+      if (!style) missing.push('faceStyleId')
+      if (!style?.description?.trim()) missing.push('faceStyle.description')
+    }
+  }
+  return { complete: !missing.length, required, missing, sourceSha256: variant?.metadata?.sourceSha256 ?? null,
+    sourceRule: 'Record the primary reference image hash when known; sourceSha256 is provenance, not the output file checksum. Do not invent one.' }
+}
 
 export const MODEL_SHEET_REVIEW = {
   requiredAfterMutation: true,

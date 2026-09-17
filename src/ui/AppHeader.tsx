@@ -31,9 +31,9 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
       <nav
         aria-label={t('navigation.primary')}
-        className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4"
+        className="mx-auto flex min-h-14 w-full max-w-5xl flex-wrap items-center justify-between gap-y-1 px-4 py-1"
       >
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="flex min-w-0 max-w-full items-center gap-1">
           {onBack && <Button type="button" size="icon" variant="ghost" onClick={onBack} aria-label={t('common.back')}><ArrowLeftIcon /></Button>}
           <Link to="/" aria-label={t('navigation.home')} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2">
             <AozuIcon name="book" />
@@ -41,7 +41,7 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
           </Link>
           {title && <h1 className="truncate font-heading text-lg font-semibold">{title}</h1>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
           {actions}
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>
             <SelectTrigger size="sm" aria-label={t('common.language')}>

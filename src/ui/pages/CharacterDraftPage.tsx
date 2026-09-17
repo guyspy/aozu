@@ -2,7 +2,7 @@ import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar,
 import { Input } from '@/ui/components/ui/input'
 import { Textarea } from '@/ui/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
-import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, CrownIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, ShapesIcon, ShirtIcon, SmileIcon, Trash2Icon, WavesIcon, type LucideIcon } from 'lucide-react'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, CrownIcon, ImageUpIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, ShapesIcon, ShirtIcon, SmileIcon, Trash2Icon, WavesIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -96,7 +96,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   collectionControl?: ReactNode
   exportCharacter(): Promise<Blob>
   exportCharacterPng(draft: CharacterDraft, preview?: Pick<CharacterDraftVariant, 'group' | 'id'>): Promise<Blob>
-  replaceAsset(target: CharacterAssetTarget, blob: Blob): Promise<unknown>
+  replaceAsset(target: CharacterAssetTarget, blob: Blob, options?: { rebaseDerivedAssets?: boolean; expectedRevision?: number }): Promise<unknown>
   replaceReference(referenceId: string, blob?: Blob, metadata?: CharacterReferenceMetadata): Promise<unknown>
   changeAppearance(command: CharacterAppearanceCommand, revision: number): Promise<unknown>
   saveAs(): Promise<CharacterDraft>
@@ -124,6 +124,8 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [fit, setFit] = useState<{ key: string; value: CharacterFitSuggestion }>()
+  const baseFileInput = useRef<HTMLInputElement>(null)
+  const [baseUpload, setBaseUpload] = useState<{ target: CharacterAssetTarget; file: File; revision: number }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [profileForm, setProfileForm] = useState<ProfileForm>()
   const [alignmentMode, setAlignmentMode] = useState<'composite' | 'overlay' | 'difference' | 'diagnostic'>('overlay')
@@ -297,11 +299,16 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     commit((current) => updateCharacterVariantMetadata(current, variant.group, variant.id, patch))
   const fileInput = (variant: CharacterDraftVariant, layer: CharacterVariantLayer) => {
     const targetKey = `${variantKey(variant)}:${layer}`
-    return <input className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)}
+    return <input ref={variant.group === 'body' ? baseFileInput : undefined} className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)}
       data-webmcp-upload="character-asset" data-group={variant.group} data-variant-id={variant.id} data-layer={layer}
       onChange={async (event) => {
         const file = event.target.files?.[0]
         if (!file) return
+        if (variant.group === 'body' && variant.layers.body && draft.variants.some((item) => item.group !== 'body' && Object.values(item.layers).some(Boolean))) {
+          setBaseUpload({ target: { group: variant.group, variantId: variant.id, label: variant.label, layer }, file, revision: editor.store.getState().persistedRevision ?? 0 })
+          event.target.value = ''
+          return
+        }
         setBusy(targetKey); setError(undefined)
         try {
           await replaceAsset({ group: variant.group, variantId: variant.id, label: variant.label, layer }, file)
@@ -444,6 +451,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
                   </div></div>
                   {style && <div key={style.id} className="grid grid-cols-2 gap-2">
                     <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.faceStyleName')}</span><Input defaultValue={style.label} onBlur={(event) => updateVariantMetadata(selectedVariant, { faceStyle: { ...style, label: event.currentTarget.value } })} /></label>
+                    <label className="col-span-2 grid gap-1 text-sm"><span>{t('characterDraft.metadata.faceDescription')}</span><Textarea rows={2} defaultValue={style.description ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { faceStyle: { ...style, description: event.currentTarget.value } })} /></label>
                     <label className="grid gap-1 text-sm"><span>{t('characterDraft.metadata.facialHair')}</span><Input placeholder={t('characterDraft.metadata.cleanShaven')} defaultValue={style.facialHair?.type ?? ''} onBlur={(event) => updateVariantMetadata(selectedVariant, { faceStyle: { ...style, facialHair: event.currentTarget.value.trim() ? { ...(style.facialHair ?? {}), type: event.currentTarget.value } : null } })} /></label>
                   </div>}
                 </>
@@ -572,7 +580,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
       data-workspace-view="character" data-character-id={draft.id} data-character-revision={persistedRevision} data-category={isModelSheet ? 'model-sheet' : isProfile ? 'profile' : category.id}
       data-variant-id={isModelSheet ? variantId : selectedVariant?.id} data-preview-mode={selectedAsset ? alignmentMode : 'composite'}
       data-panel={isProfile ? 'profile' : undefined}
-      data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm)}>
+      data-has-uncommitted-input={Boolean((local && local.base === committed) || profileForm || baseUpload)}>
 
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       {isModelSheet ? <>
@@ -586,7 +594,12 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         aside={(stacked) => isProfile ? profile(stacked) : workbench(stacked)}>
       <WorkspaceSurface className="character-stage-panel">
         <div className="character-stage-preview">
-        <WorkspaceToolbar><div className="min-w-0 flex-1">{appearanceControls}</div></WorkspaceToolbar>
+        <WorkspaceToolbar><div className="min-w-0 flex-1">{appearanceControls}</div>
+          {baseVariant && hasBase && <>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="outline" size="icon" disabled={Boolean(busy)} aria-label={t('characterDraft.baseReplacement.title')} onClick={() => baseFileInput.current?.click()}><ImageUpIcon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.baseReplacement.title')}</TooltipContent></Tooltip></TooltipProvider>
+            {fileInput(baseVariant, 'body')}
+          </>}
+        </WorkspaceToolbar>
         <CharacterViewport key={`${draft.id}:${draft.activeAppearanceId}:${variantId ?? ''}`} enabled={hasBase} editing={draggable}
           download={previewLayers.length > 0 && <DataControls exportData={() => exportCharacterPng(draft, selectedVariant)} exportFilename={`${exportName}_${activeCharacterAppearance(draft)?.label ?? 'Default'}.png`} exportIconOnly exportLabel={t('characterDraft.downloadPng')} />}>
           {baseVariant && !hasBase ? <label
@@ -636,6 +649,19 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
 
       </WorkspaceSplit>}
     </Workspace>
+    <AlertDialog open={Boolean(baseUpload)} onOpenChange={(open) => { if (!open && !busy) setBaseUpload(undefined) }}>
+      <AlertDialogContent data-base-replacement>
+        <AlertDialogHeader><AlertDialogTitle>{t('characterDraft.baseReplacement.title')}</AlertDialogTitle><AlertDialogDescription>{t('characterDraft.baseReplacement.description')}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel disabled={Boolean(busy)}>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction disabled={Boolean(busy)} onClick={async (event) => {
+          event.preventDefault()
+          if (!baseUpload) return
+          setBusy('body:base:body'); setError(undefined)
+          try { await replaceAsset(baseUpload.target, baseUpload.file, { rebaseDerivedAssets: true, expectedRevision: baseUpload.revision }); setBaseUpload(undefined) }
+          catch (caught) { setError(describe(caught)); setBaseUpload(undefined) }
+          finally { setBusy(undefined) }
+        }}>{t('characterDraft.baseReplacement.confirm')}</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>{t('characters.deleteTitle')}</AlertDialogTitle><AlertDialogDescription>{t('characters.deleteDescription', { name: draft.name })}</AlertDialogDescription></AlertDialogHeader>

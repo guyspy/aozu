@@ -55,7 +55,7 @@ function CharacterEditor({ application, collections, refresh, savedRevision, web
     fitSuggestion={application.characterFitSuggestion}
     exportCharacter={() => application.exportCharacter(characterId)}
     exportCharacterPng={application.exportCharacterPng}
-    replaceAsset={(target, blob) => application.replaceCharacterAsset(characterId, target, blob)}
+    replaceAsset={(target, blob, options) => application.replaceCharacterAsset(characterId, target, blob, options)}
     replaceReference={(id, blob, metadata) => application.replaceCharacterReference(characterId, id, blob, metadata)}
     changeAppearance={(command, revision) => application.changeCharacterAppearance(characterId, command, revision)}
     deleteCharacter={async () => {

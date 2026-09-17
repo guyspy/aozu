@@ -173,7 +173,7 @@ export const ja: Messages= {
       "props": "小道具"
     },
     "layers": {
-      "body": "体",
+      "body": "キャラクターのベース",
       "head": "頭",
       "primary": "メインレイヤー",
       "behindOptional": "キャラクターの後ろ · 任意"
@@ -207,14 +207,20 @@ export const ja: Messages= {
       "outerwear": "アウター",
       "footwear": "履物"
     },
+    "baseReplacement": {
+      "title": "キャラクターのベースを変更しますか？",
+      "description": "同じポーズ・体型・位置での小さな修正に使います。既存の服とアクセサリーは保持されます。体型やポーズが異なる場合はキャンセルして新しいキャラクターを作成してください。",
+      "confirm": "同じポーズで素材を保持",
+    },
     "metadata": {
       "slot": "衣装スロット",
       "garmentType": "衣装タイプ",
-      "faceStyle": "フェイススタイル",
-      "faceStyleName": "フェイススタイル名",
+      "faceStyle": "顔のバリエーション",
+      "faceStyleName": "顔のバリエーション名",
+      "faceDescription": "顔の外観（メイク、フェイスペイント、ひげなど）",
       "facialHair": "ひげ",
       "cleanShaven": "ひげなし",
-      "addFaceStyle": "フェイススタイルを追加",
+      "addFaceStyle": "顔のバリエーションを追加",
       "description": "説明",
       "tags": "タグ",
       "tagsHelp": "タグをカンマで区切る"

@@ -131,7 +131,7 @@ export const en = {
       props: 'Props',
     },
     layers: {
-      body: 'Body',
+      body: 'Canonical Body',
       head: 'Head',
       primary: 'Primary sprite',
       behindOptional: 'Behind character · Optional',
@@ -144,9 +144,15 @@ export const en = {
       prop: { add: 'Add prop', variantName: 'Prop' },
     },
     outfitSlots: { top: 'Top', bottom: 'Bottom', 'one-piece': 'One-piece', outerwear: 'Outerwear', footwear: 'Footwear' },
+    "baseReplacement": {
+      "title": "Replace Canonical Body?",
+      "description": "Use this for a small correction with the same pose, proportions and placement. Existing clothes and accessories will be kept. For a different body or pose, cancel and create a new Character.",
+      "confirm": "Same pose — keep layers",
+    },
     metadata: {
-      slot: 'Wardrobe slot', garmentType: 'Garment type', faceStyle: 'Face Style', faceStyleName: 'Face Style name',
-      facialHair: 'Facial hair', cleanShaven: 'Clean-shaven', addFaceStyle: 'Add Face Style', description: 'Description', tags: 'Tags', tagsHelp: 'Comma-separated tags',
+      slot: 'Wardrobe slot', garmentType: 'Garment type', faceStyle: "Facial Variant", faceStyleName: "Facial Variant name",
+      faceDescription: "Facial appearance (makeup, face paint, facial hair…)",
+      facialHair: 'Facial hair', cleanShaven: 'Clean-shaven', addFaceStyle: "Add Facial Variant", description: 'Description', tags: 'Tags', tagsHelp: 'Comma-separated tags',
     },
   },
   main: {

@@ -76,8 +76,9 @@ match the selected profile.
 Rig version 3 separates registered front/back planes for outfits, hair,
 headwear, and props. An expression is a full-canvas transparent layer containing
 the complete aligned head, not cropped facial features. Hair and headwear stay
-independent from expressions. Facial hair belongs to a named Face Style and is
-baked consistently into every expression head in that style.
+independent from expressions. A Facial Variant (stored as faceStyle/faceStyleId) describes makeup, face paint,
+facial hair or other face changes, consistently baked into its expression heads.
+See the deployed character-authoring guide for the current workflow.
 
 ### Character pack
 

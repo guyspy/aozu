@@ -87,8 +87,11 @@ assert.deepEqual([
   registered.get('replace_character_asset')?.annotations.readOnlyHint,
   registered.get('undo_character_change')?.annotations.readOnlyHint,
 ], [true, false, false])
-assert.match(registered.get('inspect_character_contract')!.description, /required browser visual-review workflow/)
+assert.match(registered.get('inspect_character_contract')!.description, /metadataStatus/)
 assert.match(registered.get('inspect_character_contract')!.description, /generationGuidance/)
+assert.match(registered.get('inspect_character_contract')!.description, /Facial Variants cover makeup, face paint/)
+assert.match(registered.get('replace_character_asset')!.description, /minimal gripping-hand patch/)
+assert.ok(!registered.get('update_character_variant_metadata')!.inputSchema.properties.faceStyle.required.includes('facialHair'))
 assert.match(registered.get('set_character_variant_transform')!.description, /expression whole head/)
 assert.match(registered.get('set_character_variant_transform')!.description, /x moves right, y moves down/)
 assert.match(registered.get('set_character_variant_transform')!.description, /Composite, Overlay, Difference, and Align/)

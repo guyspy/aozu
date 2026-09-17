@@ -173,7 +173,7 @@ export const zhCN: Messages= {
       "props": "道具"
     },
     "layers": {
-      "body": "身体",
+      "body": "角色基底",
       "head": "头部",
       "primary": "主图层",
       "behindOptional": "角色后方 · 可选"
@@ -207,14 +207,20 @@ export const zhCN: Messages= {
       "outerwear": "外套",
       "footwear": "鞋履"
     },
+    "baseReplacement": {
+      "title": "更换角色基底？",
+      "description": "适用于姿势、比例与位置相同的小修，现有衣物与配件会保留。若身形或姿势不同，请取消并建立新角色。",
+      "confirm": "同姿势，保留素材",
+    },
     "metadata": {
       "slot": "衣橱位置",
       "garmentType": "衣物类型",
-      "faceStyle": "面部风格",
-      "faceStyleName": "面部风格名称",
+      "faceStyle": "面部变体",
+      "faceStyleName": "面部变体名称",
+      "faceDescription": "面部外观（妆容、彩绘、胡须等）",
       "facialHair": "胡须",
       "cleanShaven": "无胡须",
-      "addFaceStyle": "新增面部风格",
+      "addFaceStyle": "新增面部变体",
       "description": "说明",
       "tags": "标签",
       "tagsHelp": "用逗号分隔标签"
