@@ -173,7 +173,7 @@ export const zhTW: Messages= {
       "props": "道具"
     },
     "layers": {
-      "body": "身體",
+      "body": "角色基底",
       "head": "頭部",
       "primary": "主要圖層",
       "behindOptional": "角色後方 · 選用"
@@ -207,14 +207,20 @@ export const zhTW: Messages= {
       "outerwear": "外套",
       "footwear": "鞋履"
     },
+    "baseReplacement": {
+      "title": "更換角色基底？",
+      "description": "適用於姿勢、比例與位置相同的小修，現有衣物與配件會保留。若身形或姿勢不同，請取消並建立新角色。",
+      "confirm": "同姿勢，保留素材",
+    },
     "metadata": {
       "slot": "衣櫥位置",
       "garmentType": "衣物類型",
-      "faceStyle": "臉部風格",
-      "faceStyleName": "臉部風格名稱",
+      "faceStyle": "臉部變體",
+      "faceStyleName": "臉部變體名稱",
+      "faceDescription": "臉部外觀（妝容、彩繪、鬍子等）",
       "facialHair": "鬍鬚",
       "cleanShaven": "無鬍鬚",
-      "addFaceStyle": "新增臉部風格",
+      "addFaceStyle": "新增臉部變體",
       "description": "說明",
       "tags": "標籤",
       "tagsHelp": "用逗號分隔標籤"

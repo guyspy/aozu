@@ -45,12 +45,13 @@ AOZU exposes these public tools on every page:
 | Tool | Purpose |
 | --- | --- |
 | `inspect_workspace` | Discover saved characters, the current route and revision, missing required artwork, and valid next actions |
-| `navigate_character` | Open the character library or an exact character category or variant without guessing a route |
+| `navigate_workspace` | Open the character library or an exact character category or variant without guessing a route |
 | `inspect_character_contract` | Obtain allowed operations, exact hashes, placement/alignment references, ownership, dimensions, and diagnostics for one target |
+| `update_character_variant_metadata` | Complete asset descriptions, tags, garment classification and Facial Variants before image submission |
 | `update_character_profile` | Update a character's name, description, multiline backstory, optional height, or scalar attributes against its exact revision |
 | `update_collection_profile` | Update a collection's name, description, or shared world backstory against its exact revision |
 | `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides against its exact revision |
-| `replace_character_asset` | Install one complete body, head, outfit skin, or prop layer without preserving old pixels |
+| `replace_character_asset` | Install a Canonical Body, whole expression head, garment-only overlay, hair, headwear or prop layer |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
 | `set_character_variant_selection` | Autosave expression/outfit/prop selections into the current Appearance, or create/save-as/select/rename/delete a look against its exact revision |
 | `set_character_variant_transform` | Apply an explicit translation and uniform scale when a generated layer needs a small alignment correction |
@@ -62,6 +63,8 @@ Successful tool calls can also return navigation effects, so the SPA takes the h
 The website applies `effects.navigation`; agents observe the rendered result instead of repeating the navigation. `inspect_workspace` returns a fresh snapshot of the route, current Collection, viewed variant, applied selections, preview mode, localized alignment controls, open panel, and whether local input is uncommitted. It is not a live subscription, and uncommitted field values still require inspecting the visible UI.
 
 For feedback on the current outfit, call `inspect_workspace({ includeSnapshot: true })` and view `data.snapshot.dataUrl`. The optional 512×768 RGBA PNG uses the same composition as Download PNG, including the viewed variant and all selected layers/transforms, without diagnostic overlays. It does not navigate, save, or change selections. Missing artwork, uncommitted input, unsaved changes, or a changing view return an unavailable reason instead of a misleading image. Ordinary workspace inspection remains metadata-only. Run the memory-only browser check at `/scripts/check-workspace-snapshot.html` with `pnpm dev`.
+
+Read the deployed [character authoring guide](public/character-authoring.md) for the full workflow, PNG transport toolkit, metadata, Facial Variants and safe base replacement. The live contract exposes the same guide version and target-specific next steps.
 
 Artwork preparation defaults to solid-color generation followed by background removal with a permitted tool available in the agent's environment. Agents verify real alpha and edges on light and dark backgrounds before submission. AOZU validates the resulting PNG; it does not perform background removal.
 

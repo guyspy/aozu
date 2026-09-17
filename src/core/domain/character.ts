@@ -69,7 +69,7 @@ export interface CharacterVariantProfilePatch {
   sourceSha256?: string | null
   outfit?: { slot: CharacterOutfitSlot; garmentType: string }
   faceStyleId?: string
-  faceStyle?: CharacterFaceStyle
+  faceStyle?: Omit<CharacterFaceStyle, 'facialHair'> & { facialHair?: CharacterFacialHair | null }
 }
 
 export interface CharacterVariantTransform {

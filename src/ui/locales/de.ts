@@ -173,7 +173,7 @@ export const de: Messages= {
       "props": "Requisiten"
     },
     "layers": {
-      "body": "Körper",
+      "body": "Charakterbasis",
       "head": "Kopf",
       "primary": "Hauptebene",
       "behindOptional": "Hinter der Figur · Optional"
@@ -207,14 +207,20 @@ export const de: Messages= {
       "outerwear": "Oberbekleidung",
       "footwear": "Schuhe"
     },
+    "baseReplacement": {
+      "title": "Charakterbasis ersetzen?",
+      "description": "Für kleine Korrekturen bei gleicher Pose, Proportion und Position. Kleidung und Zubehör bleiben erhalten. Bei anderem Körperbau oder anderer Pose abbrechen und einen neuen Charakter erstellen.",
+      "confirm": "Gleiche Pose, Ebenen behalten",
+    },
     "metadata": {
       "slot": "Garderobenplatz",
       "garmentType": "Kleidungsart",
-      "faceStyle": "Gesichtsstil",
-      "faceStyleName": "Name des Gesichtsstils",
+      "faceStyle": "Gesichtsvariante",
+      "faceStyleName": "Name der Gesichtsvariante",
+      "faceDescription": "Gesichtsgestaltung (Make-up, Gesichtsbemalung, Bart…)",
       "facialHair": "Gesichtsbehaarung",
       "cleanShaven": "Glattrasiert",
-      "addFaceStyle": "Gesichtsstil hinzufügen",
+      "addFaceStyle": "Gesichtsvariante hinzufügen",
       "description": "Beschreibung",
       "tags": "Tags",
       "tagsHelp": "Tags durch Kommas trennen"

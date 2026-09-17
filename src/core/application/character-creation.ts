@@ -59,12 +59,12 @@ const MAX_ASSET_BYTES = 5 * 1024 * 1024
 const variantIdPattern = /^[a-z0-9][a-z0-9_-]{0,39}$/
 const roundTransformValue = (value: number) => Math.round(value * 10_000) / 10_000
 const initialVariants = (): CharacterDraftVariant[] => [
-  { group: 'body', id: 'base', label: 'Base body', layers: {} },
-  { group: 'expression', id: 'happy', label: 'Happy', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
-  { group: 'expression', id: 'sad', label: 'Sad', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
-  { group: 'expression', id: 'angry', label: 'Angry', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
-  { group: 'expression', id: 'surprised', label: 'Surprised', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
-  { group: 'expression', id: 'sleepy', label: 'Sleepy', metadata: { faceStyleId: 'clean-shaven' }, layers: {} },
+  { group: 'body', id: 'base', label: 'Canonical Body', layers: {} },
+  { group: 'expression', id: 'happy', label: 'Happy', metadata: { faceStyleId: 'default' }, layers: {} },
+  { group: 'expression', id: 'sad', label: 'Sad', metadata: { faceStyleId: 'default' }, layers: {} },
+  { group: 'expression', id: 'angry', label: 'Angry', metadata: { faceStyleId: 'default' }, layers: {} },
+  { group: 'expression', id: 'surprised', label: 'Surprised', metadata: { faceStyleId: 'default' }, layers: {} },
+  { group: 'expression', id: 'sleepy', label: 'Sleepy', metadata: { faceStyleId: 'default' }, layers: {} },
   { group: 'outfit', id: 'top-1', label: 'Top 1', metadata: { outfit: { slot: 'top', garmentType: 'top' } }, layers: {} },
   { group: 'outfit', id: 'bottom-1', label: 'Bottom 1', metadata: { outfit: { slot: 'bottom', garmentType: 'bottom' } }, layers: {} },
   { group: 'hair', id: 'hair-1', label: 'Hair 1', layers: {} },
@@ -79,7 +79,7 @@ export const createCharacterDraft = (packId: string = `character-${crypto.random
   rigProfile: { id: CHARACTER_RIG.id, version: CHARACTER_RIG.version },
   name: 'My Companion',
   variants: initialVariants(),
-  faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }],
+  faceStyles: [{ id: 'default', label: 'Default', facialHair: null }],
   selected: { outfits: [], props: [] },
   updatedAt: Date.now(),
 })
@@ -215,13 +215,14 @@ export function updateCharacterVariantMetadata(
   if (patch.faceStyleId && !draft.faceStyles.some(({ id }) => id === patch.faceStyleId)) throw new Error('Face Style not found')
   if (patch.faceStyle) {
     if (group !== 'expression') throw new Error('Only expressions belong to a Face Style')
+    const existing = draft.faceStyles.find((item) => item.id === patch.faceStyle!.id.trim())
     const faceStyle = {
       ...patch.faceStyle,
       id: patch.faceStyle.id.trim(),
       label: patch.faceStyle.label.trim(),
-      description: metadataText(patch.faceStyle.description, 500, 'Face Style description'),
-      tags: metadataTags(patch.faceStyle.tags),
-      facialHair: patch.faceStyle.facialHair ? {
+      description: patch.faceStyle.description === undefined ? existing?.description : metadataText(patch.faceStyle.description, 500, 'Face Style description'),
+      tags: patch.faceStyle.tags === undefined ? existing?.tags : metadataTags(patch.faceStyle.tags),
+      facialHair: patch.faceStyle.facialHair === undefined ? existing?.facialHair ?? null : patch.faceStyle.facialHair ? {
         ...patch.faceStyle.facialHair,
         type: patch.faceStyle.facialHair.type.trim(),
       } : null,
@@ -381,7 +382,7 @@ export function createCharacterDraftFromStarter(loaded: ValidatedStarterPackage,
     const appearance = appearances.get(reference.appearanceId)
     if (!appearance) throw new Error(`Starter appearance not found: ${reference.appearanceId}`)
     for (const layer of appearance.layers) {
-      if (layer.slot === 'character-skin') put('body', 'base', 'Base body', 'body', layer.asset.assetId)
+      if (layer.slot === 'character-skin') put('body', 'base', 'Canonical Body', 'body', layer.asset.assetId)
       else if (layer.slot === 'prop-back' || layer.slot === 'prop-front') {
         const id = propId(appearance.id)
         put('prop', id, appearance.id, layer.slot === 'prop-back' ? 'back' : 'front', layer.asset.assetId)

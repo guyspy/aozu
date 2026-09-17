@@ -173,7 +173,7 @@ export const es: Messages= {
       "props": "Accesorios"
     },
     "layers": {
-      "body": "Cuerpo",
+      "body": "Base del personaje",
       "head": "Cabeza",
       "primary": "Capa principal",
       "behindOptional": "Detrás del personaje · Opcional"
@@ -207,14 +207,20 @@ export const es: Messages= {
       "outerwear": "Abrigo",
       "footwear": "Calzado"
     },
+    "baseReplacement": {
+      "title": "¿Reemplazar la base del personaje?",
+      "description": "Úsalo para pequeños cambios con la misma pose, proporciones y posición. Se conservarán la ropa y los accesorios. Si cambia el cuerpo o la pose, cancela y crea un personaje nuevo.",
+      "confirm": "Misma pose, conservar capas",
+    },
     "metadata": {
       "slot": "Espacio de vestuario",
       "garmentType": "Tipo de prenda",
-      "faceStyle": "Estilo facial",
-      "faceStyleName": "Nombre del estilo facial",
+      "faceStyle": "Variante facial",
+      "faceStyleName": "Nombre de la variante facial",
+      "faceDescription": "Apariencia facial (maquillaje, pintura facial, vello facial…)",
       "facialHair": "Vello facial",
       "cleanShaven": "Afeitado",
-      "addFaceStyle": "Añadir estilo facial",
+      "addFaceStyle": "Añadir variante facial",
       "description": "Descripción",
       "tags": "Etiquetas",
       "tagsHelp": "Etiquetas separadas por comas"

@@ -173,7 +173,7 @@ export const ko: Messages= {
       "props": "소품"
     },
     "layers": {
-      "body": "몸",
+      "body": "캐릭터 베이스",
       "head": "머리",
       "primary": "기본 레이어",
       "behindOptional": "캐릭터 뒤 · 선택"
@@ -207,14 +207,20 @@ export const ko: Messages= {
       "outerwear": "겉옷",
       "footwear": "신발"
     },
+    "baseReplacement": {
+      "title": "캐릭터 베이스를 교체할까요?",
+      "description": "같은 자세, 비율, 위치의 작은 수정에 사용하세요. 기존 옷과 액세서리는 유지됩니다. 체형이나 자세가 다르면 취소하고 새 캐릭터를 만드세요.",
+      "confirm": "같은 자세로 소재 유지",
+    },
     "metadata": {
       "slot": "옷장 슬롯",
       "garmentType": "의상 유형",
-      "faceStyle": "얼굴 스타일",
-      "faceStyleName": "얼굴 스타일 이름",
+      "faceStyle": "얼굴 변형",
+      "faceStyleName": "얼굴 변형 이름",
+      "faceDescription": "얼굴 외형 (화장, 페이스 페인팅, 수염 등)",
       "facialHair": "수염",
       "cleanShaven": "수염 없음",
-      "addFaceStyle": "얼굴 스타일 추가",
+      "addFaceStyle": "얼굴 변형 추가",
       "description": "설명",
       "tags": "태그",
       "tagsHelp": "쉼표로 태그 구분"

@@ -173,7 +173,7 @@ export const fr: Messages= {
       "props": "Accessoires"
     },
     "layers": {
-      "body": "Corps",
+      "body": "Base du personnage",
       "head": "Tête",
       "primary": "Calque principal",
       "behindOptional": "Derrière le personnage · Facultatif"
@@ -207,14 +207,20 @@ export const fr: Messages= {
       "outerwear": "Vêtement extérieur",
       "footwear": "Chaussures"
     },
+    "baseReplacement": {
+      "title": "Remplacer la base du personnage ?",
+      "description": "Pour une petite correction avec la même pose, les mêmes proportions et la même position. Les vêtements et accessoires sont conservés. Si le corps ou la pose change, annulez et créez un nouveau personnage.",
+      "confirm": "Même pose, conserver les calques",
+    },
     "metadata": {
       "slot": "Emplacement de garde-robe",
       "garmentType": "Type de vêtement",
-      "faceStyle": "Style de visage",
-      "faceStyleName": "Nom du style de visage",
+      "faceStyle": "Variante du visage",
+      "faceStyleName": "Nom de la variante du visage",
+      "faceDescription": "Apparence du visage (maquillage, peinture, pilosité…)",
       "facialHair": "Pilosité faciale",
       "cleanShaven": "Rasé de près",
-      "addFaceStyle": "Ajouter un style de visage",
+      "addFaceStyle": "Ajouter une variante du visage",
       "description": "Description",
       "tags": "Étiquettes",
       "tagsHelp": "Étiquettes séparées par des virgules"

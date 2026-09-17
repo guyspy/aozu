@@ -229,6 +229,18 @@ if (new URLSearchParams(location.search).has('responsive')) {
       const layerPng = canvas.toDataURL('image/png')
       const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await (await fetch(layerPng)).arrayBuffer())), (byte) => byte.toString(16).padStart(2, '0')).join('')
       const payload = group === 'body' ? { dataUrl: layerPng, dataSha256: sha256 } : { dataUrl: layerPng }
+      if (group === 'prop') {
+        const contract = (await call('inspect_character_contract', { characterId: id, group, variantId, layer })).data
+        check(contract.target.metadataStatus.missing.includes('description') && contract.target.workflow.nextStep === 'complete-metadata', 'Prop metadata gap was hidden')
+        const before = state().persistedRevision
+        const rejected = await call('replace_character_asset', { characterId: id, expectedRevision: before, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload }).then(() => false, (error) => error.message.includes('Complete variant metadata'))
+        check(rejected && state().persistedRevision === before, 'Missing metadata changed artwork or revision')
+        const completed = await call('update_character_variant_metadata', { characterId: id, expectedRevision: before, group, variantId, label: 'Test handheld prop', description: 'Red prop with a minimal right-hand grip patch.', tags: ['handheld', 'red'] })
+        for (const action of [...contract.target.nextActions, ...completed.nextActions]) check(registered.has(action.tool), `Unregistered next action: ${action.tool}`)
+        const next = (await call('inspect_character_contract', { characterId: id, group, variantId, layer })).data
+        check(next.target.metadataStatus.complete && next.target.workflow.nextStep === 'prepare-and-submit', 'Metadata completion did not advance the live contract')
+        check(next.authoringGuide.path === '/character-authoring.md', 'Authoring guide is missing')
+      }
       await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
     }
     const currentBodySha = state().character.variants.find(({ group, id }) => group === 'body' && id === 'base').layers.body.inspection.sha256
@@ -237,9 +249,39 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const replacementDataUrl = replacementCanvas.toDataURL('image/png')
     const choiceRequired = await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: currentBodySha, group: 'body', variantId: 'base', layer: 'body', label: 'base', filename: 'replacement.png', dataUrl: replacementDataUrl }).then(() => false, (error) => error.message.includes('rebaseDerivedAssets'))
     check(choiceRequired, 'Body replacement did not require an explicit derived-layer choice')
+    const protectedRevision = state().persistedRevision
+    const destructive = await call('replace_character_asset', { characterId: id, expectedRevision: protectedRevision, expectedAssetSha256: currentBodySha, group: 'body', variantId: 'base', layer: 'body', label: 'base', filename: 'replacement.png', dataUrl: replacementDataUrl, rebaseDerivedAssets: false }).then(() => false, (error) => error.message.includes('new Character'))
+    check(destructive && state().persistedRevision === protectedRevision, 'Explicit false invalidated the wardrobe')
+    const uploaderBlocked = await app.replaceCharacterAsset(id, { group: 'body', variantId: 'base', layer: 'body', label: 'base' }, await (await fetch(replacementDataUrl)).blob()).then(() => false, (error) => error.message.includes('rebaseDerivedAssets'))
+    check(uploaderBlocked && state().persistedRevision === protectedRevision, 'File upload bypassed base protection')
     const rebased = await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: currentBodySha, group: 'body', variantId: 'base', layer: 'body', label: 'base', filename: 'replacement.png', dataUrl: replacementDataUrl, rebaseDerivedAssets: true })
+    for (const action of rebased.nextActions) check(registered.has(action.tool), `Unregistered next action: ${action.tool}`)
+    check(rebased.data.workflow.nextStep === 'align-and-review', 'Acceptance skipped visual review')
     const replacementSha = state().character.variants.find(({ group, id }) => group === 'body' && id === 'base').layers.body.inspection.sha256
     check(rebased.data.rebasedDerivedAssets === 1 && state().character.variants.find(({ group, id }) => group === 'prop' && id === 'prop-1').layers.front.canonicalSha256 === replacementSha, 'Explicit body rebase lost a registered layer')
+    // The visible uploader uses the same guard and preserves dependent art on confirmation.
+    await ready(() => document.querySelector('input[data-webmcp-upload="character-asset"][data-group="body"]'))
+    const uploadBody = () => {
+      const input = document.querySelector('input[data-webmcp-upload="character-asset"][data-group="body"]')
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([bodyBlob], 'body-small-edit.png', { type: 'image/png' }))
+      input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    replacementContext.fillStyle = '#444444'; replacementContext.fillRect(128, 32, 256, 700)
+    const bodyBlob = await new Promise((resolve) => replacementCanvas.toBlob(resolve, 'image/png'))
+    const beforeUpload = state().persistedRevision
+    uploadBody()
+    await ready(() => document.querySelector('[data-base-replacement]'))
+    check(state().persistedRevision === beforeUpload, 'Uploader changed base before confirmation')
+    document.querySelector('[data-base-replacement] [data-slot="alert-dialog-cancel"]').click()
+    await ready(() => !document.querySelector('[data-base-replacement]'))
+    check(state().persistedRevision === beforeUpload, 'Cancelled base upload changed the Character')
+    uploadBody()
+    await ready(() => document.querySelector('[data-base-replacement]'))
+    document.querySelector('[data-base-replacement] [data-slot="alert-dialog-action"]').click()
+    await ready(() => !document.querySelector('[data-base-replacement]')); await settled()
+    const uploadedSha = state().character.variants.find((v) => v.group === 'body').layers.body.inspection.sha256
+    check(uploadedSha !== replacementSha && state().character.variants.find((v) => v.group === 'prop').layers.front.canonicalSha256 === uploadedSha, 'Confirmed uploader lost dependent art')
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
     check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.props[0] === 'prop-1', 'Current Appearance was not autosaved')
@@ -421,7 +463,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(afterDeleteZip.appearances.length === 1, 'ZIP resurrected a deleted Appearance')
     await call('navigate_workspace', { resource: 'collections' })
     await ready(() => route.pathname === '/collections')
-    result.textContent = 'PASS: 16 tools, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout'
+    result.textContent = `PASS: ${registered.size} tools, metadata gates, base replacement cancel/confirm, two toolbar levels, profile tab/current composite, autosaved Appearances, linked fronts/review flags, protected scope, shadcn switching/inline naming/deletion, stale guards, atomic undo/redo, Mantle reload, both archives and responsive layout`
     }
   } catch (error) { result.textContent = `FAIL: ${error.stack ?? error.message}`; console.error(error) }
   finally { app.webmcp.dispose() }

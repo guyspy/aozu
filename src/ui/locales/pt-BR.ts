@@ -173,7 +173,7 @@ export const ptBR: Messages= {
       "props": "Acessórios"
     },
     "layers": {
-      "body": "Corpo",
+      "body": "Base do personagem",
       "head": "Cabeça",
       "primary": "Camada principal",
       "behindOptional": "Atrás do personagem · Opcional"
@@ -207,14 +207,20 @@ export const ptBR: Messages= {
       "outerwear": "Casaco",
       "footwear": "Calçados"
     },
+    "baseReplacement": {
+      "title": "Substituir a base do personagem?",
+      "description": "Use para pequenas correções com a mesma pose, proporções e posição. Roupas e acessórios serão mantidos. Se o corpo ou a pose mudar, cancele e crie um novo personagem.",
+      "confirm": "Mesma pose, manter camadas",
+    },
     "metadata": {
       "slot": "Espaço do guarda-roupa",
       "garmentType": "Tipo de peça",
-      "faceStyle": "Estilo facial",
-      "faceStyleName": "Nome do estilo facial",
+      "faceStyle": "Variante facial",
+      "faceStyleName": "Nome da variante facial",
+      "faceDescription": "Aparência facial (maquiagem, pintura facial, pelos faciais…)",
       "facialHair": "Pelos faciais",
       "cleanShaven": "Sem barba",
-      "addFaceStyle": "Adicionar estilo facial",
+      "addFaceStyle": "Adicionar variante facial",
       "description": "Descrição",
       "tags": "Etiquetas",
       "tagsHelp": "Etiquetas separadas por vírgulas"

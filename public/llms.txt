@@ -1,30 +1,29 @@
 # AOZU
 
-> AOZU is an agent-native browser workshop for creating, aligning, editing, and exporting reusable layered character assets.
+> A browser workshop for reusable layered characters, world settings, albums and storyboards. Creative data stays in this browser; export backups before switching devices.
 
-Application: https://companion.aozu.workers.dev/
-Source: https://github.com/aotter/aozu
+Application: https://aozu.mantle.tools/
+Source: https://github.com/guyspy/aozu
+Character authoring guide: /character-authoring.md (ships with this deployment)
 
-## Product
+Start with inspect_workspace, then inspect_character_contract for the exact
+Character target. Read the versioned authoring guide once and follow the live
+contract's workflow, metadataStatus, revision/hash and visual review instructions.
 
-AOZU lets a person and an AI agent share one visual character workspace. Characters contain a canonical body, whole-head expressions, complete outfit skins, props, profile metadata, alignment transforms, and revision history. Data is stored locally in the browser and can be exported as a portable Character ZIP with original assets and a lossless WebP texture atlas.
+Canonical Body is the shared A-pose base. Wardrobe contains garment-only
+transparent overlays. A dressed working image is temporary and is never a
+Wardrobe submission. Hair/headwear/props use registered front/back layers;
+handheld props may include a minimal gripping-hand patch. Facial Variants cover
+makeup, face paint, facial hair and other face changes, each with its own
+consistent whole-head expression set. Appearance means a saved combination.
 
-## WebMCP interface
+Use the page's currently registered tools, not a copied static tool inventory.
+update_character_variant_metadata records asset descriptions and classifications;
+replace_character_asset submits the final layer. For small compatible base
+corrections preserve existing layers; major redesigns need a new Character.
 
-In a WebMCP-compatible browser, AOZU exposes these tools on every page:
-
-- `inspect_workspace`: discover characters, routes, revisions, missing art, and next actions.
-- `navigate_character`: open the library or an exact character category or variant.
-- `inspect_character_contract`: obtain asset requirements, references, hashes, ownership, and alignment diagnostics.
-- `update_character_profile`: update name, description, multiline backstory, and scalar attributes.
-- `replace_character_asset`: install a complete body, expression head, outfit skin, or prop layer.
-- `repair_character_asset`: repair an existing expression inside its protected editable region.
-- `set_character_variant_transform`: apply an explicit translation and uniform scale.
-- `undo_character_change`: undo the latest settled character change.
-- `redo_character_change`: redo the most recently undone character change.
-
-Agents should call `inspect_workspace` first and use the returned exact revision and asset contract before any mutation. The website validates and persists changes, renders the result, and navigates the person to the affected asset. After accepting or aligning an expression or outfit, visually review that rendered variant in the browser using Composite, Overlay, Difference, and Align before continuing to the next asset.
-
-## Current scope
-
-Character creation and editing are available. Story and experience authoring are not part of the current release. AOZU does not generate images itself; the connected agent supplies creative artwork while AOZU enforces the character asset contract.
+AOZU does not generate images or remove backgrounds. Never burn in a checkerboard.
+Transfer complete PNG bytes directly from host memory when supported, otherwise
+follow the contract's visible file-chooser fallback. Tool acceptance is not
+visual review or user approval. Follow navigation performed by AOZU and inspect
+the actual result before continuing.

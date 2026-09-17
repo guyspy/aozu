@@ -13,7 +13,7 @@ import { exportLibraryArchive, importLibraryArchive } from './core/application/l
 import { createStoryboardService } from './core/application/storyboard.ts'
 import type { SettingSnapshot } from './core/domain/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
-import { CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
+import { CHARACTER_AUTHORING_GUIDE, CHARACTER_LAYER_GUIDANCE, characterMetadataStatus, CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
@@ -173,16 +173,17 @@ const CHARACTER_ASSET_POLICY = {
       opaqueInput: 'reject',
       instruction: CHARACTER_BACKGROUND_GUIDANCE,
       preparation: {
-        default: 'solid-background-then-remove',
+        default: 'new-art-only-solid-background-then-remove',
+        suppliedArt: 'Preserve requested alpha, glow and edge treatment; skip background removal for finished transparent art.',
         generateOn: 'one flat high-contrast color absent from the subject',
-        avoid: ['gradient', 'shadow', 'glow', 'texture', 'cropped silhouette'],
+        avoid: ['painted checkerboard', 'cropped silhouette'],
         beforeSubmission: ['discover a permitted background-removal tool, image editor, or local image-processing CLI/library', 'remove the solid background without cropping or reframing', 'verify real alpha and inspect edges on light and dark backgrounds', 'submit RGBA PNG'],
       },
     },
   },
   layers: {
-    body: { content: 'complete-character-skin', pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE },
-    expression: { content: 'complete-whole-head-only', outsideHeadOwnership: 'transparent', referenceOverlap: 'required' },
+    body: { content: 'canonical-body', pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE },
+    expression: { content: 'complete-whole-head-only', instruction: CHARACTER_LAYER_GUIDANCE.expression, outsideHeadOwnership: 'transparent', referenceOverlap: 'required' },
     outfit: {
       content: 'garment-only-transparent-overlay',
       characterPixels: 'reject',
@@ -191,7 +192,7 @@ const CHARACTER_ASSET_POLICY = {
     },
     hair: { content: 'hair-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'hair behind the head', front: 'hair over the head' } },
     headwear: { content: 'headwear-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'parts behind the head', front: 'visible headwear' } },
-    prop: { content: 'independent-transparent-overlay' },
+    prop: { content: 'object-with-optional-gripping-hand-patch', instruction: CHARACTER_LAYER_GUIDANCE.prop },
   },
 } as const
 
@@ -442,14 +443,15 @@ export function createApplication(document: Document) {
       if (fit.status !== 'suggested') throw new Error('No high-confidence fit is available; use the visual alignment controls.')
       await editor.dispatch((current) => setCharacterVariantTransform(current, group, variantId, fit.transform), revision)
     },
-    async replaceCharacterAsset(characterId: string, target: CharacterAssetTarget, blob: Blob) {
+    async replaceCharacterAsset(characterId: string, target: CharacterAssetTarget, blob: Blob, options: { rebaseDerivedAssets?: boolean; expectedRevision?: number } = {}) {
       await editor.open(characterId)
       const { character, revision } = activeCharacter()
       const current = character.variants.find(({ group, id }) => group === target.group && id === target.variantId)?.layers[target.layer]
       const result = await mutateCharacterAsset('replace', {
         ...target,
         characterId,
-        expectedRevision: revision,
+        expectedRevision: options.expectedRevision ?? revision,
+        rebaseDerivedAssets: options.rebaseDerivedAssets,
         expectedAssetSha256: current?.inspection.sha256 ?? null,
         filename: blob instanceof File ? blob.name : `${target.variantId}-${target.layer}.png`,
       }, blob, 'user')
@@ -731,6 +733,7 @@ export function createApplication(document: Document) {
         history: historyStatus(),
         navigation,
         assetPolicy: view?.surface?.startsWith('storyboard') ? 'Storyboard PNG originals retain their dimensions and opacity. Use inspect_storyboard for exact selections, pinned references and source images.' : worldContext ? 'PNG, JPEG and WebP are accepted up to 5 MiB and 4096×4096. Location and Condition images are direct setting assets. Album photos are finished compositions; record their Character, Location, situation prompt and Collection backstory provenance in description/source.' : view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
+        authoringGuide: CHARACTER_AUTHORING_GUIDE,
       },
       nextActions: view?.surface?.startsWith('storyboard') ? [{ tool: 'inspect_storyboard', required: false, reason: 'Inspect the storyboard and request exact image IDs before visual feedback.', input: view.boardId ? { boardId: view.boardId } : {} }] : worldContext ? worldNextActions : view?.category === 'model-sheet' && character ? [{ tool: 'inspect_character_contract', required: false, reason: 'Inspect the reference task and explicitly request source images before generating art.', input: { characterId: character.id, scope: 'model-sheet', referenceId: view.referenceView ?? selectedRoute?.variantId ?? 'front' } }] : nextActions,
     }
@@ -944,7 +947,7 @@ export function createApplication(document: Document) {
     return {
       status: 'ok',
       data: { characterId: character.id, variant: character.variants.find((item) => item.group === group && item.id === variantId), faceStyles: character.faceStyles, revision: settledRevision('Character variant metadata'), changed },
-      nextActions: characterNextActions(character),
+      nextActions: [{ tool: 'inspect_character_contract', required: true, reason: 'Read the updated metadata status and exact revision before submitting pixels.', input: { characterId: character.id, scope: 'appearance', group, variantId, layer: group === 'body' ? 'body' : group === 'expression' ? 'head' : 'front' } }],
       effects: { navigation: { path: characterPath(character.id, group, variantId), mode: 'push', reason: 'Review the updated variant metadata.' } },
     }
   }
@@ -1117,16 +1120,12 @@ export function createApplication(document: Document) {
         normalization: normalization.recommended,
       },
     }
-    const metadataRequired = !variant && ['expression', 'outfit', 'hair', 'headwear'].includes(input.group) || input.group === 'outfit' && !variant?.metadata?.outfit
-    const metadataAction = metadataRequired ? {
+    const metadataStatus = characterMetadataStatus(draft, input.group, input.variantId)
+    const metadataAction = !metadataStatus.complete ? {
       tool: 'update_character_variant_metadata',
       required: true,
-      reason: input.group === 'outfit'
-        ? 'Create this garment with its wardrobe slot and garment type before installing pixels.'
-        : 'Create this variant metadata before installing pixels.',
-      input: { characterId: draft.id, expectedRevision: revision, group: input.group, variantId: input.variantId, label,
-        ...(input.group === 'outfit' ? { outfit: { slot: 'top', garmentType: label } } : {}),
-        ...(input.group === 'expression' ? { faceStyleId: draft.faceStyles[0]?.id } : {}) },
+      reason: `Complete ${metadataStatus.missing.join(', ')} for this asset, then re-inspect this exact target. Choose real descriptions, tags and category values from the artwork; do not copy placeholders.`,
+      input: { characterId: draft.id, expectedRevision: revision, group: input.group, variantId: input.variantId, label },
     } : null
     const repairAction = current && input.group === 'expression' ? {
       tool: 'repair_character_asset',
@@ -1158,17 +1157,23 @@ export function createApplication(document: Document) {
       : maskFit ? fitActions
       : fitActions.length ? [...fitActions, ...mutationActions]
       : [...mutationActions, {
-        tool: 'navigate_character', required: false,
+        tool: 'navigate_workspace', required: false,
         reason: input.group === 'body' ? 'Open the Character editor for canonical-body preflight.' : 'Open this exact variant for visual preflight.', input: {
-          destination: `character-${categoryFor(input.group)}`, characterId: draft.id,
-          ...(input.group === 'body' ? {} : { variantId: input.variantId }),
+          resource: 'character', id: draft.id, view: categoryFor(input.group),
+          ...(input.group === 'body' ? {} : { itemId: input.variantId }),
         },
       }]
-    const dependentAssetCount = input.group === 'body' && asset ? draft.variants.reduce((count, candidate) => count + (candidate.group === 'body' ? 0
-      : Object.values(candidate.layers).filter((layer) => layer?.canonicalSha256 === asset.inspection.sha256).length), 0) : 0
+    const dependentAssetCount = input.group === 'body' && asset ? draft.variants.reduce((count, candidate) => count + (candidate.group === 'body' ? 0 : Object.values(candidate.layers).filter(Boolean).length), 0) : 0
     return {
       input: { group: input.group, variantId: input.variantId, layer: input.layer },
       allowedOperations,
+      metadataStatus,
+      workflow: {
+        nextStep: !metadataStatus.complete ? 'complete-metadata' : current ? 'review-or-replace' : 'prepare-and-submit',
+        steps: ['inspect-source', 'prepare-target-pixels', 'complete-metadata', 'submit', 'align-and-review'],
+        instruction: CHARACTER_LAYER_GUIDANCE[input.group],
+        visualReview: 'Required after every accepted change; current:true means registered, not visually reviewed or user-approved.',
+      },
       expectedRevision: revision,
       current: asset ? {
         filled: true,
@@ -1217,17 +1222,17 @@ export function createApplication(document: Document) {
         characterPixels: 'forbidden',
         layerSemantics: input.layer === 'back' ? 'only pixels genuinely behind the canonical body/head' : 'visible overlay pixels',
       } : {
-        assetRole: input.group === 'body' ? 'complete-character-skin' : 'prop-layer',
+        assetRole: input.group === 'body' ? 'canonical-body' : 'object-with-optional-gripping-hand-patch',
       },
       ...(input.group === 'body' ? { replacementImpact: {
         dependentAssetCount,
         requiresExplicitRebaseChoice: dependentAssetCount > 0,
-        rebaseMeaning: 'true keeps the existing registered pixels current without changing them; false intentionally leaves them stale',
+        rebaseMeaning: 'For a compatible small correction, explicitly set rebaseDerivedAssets:true after comparing pose, silhouette and registration. This preserves pixels, transforms and selections, but is not a geometric proof. Major changes must use a new Character; false is rejected when dependent artwork exists.',
       } } : {}),
       generationRecipe: {
         lineage,
         ...(input.group === 'body' ? { pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE } : {}),
-        method: 'reference-guided-generation',
+        method: CHARACTER_LAYER_GUIDANCE[input.group],
         placementReference: placementLayers.length ? {
           layerCount: placementLayers.length,
           dataUrl: await renderCharacterCompositeDataUrl(placementLayers),
@@ -1239,9 +1244,9 @@ export function createApplication(document: Document) {
           finalizeAt: { ...CHARACTER_RIG.canvas },
           rgba: true,
           realAlpha: true,
-          content: input.group === 'body' ? 'complete-character'
+          content: input.group === 'body' ? 'canonical-body'
             : input.group === 'expression' ? 'complete-whole-head'
-              : ['outfit', 'hair', 'headwear'].includes(input.group) ? `${input.group}-only-overlay` : 'prop-layer',
+              : ['outfit', 'hair', 'headwear'].includes(input.group) ? `${input.group}-only-overlay` : 'object-with-optional-gripping-hand-patch',
         },
       },
       alignment: {
@@ -1324,26 +1329,13 @@ export function createApplication(document: Document) {
             path: target.alignment.reviewPath,
             selector: `input[data-webmcp-upload="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
           } : undefined),
+          authoringGuide: CHARACTER_AUTHORING_GUIDE,
           productionBrief: [
-            'Use collection.backstory as shared world context, together with the Character’s own profile. Do not overwrite personal backstory with collection context.',
+            'Use the Collection context and Character profile; the user-approved artwork is the source of truth.',
             CHARACTER_A_POSE_GUIDANCE,
-            'The canonical body is a visual reference, never an expression edit source. Replace the first expression with a head-only layer; the first accepted whole head establishes registration for later expressions.',
-            'The canonical body is bald or very short-haired, clean-shaven, neutral-faced, uses the technical basewear or neutral skin-tone body-base direction chosen above, and stays locked to the standard A-pose.',
-            'WARDROBE SUBMISSION CONTRACT: every outfit asset contains garment pixels only on the registered transparent canvas. Never submit body pixels, a full character, or a dressed character composite to a Wardrobe slot.',
-            'Optional garment production method: temporarily generate or compose the complete dressed character in the exact canonical pose, then semantically isolate the garment. The dressed character is an intermediate reference only and must be discarded before submission. Do not subtract pixels mechanically. Split only truly behind-body garment pixels into back and visible garment pixels into front; both stay on the exact 512×768 registration.',
-            'Wardrobe slots are top, bottom, one-piece, outerwear, and footwear. They describe garments but do not limit combinations. Record slot, garment type, description, tags, and source hash through update_character_variant_metadata.',
-            'Hair and headwear use the same registered front/back overlay method and contain no face or body pixels. Facial hair is never an overlay: create a Face Style and bake its beard or moustache into every expression head belonging to that style. Expression heads never include hair or headwear.',
-            'Generate at 1024×1536. When the inspected target recommends exact-aspect-downscale, request it during submission; otherwise finalize externally at the exact 512×768 canvas. Never crop, reframe, or stretch.',
-            CHARACTER_BACKGROUND_GUIDANCE,
-            'Use replace_character_asset for every finished outfit overlay and other finished layer; “finished layer” means the target-owned pixels only, never a complete dressed character. Use repair_character_asset only for an existing expression; transparent mask pixels are editable, opaque pixels are protected, and protectedRegionDelta must be 0.',
-            'Submit only full-canvas RGBA PNG proposals, either already at 512×768 or with the explicit normalization allowed by the inspected target. The website never generates, removes backgrounds, or guesses geometry; expression repair alone uses the deterministic editable region.',
-            'Expression layers contain only the whole aligned head. Facial hair follows the expression through its Face Style; every pixel outside head ownership is transparent.',
-            'No expression overlay means the default face baked into the body. Optional whole-head variants include happy, sad, angry, surprised, and sleepy; additional variants are allowed.',
-            'Props are independent or handheld, multi-select overlays. Never use props for clothing, hair, beards, or headwear.',
-            'selected.outfits and selected.props are persisted bottom-to-top activation order within their front/back rig slots. Use set_character_variant_selection to add or remove variants: later-added items stack above earlier items; an already-active item keeps its order; remove then add it to move it to the top.',
-            CHARACTER_NAVIGATION_GUIDANCE,
-            CHARACTER_VISUAL_REVIEW.instruction,
-            CHARACTER_VISUAL_REVIEW.finish,
+            target ? CHARACTER_LAYER_GUIDANCE[target.input.group] : 'Choose one target and re-inspect before generating. Follow the guide for garment, hairstyle, prop and Facial Variant workflows.',
+            'Complete target.metadataStatus through update_character_variant_metadata before submission. Record provenance only from known source hashes.',
+            'Keep image bytes in host memory using assetTransfer.toolkit. Review each accepted image before the next asset; metadata and technical acceptance do not establish user approval.',
           ],
           assetPolicy: CHARACTER_ASSET_POLICY,
           target,
@@ -1397,6 +1389,7 @@ export function createApplication(document: Document) {
         path: modelSheetPath(draft.id, 'new'),
         selector: 'input[data-webmcp-upload="model-sheet-new-reference"]',
       } : undefined),
+      authoringGuide: CHARACTER_AUTHORING_GUIDE,
       generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
@@ -1490,6 +1483,8 @@ export function createApplication(document: Document) {
       if (mode === 'repair' && (target.group !== 'expression' || target.layer !== 'head' || !sources.current || !sources.editSource)) {
         throw new Error('Repair requires a current expression head; use replace_character_asset for outfits and other replacement-only target layers')
       }
+      const metadataStatus = characterMetadataStatus(current, target.group, target.variantId)
+      if (source === 'agent' && !metadataStatus.complete) throw new Error(`Complete variant metadata before submitting pixels: ${metadataStatus.missing.join(', ')}. Use update_character_variant_metadata, then inspect_character_contract for a fresh revision.`)
       if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
       const { filename } = input
       const payload = providedBlob ? undefined : await pngFromPayload(input)
@@ -1629,10 +1624,9 @@ export function createApplication(document: Document) {
         : null
       const savedBlob = stitchedBlob ?? resized
       const savedInspection = stitchedBlob ? await inspectCharacterImage(stitchedBlob) : inspection
-      const dependentAssetCount = sources.canonical ? current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0
-        : Object.values(variant.layers).filter((layer) => layer?.canonicalSha256 === sources.canonical!.inspection.sha256).length), 0) : 0
-      if (target.group === 'body' && source === 'agent' && dependentAssetCount && savedInspection.sha256 !== assetSha256 && input.rebaseDerivedAssets === undefined) {
-        throw new Error(`Replacing this body affects ${dependentAssetCount} registered layers. Set rebaseDerivedAssets true to keep their pixels registered to the new body, or false to intentionally leave them stale.`)
+      const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
+      if (target.group === 'body' && dependentAssetCount && savedInspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true) {
+        throw new Error(`Replacing this body affects ${dependentAssetCount} registered layers. For a compatible small correction set rebaseDerivedAssets:true to preserve existing layers. For changed pose, proportions, identity or registration, create a new Character instead; do not invalidate this one.`)
       }
       // Blob first; then one command (asset swap plus optional auto-fit) creates exactly one history frame.
       const asset = await editor.stageAsset(savedBlob, filename, source, savedInspection)
@@ -1669,8 +1663,9 @@ export function createApplication(document: Document) {
           },
           normalization: report(),
           alignment: specification?.alignment,
+          workflow: specification ? { ...specification.workflow, nextStep: 'align-and-review' } : undefined,
           operation: mode,
-          rebasedDerivedAssets: input.rebaseDerivedAssets === true ? dependentAssetCount : 0,
+          rebasedDerivedAssets: input.rebaseDerivedAssets === true ? current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter((layer) => layer?.canonicalSha256 === assetSha256).length), 0) : 0,
           ownership,
           compositor: stitchedBlob ? { applied: true, protectedRegionDelta } : { applied: false },
           autoFit: autoFit ? { applied: true, transform: autoFit, bakedIntoAsset: Boolean(stitchedBlob) } : { applied: false },
@@ -1717,6 +1712,7 @@ export function createApplication(document: Document) {
           ).map(({ id }) => id) : [],
           revision,
           alignment: specification?.alignment,
+          workflow: specification ? { ...specification.workflow, nextStep: 'align-and-review' } : undefined,
         },
         nextActions: specification?.nextActions ?? characterNextActions(draft),
         effects: { navigation: { path, mode: 'push', reason: 'Open the adjusted Character variant for visual review.' } },
