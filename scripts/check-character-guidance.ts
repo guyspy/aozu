@@ -31,7 +31,7 @@ assert.deepEqual(edited.faceStyles.at(-1)?.tags, ['makeup'], 'Partial facial met
 const guide = readFileSync(`public${CHARACTER_AUTHORING_GUIDE.path}`, 'utf8')
 assert.ok(guide.includes(`Guide version: ${CHARACTER_AUTHORING_GUIDE.version}`), 'Live guide and contract version drifted')
 for (const source of [guide, readFileSync('public/llms.txt', 'utf8'), readFileSync('README.md', 'utf8')]) {
-  assert.doesNotMatch(source, /outfit skins?|navigate_character|complete outfit skins?/i, 'Public instructions advertise obsolete tools or clothing layers')
+  assert.doesNotMatch(source, /outfit skins?|navigate_character|update_collection_profile|complete outfit skins?/i, 'Public instructions advertise obsolete tools or clothing layers')
 }
 // Run the exact copyable toolkit against real bytes, without printing its payload.
 const helper = guide.match(/```js\n([\s\S]*?)\/\/ In the same host runtime/)![1]
