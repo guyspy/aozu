@@ -105,9 +105,10 @@ Before storing new pixels, pass the PNG through the same inspect call as
 `candidate:{filename,dataUrl,dataSha256?,normalization?,preflightPoints?}`.
 This performs the production normalization, alpha, ownership, overflow and
 alignment checks without changing the Character. Actually view its returned
-`previewDataUrl`. When contacts are observable, `preflightPoints` contains the
-current reference hash and the same 3–12 point pairs; conflicting residuals set
-`canSubmit:false`. A technical pass without points still needs visual review.
+`previewDataUrl`. For outfit, hair, and headwear, `preflightPoints` must contain
+the current reference hash and 3–12 observed point pairs. Submit those same
+points with `replace_character_asset`; AOZU applies the uniform fit and rejects
+missing or conflicting observations before storing. Props remain freely placed.
 
 `alignment.pointFit` reports current and best-fit per-point residuals in pixels,
 RMS/max error, and a suggested absolute transform when one uniform scale and

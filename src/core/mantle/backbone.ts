@@ -206,6 +206,10 @@ const characterAlignmentPointsSchema = {
     candidate: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
   }, ['label', 'reference', 'candidate']),
 } satisfies JsonSchema
+const characterPreflightPointsSchema = objectSchema({
+  referenceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+  points: characterAlignmentPointsSchema,
+}, ['referenceSha256', 'points'])
 
 const characterInspectionSchema = objectSchema({
   width: { const: CHARACTER_RIG.canvas.width },
@@ -880,10 +884,7 @@ const ALL_BACKBONE_SOURCES = [
             ...pngPayloadProperties,
             normalization: characterNormalizationSchema,
             rebaseDerivedAssets: { type: 'boolean' },
-            preflightPoints: objectSchema({
-              referenceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
-              points: characterAlignmentPointsSchema,
-            }, ['referenceSha256', 'points']),
+            preflightPoints: characterPreflightPointsSchema,
           }, ['filename', 'dataUrl']),
           referenceId: referenceIdSchema,
           ...referenceMetadataProperties,
@@ -990,7 +991,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Replace one target-owned layer after inspecting its contract and completing metadataStatus. Preserve the inspected canvas and pixel ownership; outfit is garment pixels only. Use rebaseDerivedAssets:true only for compatible small base corrections. Accepted means stored; follow alignment.visualReview before continuing. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Replace one target-owned layer after inspecting its contract and completing metadataStatus. Preserve the inspected canvas and pixel ownership; outfit is garment pixels only. Agent submissions for outfit, hair, and headwear require the same preflightPoints used to inspect the candidate; AOZU applies their uniform alignment transform and rejects missing or conflicting observations before storing. Use rebaseDerivedAssets:true only for compatible small base corrections. Accepted means stored; follow alignment.visualReview before continuing. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },
@@ -1003,6 +1004,7 @@ const ALL_BACKBONE_SOURCES = [
         ...pngPayloadProperties,
         normalization: characterNormalizationSchema,
         rebaseDerivedAssets: { type: 'boolean' },
+        preflightPoints: characterPreflightPointsSchema,
       }, ['characterId', 'group', 'variantId', 'label', 'layer', 'expectedRevision', 'expectedAssetSha256', 'filename', 'dataUrl']),
       output: toolResultSchema,
       handler: { kind: 'ref', ref: 'companion.replace-character-asset' },

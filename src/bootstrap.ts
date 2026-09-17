@@ -1542,6 +1542,8 @@ export function createApplication(document: Document) {
       let finalSize: { width: number; height: number } | null = null
       let protectedRegionDelta: ReturnType<typeof measureProtectedRegionDelta> = null
       let ownership: ReturnType<typeof inspectCharacterAssetOwnership> = { status: 'valid' }
+      let pointFit: ReturnType<typeof measureCharacterPointAlignment> | null = null
+      const requiresPointFit = source === 'agent' && mode === 'replace' && ['outfit', 'hair', 'headwear'].includes(target.group)
       // No normalization happens silently: accepted and rejected submissions both report this.
       const report = () => {
         const bounds = alignedBounds ?? resizedBounds
@@ -1567,10 +1569,10 @@ export function createApplication(document: Document) {
           protectedRegionDelta,
         }
       }
-      const rejected = (reason: string, rejection?: { code: string; message: string }) => ({
+      const rejected = (reason: string, rejection?: { code: string; message: string }, preflightStatus = 'rejected') => ({
         status: 'ok',
         data: {
-          ...(dryRun ? { preflight: true, persisted: false, canSubmit: false } : { accepted: false }),
+          ...(dryRun ? { preflight: true, persisted: false, canSubmit: false, status: preflightStatus } : { accepted: false }),
           target,
           filename,
           ...(rejection ? { rejection } : {}),
@@ -1583,7 +1585,7 @@ export function createApplication(document: Document) {
             visiblePixelCount: submittedInspection.visiblePixelCount,
           },
           normalization: report(),
-          alignment: { mode: alignmentMode, measurement: afterAlignment ?? afterResize },
+          alignment: { mode: alignmentMode, measurement: afterAlignment ?? afterResize, pointFit },
           ownership,
         },
         nextActions: dryRun ? [] : [{
@@ -1638,18 +1640,31 @@ export function createApplication(document: Document) {
         return rejected(diagnostic?.message ?? 'Regenerate the rejected character asset.', diagnostic && { code: diagnostic.code, message: diagnostic.message })
       }
 
-      // A requested alignment is baked into the stitched pixels, so it never competes with a mask auto-fit.
-      const autoFit = alignTransform ?? highConfidenceCharacterAutoFit(alignment)
+      pointFit = input.preflightPoints ? (() => {
+        if (!sources.alignmentReference || sources.alignmentReference.inspection.sha256 !== input.preflightPoints!.referenceSha256) throw new Error('Alignment reference changed; inspect the exact target again')
+        return measureCharacterPointAlignment(input.preflightPoints!.points)
+      })() : null
+      if (requiresPointFit && !pointFit) {
+        const message = 'Registered outfit, hair, and headwear submissions require 3–12 observed alignment points from the inspected candidate and alignment reference.'
+        if (!dryRun) throw new Error(message)
+        return rejected(message, { code: 'ALIGNMENT_POINTS_REQUIRED', message }, 'needs-alignment-points')
+      }
+      if (requiresPointFit && pointFit?.status === 'needs-artwork-correction') {
+        const message = 'Observed attachment points cannot share one scale and translation. Correct the artwork before replacing the asset.'
+        if (!dryRun) throw new Error(message)
+        return rejected(message, { code: 'ALIGNMENT_POINTS_CONFLICT', message }, 'needs-artwork-correction')
+      }
+      // Agent-observed correspondences replace the old whole-body bounds fit for partial overlays.
+      const pointTransform = requiresPointFit
+        ? pointFit?.suggestedTransform ?? { x: 0, y: 0, scale: 1 }
+        : null
+      const autoFit = alignTransform ?? pointTransform ?? highConfidenceCharacterAutoFit(alignment)
       ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
         headBounds: registrationFrame.headEnvelope?.bounds,
         bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
         transform: autoFit ?? undefined,
       })
       if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
-      const pointFit = input.preflightPoints ? (() => {
-        if (!sources.alignmentReference || sources.alignmentReference.inspection.sha256 !== input.preflightPoints!.referenceSha256) throw new Error('Alignment reference changed; inspect the exact target again')
-        return measureCharacterPointAlignment(input.preflightPoints!.points)
-      })() : null
       const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
       const needsRebaseDecision = target.group === 'body' && dependentAssetCount > 0 && inspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true
       if (dryRun) {
@@ -1681,8 +1696,9 @@ export function createApplication(document: Document) {
           nextActions: canSubmit ? [{
             tool: 'replace_character_asset',
             required: false,
-            reason: pointFit ? 'Candidate pixels and supplied correspondences passed preflight. Visually review previewDataUrl before storing.' : 'Candidate pixels passed technical preflight. Visually review previewDataUrl and add observed correspondences when alignment is uncertain.',
-            input: { characterId: current.id, ...target, expectedRevision: revision, expectedAssetSha256: assetSha256, filename, normalization: requested },
+            reason: pointFit ? 'Candidate pixels and supplied correspondences passed preflight. Visually review previewDataUrl before storing, then submit the same preflightPoints.' : 'Candidate pixels passed technical preflight. Visually review previewDataUrl before storing.',
+            input: { characterId: current.id, ...target, expectedRevision: revision, expectedAssetSha256: assetSha256, filename, normalization: requested,
+              ...(input.preflightPoints ? { preflightPoints: input.preflightPoints } : {}) },
           }] : [],
         }
       }
