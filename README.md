@@ -49,7 +49,7 @@ AOZU exposes these public tools on every page:
 | `inspect_character_contract` | Obtain allowed operations, exact hashes, placement/alignment references, ownership, dimensions, and diagnostics for one target |
 | `update_character_variant_metadata` | Complete asset descriptions, tags, garment classification and Facial Variants before image submission |
 | `update_character_profile` | Update a character's name, description, multiline backstory, optional height, or scalar attributes against its exact revision |
-| `update_collection_profile` | Update a collection's name, description, or shared world backstory against its exact revision |
+| `update_library` | Update collections, world settings, albums and story books against their exact revisions |
 | `update_character_model_sheet` | Add or replace a reference PNG, edit view notes or height guides against its exact revision |
 | `replace_character_asset` | Install a Canonical Body, whole expression head, garment-only overlay, hair, headwear or prop layer |
 | `repair_character_asset` | Mask-repair an existing expression against its exact asset hash |
