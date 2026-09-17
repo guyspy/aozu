@@ -1164,6 +1164,8 @@ export function createApplication(document: Document) {
           ...(input.group === 'body' ? {} : { variantId: input.variantId }),
         },
       }]
+    const dependentAssetCount = input.group === 'body' && asset ? draft.variants.reduce((count, candidate) => count + (candidate.group === 'body' ? 0
+      : Object.values(candidate.layers).filter((layer) => layer?.canonicalSha256 === asset.inspection.sha256).length), 0) : 0
     return {
       input: { group: input.group, variantId: input.variantId, layer: input.layer },
       allowedOperations,
@@ -1217,6 +1219,11 @@ export function createApplication(document: Document) {
       } : {
         assetRole: input.group === 'body' ? 'complete-character-skin' : 'prop-layer',
       },
+      ...(input.group === 'body' ? { replacementImpact: {
+        dependentAssetCount,
+        requiresExplicitRebaseChoice: dependentAssetCount > 0,
+        rebaseMeaning: 'true keeps the existing registered pixels current without changing them; false intentionally leaves them stale',
+      } } : {}),
       generationRecipe: {
         lineage,
         ...(input.group === 'body' ? { pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE } : {}),
@@ -1357,6 +1364,7 @@ export function createApplication(document: Document) {
     dataUrl?: string
     dataSha256?: string
     normalization?: CharacterNormalization
+    rebaseDerivedAssets?: boolean
   }
 
   async function inspectModelSheetContract(rawInput: unknown) {
@@ -1471,6 +1479,7 @@ export function createApplication(document: Document) {
       }
       const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === target.group)
       if (!group || !group.layers.includes(target.layer) || (target.group === 'body' && target.variantId !== 'base')) throw new Error('Unknown character asset target')
+      if (input.rebaseDerivedAssets !== undefined && target.group !== 'body') throw new Error('rebaseDerivedAssets is only valid for body/base/body')
       // Targeting another Character settles the active queue and switches sessions before validation.
       await editor.open(input.characterId)
       const { character: current, revision } = activeCharacter()
@@ -1580,6 +1589,12 @@ export function createApplication(document: Document) {
       // 2. One uniform scale plus translation onto the reference bounds this contract published.
       const referenceMask = sources.alignmentReference ? await readCharacterAlphaMask(sources.alignmentReference.blob) : null
       const candidateMask = await readCharacterAlphaMask(resized)
+      if (target.group === 'body' && !candidateMask.alpha.includes(255)) {
+        return rejected('Regenerate a clean body layer with a solid subject and transparent background.', {
+          code: 'BODY_HAS_NO_OPAQUE_CORE',
+          message: 'Body artwork has no fully opaque pixels; semi-transparent subjects, glow, and background haze cannot establish a stable base.',
+        })
+      }
       ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
         headBounds: registrationFrame.headEnvelope?.bounds,
         bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
@@ -1620,10 +1635,15 @@ export function createApplication(document: Document) {
         : null
       const savedBlob = stitchedBlob ?? resized
       const savedInspection = stitchedBlob ? await inspectCharacterImage(stitchedBlob) : inspection
+      const dependentAssetCount = sources.canonical ? current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0
+        : Object.values(variant.layers).filter((layer) => layer?.canonicalSha256 === sources.canonical!.inspection.sha256).length), 0) : 0
+      if (target.group === 'body' && source === 'agent' && dependentAssetCount && savedInspection.sha256 !== assetSha256 && input.rebaseDerivedAssets === undefined) {
+        throw new Error(`Replacing this body affects ${dependentAssetCount} registered layers. Set rebaseDerivedAssets true to keep their pixels registered to the new body, or false to intentionally leave them stale.`)
+      }
       // Blob first; then one command (asset swap plus optional auto-fit) creates exactly one history frame.
       const asset = await editor.stageAsset(savedBlob, filename, source, savedInspection)
       await editor.dispatch((character) => {
-        let placed = saveCharacterDraftAsset(character, target, asset)
+        let placed = saveCharacterDraftAsset(character, target, asset, input.rebaseDerivedAssets === true)
         if (!stitchedBlob && autoFit && target.group !== 'body') placed = setCharacterVariantTransform(placed, target.group, target.variantId, autoFit)
         return activateCharacterVariant(placed, { group: target.group, id: target.variantId })
       }, input.expectedRevision)
@@ -1656,6 +1676,7 @@ export function createApplication(document: Document) {
           normalization: report(),
           alignment: specification?.alignment,
           operation: mode,
+          rebasedDerivedAssets: input.rebaseDerivedAssets === true ? dependentAssetCount : 0,
           ownership,
           compositor: stitchedBlob ? { applied: true, protectedRegionDelta } : { applied: false },
           autoFit: autoFit ? { applied: true, transform: autoFit, bakedIntoAsset: Boolean(stitchedBlob) } : { applied: false },

@@ -272,6 +272,15 @@ assert.notEqual(savedDraft, before)
 assert.equal(before.variants[0]!.layers.body!.filename, 'sprite.png')
 assert.equal(hasCurrentCharacterLayer(savedDraft, 'expression', 'happy', 'head'), false)
 assert.deepEqual(resolveCharacterDraftLayers(savedDraft).map(({ slot }) => slot), ['character-skin'])
+const rebasedDraft = saveCharacterDraftAsset(
+  before,
+  { group: 'body', variantId: 'base', label: 'New base', layer: 'body' },
+  { blob: new Blob(['replacement'], { type: 'image/png' }), filename: 'replacement.png', source: 'agent', inspection: replacementInspection },
+  true,
+)
+assert.equal(hasCurrentCharacterLayer(rebasedDraft, 'expression', 'happy', 'head'), true)
+assert.equal(rebasedDraft.headRegistration?.variantId, before.headRegistration?.variantId)
+assert.equal(rebasedDraft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.layers.head!.canonicalSha256, replacementInspection.sha256)
 assert.throws(() => saveCharacterDraftAsset(savedDraft, { group: 'body', variantId: 'other', label: 'Nope', layer: 'body' }, {
   blob: new Blob(['x']), filename: 'x.png', source: 'agent', inspection: replacementInspection,
 }), /Unknown character asset target/)

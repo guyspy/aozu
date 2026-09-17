@@ -101,12 +101,15 @@ assert.match(registered.get('replace_character_asset')!.description, /browser-fi
 assert.match(registered.get('replace_character_asset')!.description, /minimal technical basewear or a neutral skin-tone character body base/)
 assert.match(registered.get('replace_character_asset')!.description, /outfit is garment pixels only/)
 assert.match(registered.get('replace_character_asset')!.description, /never submit that intermediate or any body pixels/)
+assert.match(registered.get('replace_character_asset')!.description, /rebaseDerivedAssets: true/)
+assert.match(registered.get('replace_character_asset')!.description, /without a fully opaque subject core/)
 assert.match(registered.get('inspect_character_contract')!.description, /garment-only transparent overlays/)
 assert.match(CHARACTER_A_POSE_GUIDANCE, /whichever best fits the user’s prompt/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /no nipples/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /wearing underwear/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
 assert.ok(!replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
+assert.equal(replaceSchema.properties.rebaseDerivedAssets.type, 'boolean')
 assert.ok(replaceSchema.required.includes('dataUrl'))
 for (const tool of registered.values()) {
   if (!tool.annotations.readOnlyHint) assert.match(tool.description, /AOZU itself handles effects.navigation/)

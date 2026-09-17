@@ -527,6 +527,7 @@ export function saveCharacterDraftAsset(
   draft: CharacterDraft,
   target: CharacterAssetTarget,
   { blob, filename, source, inspection }: Omit<CharacterDraftAsset, 'canonicalSha256'>,
+  rebaseDerivedAssets = false,
 ): CharacterDraft {
   if (
     !CHARACTER_VARIANT_GROUPS.includes(target.group) ||
@@ -558,14 +559,16 @@ export function saveCharacterDraftAsset(
         ...variant,
         layers: Object.fromEntries(Object.entries(variant.layers).map(([layer, current]) => [
           layer,
-          current && !current.canonicalSha256 ? { ...current, canonicalSha256: previousCanonical } : current,
+          current && rebaseDerivedAssets && current.canonicalSha256 === previousCanonical
+            ? { ...current, canonicalSha256: inspection.sha256 }
+            : current && !current.canonicalSha256 ? { ...current, canonicalSha256: previousCanonical } : current,
         ])),
       })
     : variants
   return {
     ...draft,
     variants: nextVariants,
-    ...(!derived && previousCanonical && previousCanonical !== inspection.sha256
+    ...(!derived && previousCanonical && previousCanonical !== inspection.sha256 && !rebaseDerivedAssets
       ? { headRegistration: undefined }
       : target.group === 'expression' && !draft.headRegistration
         ? { headRegistration: { variantId: target.variantId } }
