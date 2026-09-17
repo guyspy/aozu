@@ -5,6 +5,38 @@ import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { CHARACTER_AUTHORING_GUIDE, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
 import { createCharacterDraft, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
+import { measureCharacterPointAlignment, measureCharacterMaskAlignment, type CharacterAlignmentPoint } from '../src/core/application/character-alignment.ts'
+
+const points: CharacterAlignmentPoint[] = [
+  { label: 'upper left', candidate: { x: 100, y: 100 }, reference: { x: 120, y: 140 } },
+  { label: 'upper right', candidate: { x: 300, y: 100 }, reference: { x: 320, y: 140 } },
+  { label: 'lower contact', candidate: { x: 200, y: 500 }, reference: { x: 220, y: 540 } },
+]
+const translated = measureCharacterPointAlignment(points)
+assert.equal(translated.status, 'suggested')
+assert.deepEqual(translated.suggestedTransform, { x: 20, y: 40, scale: 1 })
+assert.equal(measureCharacterPointAlignment(points, translated.suggestedTransform!).before.max, 0)
+const scaled = points.map((p) => ({ ...p, reference: { x: p.candidate.x * 0.8 + 15, y: p.candidate.y * 0.8 + 25 } }))
+assert.deepEqual(measureCharacterPointAlignment(scaled).suggestedTransform, { x: 15, y: 25, scale: 0.8 })
+const distorted = points.map((p, i) => ({ ...p, reference: { ...p.reference, x: p.reference.x + (i === 2 ? 45 : 0) } }))
+assert.equal(measureCharacterPointAlignment(distorted).status, 'needs-artwork-correction')
+assert.equal(measureCharacterPointAlignment(distorted).suggestedTransform, null)
+assert.throws(() => measureCharacterPointAlignment(points.slice(0, 2)))
+assert.throws(() => measureCharacterPointAlignment(points.map((p) => ({ ...p, candidate: { x: 100, y: 100 } }))))
+assert.throws(() => measureCharacterPointAlignment(points.map((p) => ({ ...p, label: 'duplicate' }))))
+assert.throws(() => measureCharacterPointAlignment(points.map((p) => ({ ...p, reference: { x: NaN, y: 0 } }))))
+const mask = (x: number, y: number, w: number, h: number) => {
+  const alpha = new Uint8Array(512 * 768)
+  for (let row = y; row < y + h; row++) alpha.fill(255, row * 512 + x, row * 512 + x + w)
+  return { width: 512, height: 768, alpha }
+}
+const body = mask(100, 100, 200, 500), garment = mask(100, 100, 200, 120)
+const alignedOverlay = measureCharacterMaskAlignment('outfit', body, garment)
+const movedOverlay = measureCharacterMaskAlignment('outfit', body, garment, { x: 300, y: 0, scale: 1 })
+assert.equal(alignedOverlay.status, 'unverified', 'Partial overlap is never visual approval')
+assert.ok('metrics' in alignedOverlay && alignedOverlay.metrics && 'iou' in alignedOverlay.metrics && alignedOverlay.metrics.iou === 0.24)
+assert.ok('metrics' in movedOverlay && movedOverlay.metrics && 'iou' in movedOverlay.metrics && movedOverlay.metrics.iou === 0)
+assert.ok(!('suggestedTransform' in alignedOverlay), 'Never auto-fit a partial item to a whole body')
 
 const draft = createCharacterDraft()
 assert.equal(characterMetadataStatus(draft, 'body', 'base').complete, true)

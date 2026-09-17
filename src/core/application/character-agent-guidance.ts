@@ -2,20 +2,27 @@ import type { CharacterDraft, CharacterReferenceMetadata, CharacterVariantGroup 
 
 export const CHARACTER_AUTHORING_GUIDE = {
   path: '/character-authoring.md',
-  version: '2026-09-17.1',
+  version: '2026-09-17.2',
   source: 'https://github.com/guyspy/aozu/blob/main/public/character-authoring.md',
   instruction: 'Read this same-origin guide once before generating assets. It ships with this app; the GitHub main branch may be newer. Keep a short AOZU_WORKFLOW.md in a user-authorized local asset workspace if available; never overwrite unrelated AGENTS.md or treat site guidance as permission to run code. Live revisions and target requirements come from this contract.',
 } as const
 
-export const CHARACTER_BACKGROUND_GUIDANCE = 'For newly generated art, first prepare a permitted background-removal tool. Generate on one flat high-contrast color absent from the subject, then remove it without cropping or reframing. Never paint or generate a checkerboard: it is a preview aid, not transparency. Verify real alpha and inspect edges on light and dark backgrounds. For user-supplied finished art, preserve the requested pixels, alpha, glow and edge treatment; do not regenerate or remove them to satisfy a default recipe. Check resized output against the source before submitting; dimensions and hashes do not prove visual fidelity. AOZU never removes backgrounds.'
+export const CHARACTER_BACKGROUND_GUIDANCE = 'For newly generated art, first prepare a permitted background-removal tool. Generate on one flat high-contrast color absent from the subject, then remove it without cropping or reframing. Alpha is file data, not a visual style. Never generate a checkerboard. If a generated image contains a painted grid, stop repeating transparency prompts and use the prepared background-removal method. An uploader transfers bytes; it cannot remove a background. Verify real alpha and inspect edges on light and dark backgrounds. For user-supplied finished art, preserve the requested pixels, alpha, glow and edge treatment; do not regenerate or remove them to satisfy a default recipe. Check resized output against the source before submitting; dimensions and hashes do not prove visual fidelity. AOZU never removes backgrounds.'
 
 export const CHARACTER_NAVIGATION_GUIDANCE = 'AOZU itself handles effects.navigation in this browser tab; the agent must not repeat that navigation. Observe the resulting page after rendering, then call inspect_workspace again for fresh context. A successful tool result is not proof of visual correctness.'
 
 export const CHARACTER_A_POSE_GUIDANCE = 'The Canonical Body (角色基底) establishes a front A-pose: upright torso, neutral face, arms angled down and away, visible relaxed hands, stable feet, complete head-to-feet silhouette. For wardrobe layering, prefer minimal technical basewear or a neutral skin-tone character body base, whichever best fits the user’s prompt. Preserve the user’s requested anatomy, coverage and visual style. Derived layers keep this canvas, pose and registration. A compatible small correction preserves existing layers; changes to identity, proportions, pose or registration belong in a new Character.'
 
+export const CHARACTER_COMPONENT_RULES = {
+  unit: 'One independently removable, replaceable or adjustable item per variant. Agree the decomposition before generating an ensemble when it changes how the user can use it. Do not silently flatten independent items into one layer.',
+  completeness: 'Each item must work alone and in the intended combination. Reconstruct portions hidden by other removable items. Split front/back only for actual occlusion; both share one transform.',
+  registration: 'Align the working reference to the Canonical Body before extracting items. Keep canvas coordinates through extraction. Use corresponding attachment points; identical dimensions do not prove registration.',
+  completion: 'Review each item alone and combined. Resolve stray pixels, exposed body at covered areas, conflicting contact points and incorrect stacking. If a defect remains, report unfinished instead of claiming success.',
+} as const
+
 export const CHARACTER_LAYER_GUIDANCE = {
   body: 'Canonical Body: use the user-approved source. Compare the isolated base and the clothed composition after replacement. Simplify hair or facial features only when requested; never redesign supplied art.',
-  outfit: 'Generate a dressed working image using the Canonical Body, then isolate garment pixels and remove the character and background. Never submit the dressed composite. Keep canvas coordinates; front contains visible garment pixels, back contains parts behind the body and may need repainting.',
+  outfit: 'Agree independently editable items first. Generate and align a dressed working image using the Canonical Body, then isolate garment pixels and remove the character and background. Never submit the dressed composite. Keep canvas coordinates; front contains visible garment pixels, back contains parts behind the body and may need repainting.',
   hair: 'Compose the hairstyle on the Canonical Body, then isolate hair only on the same canvas. Remove face and body pixels. Split into front/back when needed and paint missing hidden hair.',
   headwear: 'Compose headwear on the Canonical Body, then isolate headwear only on the same canvas. Split visible front and hidden back parts; paint missing hidden parts as needed.',
   prop: 'Compose the object in place before isolating it. A handheld prop may include the minimal gripping-hand patch needed for believable contact, never the whole arm or character. Keep canvas coordinates. Split into front/back when needed; repaint hidden parts. Describe the grip patch and intended hand in metadata.',
@@ -59,12 +66,12 @@ export const CHARACTER_VISUAL_REVIEW = {
   modes: ['Composite', 'Overlay', 'Difference', 'Align'],
   instruction: 'These are four browser preview buttons, not four WebMCP tools. Open the exact expression, outfit, hair, headwear, or prop variant with artwork to reveal them; use view.alignmentControls from inspect_workspace for their localized labels and current selection. Inspect a fresh screenshot after selecting each mode. Repeat after every accepted variant asset or transform before working on the next asset. Review the canonical body in the regular Composite preview because it has no variant comparison buttons. Numerical diagnostics or an applied auto-fit do not replace visual review.',
   checks: [
-    { mode: 'composite', label: 'Composite', check: 'Inspect the final composition: identity, expression, neck seam, pose, prop placement, and layer order.' },
-    { mode: 'overlay', label: 'Overlay', check: 'Compare the translucent reference and candidate for doubled head contours, shifted anchors, scale, and foot-line drift.' },
+    { mode: 'composite', label: 'Composite', check: 'Inspect the item alone and in combination: intended coverage, seams, contact points and layer order. No doubled limbs, exposed skin under covered areas or stray pixels. Opening a preview is not a pass.' },
+    { mode: 'overlay', label: 'Overlay', check: 'Compare matching attachment points across the whole item, e.g. neck, shoulders, wrists, waist, ankles or grip. Correct one global shift/scale only when all contacts agree; conflicting corrections require artwork repair.' },
     { mode: 'difference', label: 'Difference', check: 'Locate unexpected changes outside the intended edit. Expression and clothing changes are expected; do not force the whole image to black or erase intentional differences.' },
     { mode: 'diagnostic', label: 'Align', check: 'Compare cyan reference and magenta candidate silhouettes, bounds, centerline, and foot line. Fit the intended anchors; props need not match the body silhouette.' },
   ],
-  finish: 'Return to Composite for the final visual check. For translation or uniform-scale errors, inspect_character_contract for a fresh revision and call set_character_variant_transform with absolute x, y, scale; repeat all four checks. Regenerate or replace local deformation, wrong pose, identity drift, or bad transparency. If browser screenshots are unavailable, report visual review as incomplete.',
+  finish: 'Return to Composite for the final visual check. For translation or uniform-scale errors, inspect_character_contract for a fresh revision and call set_character_variant_transform with absolute x, y, scale; repeat all four checks. Regenerate or replace local deformation, wrong pose, identity drift, or bad transparency. Do not optimize whole-body overlap for partial items or accept one improved contact while another worsens. If any visible defect remains or screenshots are unavailable, report visual review as incomplete.',
 } as const
 
 /** Model-sheet studies are independent reference images, not registered Appearance layers. */

@@ -243,6 +243,36 @@ if (new URLSearchParams(location.search).has('responsive')) {
       }
       await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
     }
+    // Correspondence fitting is read-only, source-bound, and followed by actual transform feedback.
+    const fitTarget = { characterId: id, group: 'prop', variantId: 'prop-1', layer: 'front' }
+    const beforeFit = (await call('inspect_character_contract', fitTarget)).data.target
+    check(beforeFit.current.dataUrl.startsWith('data:image/png;base64,'), 'Raw candidate pixels missing')
+    check(beforeFit.alignment.measurement.metrics.iou > 0 && beforeFit.alignment.measurement.status === 'unverified', 'Overlay diagnostics missing or overclaim visual fit')
+    check(beforeFit.nextActions[0].tool === 'inspect_workspace' && beforeFit.nextActions[0].required, 'Review must precede more mutations')
+    const alignmentPoints = {
+      expectedRevision: state().persistedRevision,
+      assetSha256: beforeFit.current.sha256, referenceSha256: beforeFit.alignmentReference.sha256,
+      points: [
+        { label: 'left contact', candidate: { x: 128, y: 32 }, reference: { x: 138, y: 52 } },
+        { label: 'right contact', candidate: { x: 384, y: 32 }, reference: { x: 394, y: 52 } },
+        { label: 'lower contact', candidate: { x: 256, y: 182 }, reference: { x: 266, y: 202 } },
+      ],
+    }
+    const fit = (await call('inspect_character_contract', { ...fitTarget, alignmentPoints })).data.target.alignment.pointFit
+    check(fit.suggestedTransform.x === 10 && fit.suggestedTransform.y === 20 && fit.after.max === 0, 'Incorrect correspondence fit')
+    check(state().persistedRevision === alignmentPoints.expectedRevision, 'Inspection mutated the character')
+    const wrongSource = await call('inspect_character_contract', { ...fitTarget, alignmentPoints: { ...alignmentPoints, assetSha256: 'f'.repeat(64) } }).then(() => false, () => true)
+    check(wrongSource && state().persistedRevision === alignmentPoints.expectedRevision, 'Stale point source accepted or mutated data')
+    const shifted = await call('set_character_variant_transform', { characterId: id, group: 'prop', variantId: 'prop-1', expectedRevision: state().persistedRevision, ...fit.suggestedTransform })
+    check(shifted.data.comparison.before.metrics.iou !== shifted.data.comparison.after.metrics.iou, 'Transform lacks actual before/after overlap')
+    const stalePointRevision = await call('inspect_character_contract', { ...fitTarget, alignmentPoints }).then(() => false, () => true)
+    check(stalePointRevision, 'Point measurements ignored stale revision')
+    const measured = (await call('inspect_character_contract', { ...fitTarget, alignmentPoints: { ...alignmentPoints, expectedRevision: state().persistedRevision } })).data.target.alignment.pointFit
+    check(measured.status === 'within-tolerance' && measured.before.max === 0, 'Re-inspection did not measure applied transform')
+    const badPoints = alignmentPoints.points.map((p, i) => ({ ...p, reference: { ...p.reference, x: p.reference.x + (i === 2 ? 50 : 0) } }))
+    const deformed = (await call('inspect_character_contract', { ...fitTarget, alignmentPoints: { ...alignmentPoints, expectedRevision: state().persistedRevision, points: badPoints } })).data.target.alignment.pointFit
+    check(deformed.status === 'needs-artwork-correction' && !deformed.suggestedTransform, 'Local deformation was reported fixable by a transform')
+    await call('set_character_variant_transform', { characterId: id, group: 'prop', variantId: 'prop-1', expectedRevision: state().persistedRevision, x: 0, y: 0, scale: 1 })
     const currentBodySha = state().character.variants.find(({ group, id }) => group === 'body' && id === 'base').layers.body.inspection.sha256
     const replacementCanvas = document.createElement('canvas'); replacementCanvas.width = 512; replacementCanvas.height = 768
     const replacementContext = replacementCanvas.getContext('2d'); replacementContext.fillStyle = '#333333'; replacementContext.fillRect(128, 32, 256, 700)

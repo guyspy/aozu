@@ -13,7 +13,7 @@ import { exportLibraryArchive, importLibraryArchive } from './core/application/l
 import { createStoryboardService } from './core/application/storyboard.ts'
 import type { SettingSnapshot } from './core/domain/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
-import { CHARACTER_AUTHORING_GUIDE, CHARACTER_LAYER_GUIDANCE, characterMetadataStatus, CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
+import { CHARACTER_COMPONENT_RULES, CHARACTER_AUTHORING_GUIDE, CHARACTER_LAYER_GUIDANCE, characterMetadataStatus, CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
   CHARACTER_ALIGN_MODES,
@@ -60,7 +60,7 @@ import {
 import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
 import { changeCharacterAppearance, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
-import { highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
+import { measureCharacterPointAlignment, type CharacterAlignmentPoint, highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
 import { createCharacterWorkspaceEvents } from './adapters/browser/character-workspace-events.ts'
@@ -1033,7 +1033,7 @@ export function createApplication(document: Document) {
 
   const measureCharacterFit = async (draft: CharacterDraft, target: Pick<CharacterAssetTarget, 'group' | 'variantId' | 'layer'>) => {
     const { asset, canonical, headRegistration, transform, alignmentReference, referenceTransform } = resolveCharacterAssetSources(draft, target)
-    const measurement = asset && target.group === 'expression' ? measureCharacterMaskAlignment(
+    const measurement = asset ? measureCharacterMaskAlignment(
       target.group,
       alignmentReference ? await readCharacterAlphaMask(alignmentReference.blob) : null,
       await readCharacterAlphaMask(asset.blob),
@@ -1052,8 +1052,8 @@ export function createApplication(document: Document) {
   }
 
   const characterTarget = async (draft: CharacterDraft, revision: number, rawInput: unknown) => {
-    const input = rawInput as Partial<{ group: CharacterVariantGroup; variantId: string; layer: CharacterVariantLayer }>
-    if (!input.group && !input.variantId && !input.layer) return null
+    const input = rawInput as Partial<{ group: CharacterVariantGroup; variantId: string; layer: CharacterVariantLayer; alignmentPoints: { expectedRevision: number; assetSha256: string; referenceSha256: string; points: CharacterAlignmentPoint[] } }>
+    if (!input.group && !input.variantId && !input.layer && !input.alignmentPoints) return null
     if (!input.group || !input.variantId || !input.layer) throw new Error('Character target requires group, variantId, and layer')
     const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)
     if (!group || !group.layers.includes(input.layer) || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(input.variantId)) throw new Error('Unknown character asset target')
@@ -1068,6 +1068,8 @@ export function createApplication(document: Document) {
       ...(current && input.group !== 'body' ? ['transform' as const] : []),
     ]
     const { measurement, visualFit, fit } = await measureCharacterFit(draft, input as CharacterAssetTarget)
+    if (input.alignmentPoints && (input.alignmentPoints.expectedRevision !== revision || !asset || !current || !alignmentReference || input.group === 'body' || input.alignmentPoints.assetSha256 !== asset.inspection.sha256 || input.alignmentPoints.referenceSha256 !== alignmentReference.inspection.sha256)) throw new Error('Alignment point sources changed or are unavailable; inspect and view the exact current target and reference again')
+    const pointFit = input.alignmentPoints ? measureCharacterPointAlignment(input.alignmentPoints.points, transform) : null
     const currentBounds = asset?.inspection.visibleBounds ? transformCharacterBounds(asset.inspection.visibleBounds, transform) : undefined
     const overflow = currentBounds ? {
       left: Math.max(0, -currentBounds.x),
@@ -1151,26 +1153,31 @@ export function createApplication(document: Document) {
         : 'Try the experimental native pixel-and-edge correlation fit, then visually review the head alignment view.',
       input: { characterId: draft.id, group: input.group, variantId: input.variantId, expectedRevision: revision, ...fit.transform },
     }]
-    const mutationActions = repairAction ? [repairAction, replacementAction] : [replacementAction]
-    const nextActions = metadataAction ? [metadataAction]
-      : !current ? [replacementAction]
-      : maskFit ? fitActions
-      : fitActions.length ? [...fitActions, ...mutationActions]
-      : [...mutationActions, {
-        tool: 'navigate_workspace', required: false,
-        reason: input.group === 'body' ? 'Open the Character editor for canonical-body preflight.' : 'Open this exact variant for visual preflight.', input: {
-          resource: 'character', id: draft.id, view: categoryFor(input.group),
-          ...(input.group === 'body' ? {} : { itemId: input.variantId }),
-        },
-      }]
+    const reviewAction = {
+      tool: 'inspect_workspace', required: true,
+      reason: input.group === 'body'
+        ? 'Inspect the canonical base and the current composite. Verify preserved assets still align after a compatible replacement.'
+        : 'Open alignment.visualReview.path if needed, then observe this exact target in Composite, Overlay, Difference and Align. Resolve visible defects before the next asset; visiting modes is not a pass.',
+      input: { intent: 'character', includeSnapshot: true },
+    }
+    const pointActions = pointFit?.suggestedTransform ? [{
+      tool: 'set_character_variant_transform', required: false,
+      reason: 'Check the observed correspondences, then apply this absolute fit and re-measure the same points. It does not prove visual correctness.',
+      input: { characterId: draft.id, group: input.group, variantId: input.variantId, expectedRevision: revision, ...pointFit.suggestedTransform },
+    }] : []
+    const nextActions = metadataAction ? [metadataAction] : !current ? [replacementAction]
+      : [reviewAction, ...pointActions, ...fitActions,
+        ...(pointFit?.status === 'needs-artwork-correction' ? [{ ...replacementAction, reason: 'Observed attachment points cannot share one scale and translation. Correct the artwork; do not force a whole-body fit.' }] : []),
+        ...(repairAction ? [repairAction] : [])]
     const dependentAssetCount = input.group === 'body' && asset ? draft.variants.reduce((count, candidate) => count + (candidate.group === 'body' ? 0 : Object.values(candidate.layers).filter(Boolean).length), 0) : 0
     return {
       input: { group: input.group, variantId: input.variantId, layer: input.layer },
       allowedOperations,
       metadataStatus,
+      componentRules: CHARACTER_COMPONENT_RULES,
       workflow: {
         nextStep: !metadataStatus.complete ? 'complete-metadata' : current ? 'review-or-replace' : 'prepare-and-submit',
-        steps: ['inspect-source', 'prepare-target-pixels', 'complete-metadata', 'submit', 'align-and-review'],
+        steps: ['agree-components', 'inspect-source', 'prepare-background-removal', 'prepare-target-pixels', 'complete-metadata', 'submit', 'align-and-review'],
         instruction: CHARACTER_LAYER_GUIDANCE[input.group],
         visualReview: 'Required after every accepted change; current:true means registered, not visually reviewed or user-approved.',
       },
@@ -1178,6 +1185,7 @@ export function createApplication(document: Document) {
       current: asset ? {
         filled: true,
         current,
+        dataUrl: await readDataUrl(asset.blob),
         filename: asset.filename,
         sha256: asset.inspection.sha256,
         transform,
@@ -1263,6 +1271,15 @@ export function createApplication(document: Document) {
         protectedRegionDelta,
         autoFit: fit,
         visualFit,
+        pointFit,
+        pointComparison: {
+          tool: 'inspect_character_contract', inputField: 'alignmentPoints',
+          available: Boolean(asset && current && alignmentReference && input.group !== 'body'),
+          expectedRevision: revision,
+          assetSha256: asset?.inspection.sha256 ?? null, referenceSha256: alignmentReference?.inspection.sha256 ?? null,
+          coordinates: 'reference points on the rendered alignmentReference at 512×768; candidate points on the raw target image downscaled to 512×768, before its transform',
+          instruction: 'View both images. Supply 3–12 labelled matching attachment points spread across the item. Use actual corresponding contacts, not whole-body bounds. Read before/after residuals; never invent points to obtain a fit.',
+        },
         normalization,
         visualReview,
         registration: input.group === 'expression' ? {
@@ -1283,7 +1300,10 @@ export function createApplication(document: Document) {
 
   async function inspectCharacterContract(rawInput: unknown) {
       const { characterId, scope = 'appearance', ...targetInput } = rawInput as { characterId: string; scope?: 'appearance' | 'model-sheet' }
-      if (scope === 'model-sheet') return inspectModelSheetContract(rawInput)
+      if (scope === 'model-sheet') {
+        if ('alignmentPoints' in targetInput) throw new Error('Alignment points require scope:appearance and an exact target')
+        return inspectModelSheetContract(rawInput)
+      }
       if (['referenceId', 'images', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].some((key) => key in targetInput)) throw new Error('Reference inputs require scope:model-sheet')
       const { character: draft, version } = await editor.view(characterId)
       const canonical = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body
@@ -1688,6 +1708,8 @@ export function createApplication(document: Document) {
       }
       await editor.open(input.characterId)
       const { character: current } = activeCharacter()
+      const measuredLayer = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)?.layers.find((layer) => current.variants.find((v) => v.group === input.group && v.id === input.variantId)?.layers[layer])
+      const beforeMeasurement = measuredLayer ? (await measureCharacterFit(current, { ...input, layer: measuredLayer })).measurement : null
       const before = current.variants.find(({ group, id }) => group === input.group && id === input.variantId)?.transform ?? { x: 0, y: 0, scale: 1 }
       const calibratesHead = input.group === 'expression' && current.headRegistration?.variantId === input.variantId
       await editor.dispatch((character) => setCharacterVariantTransform(character, input.group, input.variantId, {
@@ -1707,6 +1729,7 @@ export function createApplication(document: Document) {
           target: { group: input.group, variantId: input.variantId },
           before,
           after: variant.transform,
+          comparison: { before: beforeMeasurement, after: specification?.alignment.measurement, interpretation: 'Descriptive overlap only for partial overlays; use corresponding attachment points and visual review to judge fit.' },
           rebasedVariantIds: calibratesHead ? draft.variants.filter((candidate) =>
             candidate.group === 'expression' && candidate.id !== input.variantId && isCharacterDraftAssetCurrent(draft, candidate, 'head')
           ).map(({ id }) => id) : [],

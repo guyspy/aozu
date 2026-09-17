@@ -27,6 +27,46 @@ type MaskStats = { bounds?: Bounds; visiblePixels: number; edgeTouchPixels: numb
 
 const round = (value: number) => Math.round(value * 10_000) / 10_000
 
+export type CharacterAlignmentPoint = { label: string; reference: { x: number; y: number }; candidate: { x: number; y: number } }
+
+/** Fit observed corresponding points, never a partial overlay's bounds to a whole body. */
+export function measureCharacterPointAlignment(points: CharacterAlignmentPoint[], current: CharacterVariantTransform = IDENTITY_CHARACTER_TRANSFORM) {
+  if (!Array.isArray(points) || points.length < 3 || points.length > 12 || new Set(points.map((point) => point?.label)).size !== points.length) throw new Error('Supply 3–12 uniquely labelled corresponding points')
+  for (const point of points) {
+    if (typeof point.label !== 'string' || !point.label.trim() || point.label.length > 80) throw new Error('Every alignment point needs a meaningful label')
+    for (const position of [point.reference, point.candidate]) {
+      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 0 || position.x > CHARACTER_RIG.canvas.width || position.y < 0 || position.y > CHARACTER_RIG.canvas.height) throw new Error('Alignment points must use the 512×768 canvas coordinates')
+    }
+  }
+  const mean = (side: 'reference' | 'candidate', axis: 'x' | 'y') => points.reduce((sum, point) => sum + point[side][axis], 0) / points.length
+  const reference = { x: mean('reference', 'x'), y: mean('reference', 'y') }
+  const candidate = { x: mean('candidate', 'x'), y: mean('candidate', 'y') }
+  let variance = 0, covariance = 0
+  for (const point of points) for (const axis of ['x', 'y'] as const) {
+    const delta = point.candidate[axis] - candidate[axis]
+    variance += delta ** 2
+    covariance += delta * (point.reference[axis] - reference[axis])
+  }
+  if (variance / points.length < 16 ** 2) throw new Error('Spread alignment points across the item; clustered points cannot establish scale')
+  const scale = covariance / variance
+  const fitted = { scale: round(scale), x: round(reference.x - candidate.x * scale), y: round(reference.y - candidate.y * scale) }
+  const residuals = (transform: CharacterVariantTransform) => {
+    const errors = points.map((point) => ({ label: point.label,
+      dx: round(point.candidate.x * transform.scale + transform.x - point.reference.x),
+      dy: round(point.candidate.y * transform.scale + transform.y - point.reference.y),
+    }))
+    return { points: errors, rms: round(Math.sqrt(errors.reduce((sum, point) => sum + point.dx ** 2 + point.dy ** 2, 0) / errors.length)),
+      max: round(Math.max(...errors.map((point) => Math.hypot(point.dx, point.dy)))) }
+  }
+  const before = residuals(current), after = residuals(fitted)
+  let supported = true
+  try { validateCharacterVariantTransform(fitted) } catch { supported = false }
+  const status = !supported || after.max > 4 ? 'needs-artwork-correction' : before.max <= 4 ? 'within-tolerance' : 'suggested'
+  return { status, basis: 'agent-observed-correspondences', tolerancePx: 4, before, after,
+    suggestedTransform: status === 'suggested' ? fitted : null,
+    instruction: 'These residuals measure supplied points, not image truth. Verify the correspondence on both images and all unmeasured attachment points. Re-inspect with the same raw candidate points after applying a transform. Conflicting residuals require correcting artwork, not forcing overlap.' }
+}
+
 const characterEditWeight = (region: CharacterEditableRegion, x: number, y: number) => {
   const shape = region.shape
   const distance = (1 - Math.hypot((x - shape.cx) / shape.rx, (y - shape.cy) / shape.ry)) * Math.min(shape.rx, shape.ry)
@@ -206,7 +246,8 @@ export function inspectCharacterAssetOwnership(
       overlayCoverage,
       overlapPixels,
     }
-    return { status: 'valid' as const, bodyCoverage, overlayCoverage, overlapPixels }
+    return { status: 'unverified' as const, bodyCoverage, overlayCoverage, overlapPixels,
+      message: 'No complete-character heuristic triggered. Pixel ownership and visual alignment still require review.' }
   }
   return { status: 'valid' as const }
 }
@@ -276,16 +317,17 @@ export function measureCharacterMaskAlignment(
       diagnostics: [{ code: 'ALPHA_TOUCHES_CANVAS_EDGE', severity: 'error' as const, message: `${rawStats.edgeTouchPixels} visible alpha pixels touch the canvas edge.` }],
     }
   }
-  if (group === 'prop' || group === 'body') {
+  if (group === 'body') {
     return {
-      status: group === 'prop' ? 'unverified' as const : 'aligned' as const,
+      status: 'aligned' as const,
       metrics: { candidateBounds: rawStats.bounds, edgeTouchPixels: rawStats.edgeTouchPixels },
       diagnostics: rawStats.edgeTouchPixels ? [{ code: 'ALPHA_TOUCHES_CANVAS_EDGE', severity: 'warning' as const, message: `${rawStats.edgeTouchPixels} visible alpha pixels touch the canvas edge; verify that this is intentional.` }] : [],
     }
   }
   if (group !== 'expression') return {
     status: 'unverified' as const,
-    metrics: { candidateBounds: rawStats.bounds, edgeTouchPixels: rawStats.edgeTouchPixels },
+    metrics: reference ? compareMasks(transformMask(reference, referenceTransform), transformMask(candidate, transform)) : { candidateBounds: rawStats.bounds, edgeTouchPixels: rawStats.edgeTouchPixels },
+    comparison: 'partial-overlay-to-reference: overlap is descriptive only; center and bottom-edge deltas are not attachment errors. Never maximize whole-body IoU for a partial item.',
     diagnostics: [{ code: 'OVERLAY_VISUAL_REVIEW_REQUIRED', severity: 'warning' as const, message: 'Registered overlays are verified in the browser Composite, Overlay, Difference, and Align views; their alpha shape must not be fitted to the body silhouette.' }],
   }
   if (!reference) return {
