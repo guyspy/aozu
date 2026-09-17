@@ -224,18 +224,24 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const gym = state().character.activeAppearanceId
     check(state().character.appearances[0].modelSheet.references['t-pose'] && !state().character.modelSheet.views.front, 'Default Appearance failed to adopt references')
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 768
-    for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front']]) {
+    for (const [group, variantId, layer] of [['body', 'base', 'body'], ['prop', 'prop-1', 'front'], ['outfit', 'shirt-1', 'front']]) {
       const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 512, 768); ctx.fillStyle = group === 'body' ? '#222222' : '#ff0000'; ctx.fillRect(128, 32, 256, group === 'body' ? 700 : 150)
       const layerPng = canvas.toDataURL('image/png')
       const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await (await fetch(layerPng)).arrayBuffer())), (byte) => byte.toString(16).padStart(2, '0')).join('')
       const payload = group === 'body' ? { dataUrl: layerPng, dataSha256: sha256 } : { dataUrl: layerPng }
-      if (group === 'prop') {
+      let acceptedPreflightPoints
+      if (group !== 'body') {
         const contract = (await call('inspect_character_contract', { characterId: id, group, variantId, layer })).data
-        check(contract.target.metadataStatus.missing.includes('description') && contract.target.workflow.nextStep === 'complete-metadata', 'Prop metadata gap was hidden')
+        check(contract.target.metadataStatus.missing.includes('description') && contract.target.workflow.nextStep === 'complete-metadata', 'Variant metadata gap was hidden')
         const before = state().persistedRevision
         const rejected = await call('replace_character_asset', { characterId: id, expectedRevision: before, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload }).then(() => false, (error) => error.message.includes('Complete variant metadata'))
         check(rejected && state().persistedRevision === before, 'Missing metadata changed artwork or revision')
-        const completed = await call('update_character_variant_metadata', { characterId: id, expectedRevision: before, group, variantId, label: 'Test handheld prop', description: 'Red prop with a minimal right-hand grip patch.', tags: ['handheld', 'red'] })
+        const completed = await call('update_character_variant_metadata', { characterId: id, expectedRevision: before, group, variantId,
+          label: group === 'prop' ? 'Test handheld prop' : 'Test shirt',
+          description: group === 'prop' ? 'Red prop with a minimal right-hand grip patch.' : 'Red registered upper-body garment.',
+          tags: group === 'prop' ? ['handheld', 'red'] : ['shirt', 'red'],
+          ...(group === 'outfit' ? { outfit: { slot: 'top', garmentType: 'shirt' } } : {}),
+        })
         for (const action of [...contract.target.nextActions, ...completed.nextActions]) check(registered.has(action.tool), `Unregistered next action: ${action.tool}`)
         const next = (await call('inspect_character_contract', { characterId: id, group, variantId, layer })).data
         check(next.target.metadataStatus.complete && next.target.workflow.nextStep === 'prepare-and-submit', 'Metadata completion did not advance the live contract')
@@ -249,18 +255,29 @@ if (new URLSearchParams(location.search).has('responsive')) {
             { label: 'lower contact', candidate: { x: 256, y: 182 }, reference: { x: 266, y: 202 } },
           ],
         }
+        if (group === 'outfit') {
+          const withoutPoints = await call('inspect_character_contract', { characterId: id, group, variantId, layer,
+            candidate: { filename: `${variantId}.png`, ...payload } })
+          check(!withoutPoints.data.candidatePreflight.canSubmit && withoutPoints.data.candidatePreflight.rejection.code === 'ALIGNMENT_POINTS_REQUIRED', 'Registered outfit preflight accepted missing alignment points')
+        }
         const preflight = await call('inspect_character_contract', { characterId: id, group, variantId, layer,
           candidate: { filename: `${variantId}.png`, ...payload, preflightPoints } })
         check(preflight.data.candidatePreflight.persisted === false && preflight.data.candidatePreflight.canSubmit, 'Candidate preflight did not pass usable pixels')
         check(preflight.data.candidatePreflight.previewDataUrl.startsWith('data:image/png;base64,') && preflight.data.candidatePreflight.alignment.pointFit.after.max === 0, 'Candidate preflight omitted normalized pixels or point fit')
+        check(preflight.nextActions[0].input.preflightPoints?.points.length === 3, 'Candidate preflight dropped alignment evidence before submission')
         check(state().persistedRevision === preflightRevision, 'Candidate preflight mutated the Character')
         const conflicting = preflightPoints.points.map((point, index) => ({ ...point, reference: { ...point.reference, x: point.reference.x + (index === 2 ? 50 : 0) } }))
         const blocked = await call('inspect_character_contract', { characterId: id, group, variantId, layer,
           candidate: { filename: `${variantId}.png`, ...payload, preflightPoints: { ...preflightPoints, points: conflicting } } })
         check(!blocked.data.candidatePreflight.canSubmit && blocked.data.candidatePreflight.status === 'needs-artwork-correction' && !blocked.nextActions.length, 'Candidate deformation was allowed to proceed')
         check(state().persistedRevision === preflightRevision, 'Rejected candidate preflight mutated the Character')
+        if (group === 'outfit') {
+          const missingPoints = await call('replace_character_asset', { characterId: id, expectedRevision: preflightRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload }).then(() => false, (error) => error.message.includes('require 3–12 observed alignment points'))
+          check(missingPoints && state().persistedRevision === preflightRevision, 'Registered outfit replacement bypassed alignment points')
+          acceptedPreflightPoints = preflightPoints
+        }
       }
-      await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload })
+      await call('replace_character_asset', { characterId: id, expectedRevision: state().persistedRevision, expectedAssetSha256: null, group, variantId, layer, label: variantId, filename: `${variantId}.png`, ...payload, ...(acceptedPreflightPoints ? { preflightPoints: acceptedPreflightPoints } : {}) })
     }
     // Correspondence fitting is read-only, source-bound, and followed by actual transform feedback.
     const fitTarget = { characterId: id, group: 'prop', variantId: 'prop-1', layer: 'front' }
@@ -307,7 +324,10 @@ if (new URLSearchParams(location.search).has('responsive')) {
     for (const action of rebased.nextActions) check(registered.has(action.tool), `Unregistered next action: ${action.tool}`)
     check(rebased.data.workflow.nextStep === 'align-and-review', 'Acceptance skipped visual review')
     const replacementSha = state().character.variants.find(({ group, id }) => group === 'body' && id === 'base').layers.body.inspection.sha256
-    check(rebased.data.rebasedDerivedAssets === 1 && state().character.variants.find(({ group, id }) => group === 'prop' && id === 'prop-1').layers.front.canonicalSha256 === replacementSha, 'Explicit body rebase lost a registered layer')
+    check(rebased.data.rebasedDerivedAssets === 2 && ['prop:prop-1', 'outfit:shirt-1'].every((key) => {
+      const [group, id] = key.split(':')
+      return state().character.variants.find((variant) => variant.group === group && variant.id === id).layers.front.canonicalSha256 === replacementSha
+    }), 'Explicit body rebase lost a registered layer')
     // The visible uploader uses the same guard and preserves dependent art on confirmation.
     await ready(() => document.querySelector('input[data-webmcp-upload="character-asset"][data-group="body"]'))
     const uploadBody = () => {

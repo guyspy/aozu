@@ -110,6 +110,8 @@ assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /wearing underwear/)
 const replaceSchema = registered.get('replace_character_asset')!.inputSchema
 assert.ok(!replaceSchema.properties.base64Chunks && replaceSchema.properties.dataSha256)
 assert.equal(replaceSchema.properties.rebaseDerivedAssets.type, 'boolean')
+assert.equal(replaceSchema.properties.preflightPoints.properties.points.minItems, 3)
+assert.match(registered.get('replace_character_asset')!.description, /require the same preflightPoints/)
 assert.ok(replaceSchema.required.includes('dataUrl'))
 for (const tool of registered.values()) {
   if (!tool.annotations.readOnlyHint) assert.match(tool.description, /AOZU itself handles effects.navigation/)
