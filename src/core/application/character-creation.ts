@@ -629,7 +629,7 @@ export function resolveCharacterAssetSources(
     transform,
     alignmentReference: input.group === 'expression' && headRegistration?.variant.id !== input.variantId
       ? expressionReference
-      : ['outfit', 'hair', 'headwear'].includes(input.group) ? canonical : undefined,
+      : ['outfit', 'hair', 'headwear', 'prop'].includes(input.group) ? canonical : undefined,
     referenceTransform: input.group === 'expression' ? headRegistration?.transform : undefined,
     editSource: current && input.group === 'expression' ? asset : undefined,
     editSourceTransform: current && input.group === 'expression' ? transform : undefined,

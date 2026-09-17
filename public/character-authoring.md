@@ -1,6 +1,6 @@
 # AOZU character authoring
 
-Guide version: 2026-09-17.1
+Guide version: 2026-09-17.2
 
 Read this guide once before creating assets. This same-origin document ships with
 the running app; GitHub `main` may be newer. Inspect the live WebMCP contract for
@@ -27,7 +27,8 @@ artwork determine the design. Product defaults never authorize changing that art
 2. `inspect_character_contract` for the exact group, variantId and layer. Actually
    view the source PNG and placement reference before generating. Follow the
    target's workflow and metadataStatus.
-3. Prepare final target-owned pixels, keeping the full canvas and registration.
+3. Agree independently editable components, prepare a working background-removal method,
+   then prepare final target-owned pixels, keeping the full canvas and registration.
 4. Use `update_character_variant_metadata` to complete metadata. Re-inspect for a
    fresh revision; never reuse the revision from before a metadata edit.
 5. Submit with `replace_character_asset`. Use `repair_character_asset` only for
@@ -55,7 +56,9 @@ variants separable when useful; do not remove features from approved source art.
 
 For newly generated art, prepare a permitted background-removal tool first.
 Generate on one flat high-contrast color absent from the subject, then remove the
-background. Never generate a checkerboard; a burned-in grid is not transparency.
+background. Alpha is file data, not a visual style. Never generate a checkerboard.
+If a generation paints a grid, stop retrying transparency prompts and use the
+prepared removal method. A PNG uploader transfers bytes; it does not remove backgrounds.
 Verify genuine RGBA, visible pixels, real alpha and edges on light/dark backgrounds.
 AOZU does not generate images or remove backgrounds.
 
@@ -67,6 +70,51 @@ standard generation recipe. Keep the original file. The generation canvas is
 texture and translucent edges. Compare the finalized PNG visually to the source;
 a correct hash and size alone are not visual acceptance. Do not repeatedly try
 filters or redesign the art without understanding the difference.
+
+## Atomic asset rules
+
+One independently removable, replaceable or adjustable item is one variant.
+Agree the decomposition before generating an ensemble when it affects usage.
+Do not silently flatten independently usable items. Describe each item and its
+intended contacts and stacking in metadata, using the existing fields.
+
+An item must work alone and combined. Extracting only what is visible in a
+working composition is insufficient when another removable item hides part of
+it: reconstruct that hidden portion. Front/back describes occlusion around the
+character, not separate garments. Both planes share the variant transform.
+
+## Alignment feedback
+
+Align the working composition before extraction. Compare intended attachment
+points across the item, not just one edge. Preserve the full canvas afterwards.
+All overlay inspections and transform results report descriptive overlap with
+the reference. Partial items do not share the body's silhouette: low IoU is not
+failure, high IoU is not approval, and the reported bottom-edge delta is not a
+shoe-placement error unless the images actually share that foot contact.
+
+For a shifted/scaled item, view the returned raw `current.dataUrl` and
+`alignmentReference` images. Existing `inspect_character_contract` accepts
+`alignmentPoints` with the inspected `expectedRevision`, `assetSha256`,
+`referenceSha256` and 3–12
+uniquely labelled pairs of `{reference:{x,y}, candidate:{x,y}}`. Coordinates use
+the final 512×768 canvas: reference points on the reference after its reported
+transform; candidate points before the candidate's current transform. Spread
+observed corresponding contacts across the item, never invent them to get a fit.
+
+`alignment.pointFit` reports current and best-fit per-point residuals in pixels,
+RMS/max error, and a suggested absolute transform when one uniform scale and
+translation fits every supplied point within 4 px. This tolerance only describes
+those observations, not the image's quality. Apply a suggestion through the
+existing transform tool, then inspect again with the same raw points and review
+all four modes. Above tolerance, correct the artwork; don't force the entire
+item just to improve one contact. Stale source hashes are rejected.
+
+If contacts cannot be identified reliably, the fit is unavailable: inspect the
+working reference or correct the artwork. Never substitute whole-body bounds.
+Visual acceptance requires the item alone and combined to have correct coverage,
+contact and stacking, without doubled limbs, stray pixels or exposed skin where
+clothing should cover it. Visiting four preview modes is not proof of passing.
+Report unfinished work honestly when defects remain.
 
 ## Clothes, hair, headwear and props
 

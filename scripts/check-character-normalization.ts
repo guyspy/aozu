@@ -107,7 +107,7 @@ assert.equal(shiftedHead.status === 'invalid' && shiftedHead.code, 'PIXELS_OUTSI
 const completeSkin = mask(bounds(150, 80, 220, 650))
 const garment = mask(bounds(150, 300, 220, 180))
 assert.equal(inspectCharacterAssetOwnership('outfit', completeSkin, { bodyMask: completeSkin }).status, 'invalid')
-assert.equal(inspectCharacterAssetOwnership('outfit', garment, { bodyMask: completeSkin }).status, 'valid')
+assert.equal(inspectCharacterAssetOwnership('outfit', garment, { bodyMask: completeSkin }).status, 'unverified')
 assert.equal(measureCharacterMaskAlignment('outfit', completeSkin, garment).status, 'unverified')
 // One shared read of the existing diagnostics decides the fit the editor offers and WebMCP reports.
 assert.deepEqual(suggestCharacterFit({ measurement: measureCharacterMaskAlignment('expression', mask(head), mask(head)) }), { status: 'aligned' })

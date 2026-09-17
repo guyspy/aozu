@@ -15,7 +15,7 @@ import {
 import { CHARACTER_ALIGN_MODES, CHARACTER_OUTFIT_SLOTS, CHARACTER_REFERENCE_KINDS, CHARACTER_REFERENCE_VIEWS, CHARACTER_RESIZE_MODES, CHARACTER_RIG, CHARACTER_VARIANT_GROUPS } from '../domain/character.ts'
 import { MAX_REFERENCE_BYTES, MAX_REFERENCE_DIMENSION } from '../application/character-model-sheet.ts'
 import { compileBundle } from '../bundle.ts'
-import { CHARACTER_A_POSE_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
+import { CHARACTER_NAVIGATION_GUIDANCE } from '../application/character-agent-guidance.ts'
 
 const source = (sourceId: string, manifest: object): ManifestSource => ({
   sourceId,
@@ -85,7 +85,7 @@ const pngPayloadProperties = {
   dataSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
 } satisfies Record<string, JsonSchema>
 
-const PNG_WEBMCP_TRANSFER_GUIDANCE = 'In ChatGPT Browser Use host JavaScript, read the trusted local PNG with node:fs/promises, keep its Buffer in memory, build one data:image/png;base64 dataUrl, and pass it directly to this WebMCP call. Never print or route base64 through model text, terminal output, or the clipboard. If host file access is unavailable or the first decode fails, stop and use the browser-file-chooser fallback returned by inspect_character_contract.'
+const PNG_WEBMCP_TRANSFER_GUIDANCE = 'Pass one complete dataUrl directly from host file bytes; never print or route base64 through model text. Follow the inspected assetTransfer toolkit; use its browser-file-chooser fallback if host access is unavailable or decoding fails.'
 
 const stageProjectionSchema = objectSchema({
   stageId: { type: 'string', minLength: 1 },
@@ -853,7 +853,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/inspect-character-contract.yaml',
     envelope('Procedure', 'inspect-character-contract', {
       title: 'Inspect Character Contract',
-      description: `Read authoringGuide once, then inspect one exact target before changing Character art. scope:appearance returns the Canonical Body, live revision/hash, workflow, metadataStatus, ownership, PNG transport and visual checks. Follow the returned next action; refresh after every mutation. Outfits are garment-only transparent overlays; dressed images are working references only. Facial Variants cover makeup, face paint, facial hair and other facial appearances, each with consistent complete expression heads. For scope:model-sheet, request images:[appearance|canonical|referenceId] to actually view references and follow generationGuidance; references retain their original dimensions. Appearance is a saved combination sharing the same Canonical Body, not a new Character. Major base redesigns require a new Character. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Inspect the exact target before edits. Read authoringGuide once; follow workflow, metadataStatus, generationGuidance and review feedback. scope:appearance returns source images, hashes and overlap diagnostics; optional alignmentPoints fits observed correspondences without mutation. scope:model-sheet with images requests original reference images. Refresh after edits. Stored and visually verified are distinct.`,
       input: {
         ...objectSchema({
           characterId: { type: 'string', minLength: 1 },
@@ -861,6 +861,16 @@ const ALL_BACKBONE_SOURCES = [
           variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
           layer: { enum: ['body', 'head', 'back', 'front'] },
           scope: { enum: ['appearance', 'model-sheet'] },
+          alignmentPoints: objectSchema({
+            expectedRevision: { type: 'integer', minimum: 0 },
+            assetSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+            referenceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+            points: { type: 'array', minItems: 3, maxItems: 12, items: objectSchema({
+              label: { type: 'string', minLength: 1, maxLength: 80 },
+              reference: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
+              candidate: objectSchema({ x: { type: 'number', minimum: 0, maximum: 512 }, y: { type: 'number', minimum: 0, maximum: 768 } }, ['x', 'y']),
+            }, ['label', 'reference', 'candidate']) },
+          }, ['expectedRevision', 'assetSha256', 'referenceSha256', 'points']),
           referenceId: referenceIdSchema,
           ...referenceMetadataProperties,
           images: { type: 'array', maxItems: 5, uniqueItems: true, items: referenceIdSchema },
@@ -907,7 +917,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/update-character-variant-metadata.yaml',
     envelope('Procedure', 'update-character-variant-metadata', {
       title: 'Update Character Variant Metadata',
-      description: `Complete one asset's metadata before submitting pixels: a meaningful label, description and tags. Add sourceSha256 only for the known primary reference image; it is not the uploaded output checksum. Outfits also require outfit.slot and garmentType; slots describe clothing without limiting combinations. Facial Variants use faceStyle/faceStyleId: describe makeup, face paint, facial hair or other facial appearance in faceStyle.description/tags, with optional facialHair details. Create a distinct neutral and requested expression set for each variant; do not relabel existing artwork as a different face. Props may include a minimal gripping-hand patch; describe the hand/contact and front/back split. Omitted fields stay unchanged. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Describe one independently editable item before its pixels: label, description, tags and known sourceSha256. Outfits need slot and garmentType. Facial Variants use faceStyle/faceStyleId and complete expression heads. Omitted fields stay unchanged. Follow the inspected decomposition rules; do not combine independent items without user agreement. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         expectedRevision: { type: 'integer', minimum: 0 },
@@ -966,7 +976,7 @@ const ALL_BACKBONE_SOURCES = [
     'authoring/replace-character-asset.yaml',
     envelope('Procedure', 'replace-character-asset', {
       title: 'Replace Character Asset',
-      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Install the final target layer after inspect_character_contract and complete metadataStatus. ${CHARACTER_A_POSE_GUIDANCE} body is the Canonical Body; expression is one complete aligned head for its Facial Variant; outfit is garment pixels only; hair and headwear contain only their own pixels. A dressed working image is temporary: never submit that intermediate or any body pixels to Wardrobe. Props may contain a minimal gripping-hand patch. Overlays use registered front/back layers. Follow backgroundPreparation unless the user explicitly wants the submitted alpha, glow, or edge treatment preserved. For a compatible small base correction, use rebaseDerivedAssets: true to retain existing pixels, transforms and selections. Changed identity, proportions, pose or registration requires a new Character; false cannot invalidate dependent artwork. Supply one complete dataUrl and optional dataSha256. PNG must be genuine RGBA at ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}, or use the inspected normalization; AOZU never removes backgrounds. Review the isolated base or Composite, Overlay, Difference, and Align for overlays after acceptance. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `${PNG_WEBMCP_TRANSFER_GUIDANCE} Replace one target-owned layer after inspecting its contract and completing metadataStatus. Preserve the inspected canvas and pixel ownership; outfit is garment pixels only. Use rebaseDerivedAssets:true only for compatible small base corrections. Accepted means stored; follow alignment.visualReview before continuing. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: CHARACTER_VARIANT_GROUPS },
