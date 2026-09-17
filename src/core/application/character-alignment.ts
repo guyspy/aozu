@@ -229,24 +229,30 @@ export function inspectCharacterAssetOwnership(
     let bodyPixels = 0
     let overlayPixels = 0
     let overlapPixels = 0
+    let headPixels = 0
     for (let index = 0; index < placed.alpha.length; index++) {
       const body = options.bodyMask.alpha[index]! > 16
       const overlay = placed.alpha[index]! > 16
       if (body) bodyPixels++
-      if (overlay) overlayPixels++
+      if (overlay) {
+        overlayPixels++
+        const x = index % placed.width, y = Math.floor(index / placed.width)
+        if (options.headBounds && x >= options.headBounds.x && x < options.headBounds.x + options.headBounds.width && y >= options.headBounds.y && y < options.headBounds.y + options.headBounds.height) headPixels++
+      }
       if (body && overlay) overlapPixels++
     }
     const bodyCoverage = bodyPixels ? overlapPixels / bodyPixels : 0
     const overlayCoverage = overlayPixels ? overlapPixels / overlayPixels : 0
-    if (bodyCoverage >= 0.85 && overlayCoverage >= 0.75) return {
+    const headCoverage = options.headBounds ? headPixels / (options.headBounds.width * options.headBounds.height) : null
+    if (bodyCoverage >= 0.85 && overlayCoverage >= 0.75 && (group !== 'outfit' || headCoverage === null || headCoverage >= 0.25)) return {
       status: 'invalid' as const,
       code: 'OVERLAY_CONTAINS_COMPLETE_CHARACTER',
       message: 'This looks like a complete dressed character. Submit only the garment or style pixels on the registered transparent canvas; never put body pixels or the dressed intermediate in this slot.',
       bodyCoverage,
-      overlayCoverage,
+      overlayCoverage, headCoverage,
       overlapPixels,
     }
-    return { status: 'unverified' as const, bodyCoverage, overlayCoverage, overlapPixels,
+    return { status: 'unverified' as const, bodyCoverage, overlayCoverage, headCoverage, overlapPixels,
       message: 'No complete-character heuristic triggered. Pixel ownership and visual alignment still require review.' }
   }
   return { status: 'valid' as const }
