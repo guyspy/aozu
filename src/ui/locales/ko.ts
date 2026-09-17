@@ -110,6 +110,10 @@ export const ko: Messages= {
     "backToVariants": "변형 목록으로",
     "variantLabel": "변형 이름",
     "editVariant": "{{name}} 편집",
+    "deleteVariant": "{{name}} 삭제",
+    "deleteVariantTitle": "이 변형을 삭제할까요?",
+    "deleteVariantDescription": "‘{{name}}’이(가) 저장된 모든 외형에서 제거됩니다. 저장 후에는 되돌릴 수 없습니다.",
+    "deleteVariantAction": "변형 삭제",
     "none": "없음",
     "status": {
       "saving": "저장 중…",

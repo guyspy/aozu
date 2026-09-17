@@ -1,6 +1,6 @@
 # AOZU character authoring
 
-Guide version: 2026-09-17.2
+Guide version: 2026-09-17.3
 
 Read this guide once before creating assets. This same-origin document ships with
 the running app; GitHub `main` may be newer. Inspect the live WebMCP contract for
@@ -54,11 +54,15 @@ For layering, prefer minimal technical basewear or a neutral skin-tone character
 body base, according to the user's brief. Keep optional hairstyles and facial
 variants separable when useful; do not remove features from approved source art.
 
-AOZU accepts only genuine RGBA PNG layers. For newly generated art, prepare a
-permitted background-removal tool available in the environment first—for example
-Apple Vision foreground masking on macOS, an image editor, or a local image-processing library.
-Generate on one flat high-contrast color absent from the subject, then remove the
-background. Alpha is file data, not a visual style. Never generate a checkerboard.
+AOZU accepts only genuine RGBA PNG layers. For newly generated art, first use this
+background-removal prompt in the image editor: “Remove this image’s background.
+Keep all foreground subjects unchanged and complete, with clean, smooth edges. Set
+the background to transparent.” The official Chinese wording is: “移除此圖像的背景。
+保持所有前景主體不變且完整，邊緣乾淨平滑。將背景設為透明。” If direct removal is
+unavailable, generate on one flat high-contrast color absent from the subject, then
+use a permitted background-removal tool available in the environment—for example
+Apple Vision foreground masking on macOS, an image editor, or a local image-processing
+library. Alpha is file data, not a visual style. Never generate a checkerboard.
 If a generation paints a grid, stop retrying transparency prompts and use the
 prepared removal method. A PNG uploader transfers bytes; it does not remove backgrounds.
 Verify genuine RGBA, visible pixels, real alpha and edges on light/dark backgrounds.
@@ -73,8 +77,10 @@ as the visual safenet; mechanical coverage is not visual approval.
 
 For finished user-supplied art, preserve intentional alpha, glow, texture and
 edge treatment. Do not perform background removal merely because it is the
-standard generation recipe. Keep the original file. The generation canvas is
-1024×1536 and the current layer canvas is 512×768. Optional
+standard generation recipe. Keep the original file. Reference retrieval preserves
+the stored file and its dimensions; an image generator may choose its own output
+size. The generation canvas is intentionally 1024×1536 (2×) and the current layer
+canvas is 512×768. Inspect dimensions instead of assuming the reference was doubled. Optional
 `exact-aspect-downscale` never crops or reframes, but resampling can change fine
 texture and translucent edges. Compare the finalized PNG visually to the source;
 a correct hash and size alone are not visual acceptance. Do not repeatedly try

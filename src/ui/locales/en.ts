@@ -83,6 +83,10 @@ export const en = {
     backToVariants: 'Back to variants',
     variantLabel: 'Variant name',
     editVariant: 'Edit {{name}}',
+    deleteVariant: 'Delete {{name}}',
+    deleteVariantTitle: 'Delete this variant?',
+    deleteVariantDescription: '“{{name}}” will be removed from every saved appearance. This cannot be undone after it is saved.',
+    deleteVariantAction: 'Delete variant',
     none: 'None',
     status: {
       saving: 'Saving…',

@@ -110,6 +110,10 @@ export const fr: Messages= {
     "backToVariants": "Retour aux variantes",
     "variantLabel": "Nom de la variante",
     "editVariant": "Modifier {{name}}",
+    "deleteVariant": "Supprimer {{name}}",
+    "deleteVariantTitle": "Supprimer cette variante ?",
+    "deleteVariantDescription": "« {{name}} » sera supprimé de toutes les apparences enregistrées. Cette action sera irréversible après l’enregistrement.",
+    "deleteVariantAction": "Supprimer la variante",
     "none": "Aucune",
     "status": {
       "saving": "Enregistrement…",

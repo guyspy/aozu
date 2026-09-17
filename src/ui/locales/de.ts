@@ -110,6 +110,10 @@ export const de: Messages= {
     "backToVariants": "Zurück zu den Varianten",
     "variantLabel": "Name der Variante",
     "editVariant": "{{name}} bearbeiten",
+    "deleteVariant": "{{name}} löschen",
+    "deleteVariantTitle": "Diese Variante löschen?",
+    "deleteVariantDescription": "„{{name}}“ wird aus allen gespeicherten Erscheinungsbildern entfernt. Nach dem Speichern kann dies nicht rückgängig gemacht werden.",
+    "deleteVariantAction": "Variante löschen",
     "none": "Keine",
     "status": {
       "saving": "Wird gespeichert…",

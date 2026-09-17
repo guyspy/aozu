@@ -110,6 +110,10 @@ export const ja: Messages= {
     "backToVariants": "バリエーション一覧へ戻る",
     "variantLabel": "バリエーション名",
     "editVariant": "{{name}} を編集",
+    "deleteVariant": "{{name}} を削除",
+    "deleteVariantTitle": "このバリエーションを削除しますか？",
+    "deleteVariantDescription": "「{{name}}」は保存済みのすべての外観から削除されます。保存後は元に戻せません。",
+    "deleteVariantAction": "バリエーションを削除",
     "none": "なし",
     "status": {
       "saving": "保存中…",

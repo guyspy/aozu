@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { CHARACTER_AUTHORING_GUIDE, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
 import { createCharacterDraft, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { measureCharacterPointAlignment, measureCharacterMaskAlignment, type CharacterAlignmentPoint } from '../src/core/application/character-alignment.ts'
 
@@ -62,6 +62,8 @@ assert.deepEqual(edited.faceStyles.at(-1)?.tags, ['makeup'], 'Partial facial met
 
 const guide = readFileSync(`public${CHARACTER_AUTHORING_GUIDE.path}`, 'utf8')
 assert.ok(guide.includes(`Guide version: ${CHARACTER_AUTHORING_GUIDE.version}`), 'Live guide and contract version drifted')
+assert.ok(CHARACTER_BACKGROUND_GUIDANCE.includes('移除此圖像的背景。保持所有前景主體不變且完整，邊緣乾淨平滑。將背景設為透明。'))
+assert.ok(CHARACTER_BACKGROUND_GUIDANCE.includes('intentional 2× authoring canvas'))
 for (const source of [guide, readFileSync('public/llms.txt', 'utf8'), readFileSync('README.md', 'utf8')]) {
   assert.doesNotMatch(source, /outfit skins?|navigate_character|update_collection_profile|complete outfit skins?/i, 'Public instructions advertise obsolete tools or clothing layers')
 }

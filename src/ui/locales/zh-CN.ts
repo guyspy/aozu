@@ -110,6 +110,10 @@ export const zhCN: Messages= {
     "backToVariants": "返回变体列表",
     "variantLabel": "变体名称",
     "editVariant": "编辑 {{name}}",
+    "deleteVariant": "删除 {{name}}",
+    "deleteVariantTitle": "删除这个变体？",
+    "deleteVariantDescription": "“{{name}}”会从所有已保存造型中移除，保存后无法撤销。",
+    "deleteVariantAction": "删除变体",
     "none": "无",
     "status": {
       "saving": "保存中…",

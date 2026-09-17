@@ -110,6 +110,10 @@ export const es: Messages= {
     "backToVariants": "Volver a las variantes",
     "variantLabel": "Nombre de la variante",
     "editVariant": "Editar {{name}}",
+    "deleteVariant": "Eliminar {{name}}",
+    "deleteVariantTitle": "¿Eliminar esta variante?",
+    "deleteVariantDescription": "«{{name}}» se eliminará de todas las apariencias guardadas. No se puede deshacer después de guardar.",
+    "deleteVariantAction": "Eliminar variante",
     "none": "Ninguna",
     "status": {
       "saving": "Guardando…",

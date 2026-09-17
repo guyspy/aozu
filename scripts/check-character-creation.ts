@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { strFromU8, unzipSync, zipSync } from 'fflate'
 
-import { activateCharacterVariant, buildCharacterPack, characterDraftAtlasKey, characterHeadRegistration, characterRegistrationFrame, clearCharacterVariantSelection, copyCharacter, createCharacterDraft, deactivateCharacterVariant, hasCurrentCharacterLayer, installCharacterDraft, listInstalledCharacterPacks, loadCharacterProjection, loadInstalledCharacterPackResources, migrateCharacterDraft, resolveCharacterAssetSources, resolveCharacterDraftAtlasSources, resolveCharacterDraftLayers, reviewCharacterDraft, saveCharacterDraftAsset, setCharacterVariantTransform, updateCharacterProfile, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
+import { activateCharacterVariant, buildCharacterPack, characterDraftAtlasKey, characterHeadRegistration, characterRegistrationFrame, clearCharacterVariantSelection, copyCharacter, createCharacterDraft, deactivateCharacterVariant, hasCurrentCharacterLayer, installCharacterDraft, listInstalledCharacterPacks, loadCharacterProjection, loadInstalledCharacterPackResources, migrateCharacterDraft, removeCharacterVariant, resolveCharacterAssetSources, resolveCharacterDraftAtlasSources, resolveCharacterDraftLayers, reviewCharacterDraft, saveCharacterDraftAsset, setCharacterVariantTransform, updateCharacterProfile, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { highConfidenceCharacterAutoFit, measureCharacterMaskAlignment, measureProtectedRegionDelta, stitchCharacterEditPixels, suggestCharacterVisualRegistration, type CharacterAlphaMask, type CharacterVisualSample } from '../src/core/application/character-alignment.ts'
 import type { CharacterDraftAsset, CharacterVariantGroup, CharacterVariantLayer } from '../src/core/domain/character.ts'
 import { resolveCharacterComposition, validateCharacterPack } from '../src/core/domain/character.ts'
@@ -116,6 +116,12 @@ const layeredOutfits = activateCharacterVariant(dressed, { group: 'outfit', id: 
 assert.equal(layeredOutfits, dressed)
 const topmostDress = activateCharacterVariant(deactivateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' }), { group: 'outfit', id: 'top-1' })
 assert.deepEqual(topmostDress.selected.outfits, ['dress', 'top-1'])
+const namedDress = { ...dressed, activeAppearanceId: 'formal', appearances: [{ id: 'formal', label: 'Formal', selected: structuredClone(dressed.selected) }] }
+const withoutTop = removeCharacterVariant(namedDress, { group: 'outfit', id: 'top-1' })
+assert.deepEqual(withoutTop.selected.outfits, ['dress'])
+assert.deepEqual(withoutTop.appearances?.[0]?.selected.outfits, ['dress'])
+assert.ok(!withoutTop.variants.some(({ group, id }) => group === 'outfit' && id === 'top-1'))
+assert.throws(() => removeCharacterVariant(draft, { group: 'body', id: 'base' }), /cannot be deleted/)
 const dressAsset = draft.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')!.layers.front!
 const dressedWithAsset = { ...dressed, variants: dressed.variants.map((variant) => variant.group === 'outfit' && variant.id === 'dress' ? { ...variant, layers: { front: dressAsset } } : variant) }
 assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ slot }) => slot.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front', 'outfit-dress-front'])

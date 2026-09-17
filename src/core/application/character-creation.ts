@@ -1,7 +1,7 @@
 import type { EntryReader } from '@aotter/mantle-runtime'
 import { characterAssets } from './character-assets.ts'
 import { CHARACTER_BACKGROUND_GUIDANCE } from './character-agent-guidance.ts'
-import { validateCharacterSelection } from './character-appearances.ts'
+import { validateCharacterAppearances, validateCharacterSelection } from './character-appearances.ts'
 
 import {
   CHARACTER_RIG,
@@ -688,6 +688,26 @@ export function clearCharacterVariantSelection(draft: CharacterDraft, group: Cha
     ? { ...draft, selected: { ...draft.selected, outfits: [] } } : draft
   return draft.selected[group] === undefined
     ? draft : { ...draft, selected: { ...draft.selected, [group]: undefined } }
+}
+
+const withoutCharacterVariant = (selected: CharacterDraft['selected'], group: CharacterVariantGroup, id: string) => {
+  if (group === 'outfit') return { ...selected, outfits: selected.outfits.filter((item) => item !== id) }
+  if (group === 'prop') return { ...selected, props: selected.props.filter((item) => item !== id) }
+  return group !== 'body' && selected[group] === id ? { ...selected, [group]: undefined } : selected
+}
+
+/** Delete optional shared art and remove its references from every saved Appearance. */
+export function removeCharacterVariant(draft: CharacterDraft, target: Pick<CharacterDraftVariant, 'group' | 'id'>) {
+  if (target.group === 'body') throw new Error('Canonical Body cannot be deleted')
+  if (!findVariant(draft, target.group, target.id)) throw new Error('Character variant not found')
+  const next = {
+    ...draft,
+    variants: draft.variants.filter((variant) => variant.group !== target.group || variant.id !== target.id),
+    selected: withoutCharacterVariant(draft.selected, target.group, target.id),
+    appearances: draft.appearances?.map((appearance) => ({ ...appearance, selected: withoutCharacterVariant(appearance.selected, target.group, target.id) })),
+  }
+  validateCharacterAppearances(next)
+  return next
 }
 
 const selectedVariantIds = (draft: SelectionMetadata, group: 'outfit' | 'prop', preview?: Pick<CharacterDraftVariant, 'group' | 'id'>) => {

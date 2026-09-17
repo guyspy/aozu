@@ -110,6 +110,10 @@ export const ptBR: Messages= {
     "backToVariants": "Voltar às variantes",
     "variantLabel": "Nome da variante",
     "editVariant": "Editar {{name}}",
+    "deleteVariant": "Excluir {{name}}",
+    "deleteVariantTitle": "Excluir esta variação?",
+    "deleteVariantDescription": "“{{name}}” será removida de todas as aparências salvas. Isso não poderá ser desfeito depois de salvar.",
+    "deleteVariantAction": "Excluir variação",
     "none": "Nenhuma",
     "status": {
       "saving": "Salvando…",

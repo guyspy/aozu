@@ -110,6 +110,10 @@ export const zhTW: Messages= {
     "backToVariants": "返回變體列表",
     "variantLabel": "變體名稱",
     "editVariant": "編輯 {{name}}",
+    "deleteVariant": "刪除 {{name}}",
+    "deleteVariantTitle": "刪除這個變體？",
+    "deleteVariantDescription": "「{{name}}」會從所有已儲存造型中移除，儲存後無法復原。",
+    "deleteVariantAction": "刪除變體",
     "none": "無",
     "status": {
       "saving": "儲存中…",

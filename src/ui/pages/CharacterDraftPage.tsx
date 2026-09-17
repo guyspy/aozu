@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { useStore } from 'zustand'
 
-import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile, updateCharacterVariantMetadata } from '@/core/application/character-creation.ts'
+import { CHARACTER_CREATION_GROUPS, REQUIRED_CHARACTER_TARGETS, activateCharacterVariant, characterDraftAtlasKey, characterRegistrationFrame, clearCharacterVariantSelection, deactivateCharacterVariant, isCharacterDraftAssetCurrent, removeCharacterVariant, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, setCharacterVariantTransform, transformCharacterBounds, updateCharacterProfile, updateCharacterVariantMetadata } from '@/core/application/character-creation.ts'
 import type { CharacterFitSuggestion } from '@/core/application/character-alignment.ts'
 import type { CharacterEditor } from '@/core/application/character-editor.ts'
 import { CHARACTER_OUTFIT_SLOTS, IDENTITY_CHARACTER_TRANSFORM, type CharacterAssetTarget, type CharacterDraft, type CharacterDraftVariant, type CharacterVariantGroup, type CharacterVariantLayer, type CharacterVariantTransform, type CharacterReferenceMetadata, type CharacterOutfitSlot } from '@/core/domain/character.ts'
@@ -127,6 +127,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
   const baseFileInput = useRef<HTMLInputElement>(null)
   const [baseUpload, setBaseUpload] = useState<{ target: CharacterAssetTarget; file: File; revision: number }>()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [variantDelete, setVariantDelete] = useState<CharacterDraftVariant>()
   const [profileForm, setProfileForm] = useState<ProfileForm>()
   const [alignmentMode, setAlignmentMode] = useState<'composite' | 'overlay' | 'difference' | 'diagnostic'>('overlay')
   const drag = useRef<{
@@ -424,6 +425,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
                 onKeyDown={textKeys}
               />
               {required && <span className="required-status">{t('characterDraft.required')}</span>}
+              {!required && <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" aria-label={t('characterDraft.deleteVariant', { name: selectedVariant.label })} onClick={() => setVariantDelete(selectedVariant)}><Trash2Icon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.deleteVariant', { name: selectedVariant.label })}</TooltipContent></Tooltip></TooltipProvider>}
             </div>
             <details className="variant-metadata mt-3">
               <summary>{t('characterDraft.metadata.description')} · {t('characterDraft.metadata.tags')}</summary>
@@ -669,6 +671,17 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
           event.preventDefault()
           void runBusy('delete', deleteCharacter)
         }}>{t('characters.delete')}</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    <AlertDialog open={Boolean(variantDelete)} onOpenChange={(open) => { if (!open) setVariantDelete(undefined) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>{t('characterDraft.deleteVariantTitle')}</AlertDialogTitle><AlertDialogDescription>{t('characterDraft.deleteVariantDescription', { name: variantDelete?.label })}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => {
+          if (!variantDelete) return
+          commit((current) => removeCharacterVariant(current, variantDelete))
+          navigate(`/characters/${encodeURIComponent(draft.id)}/${category.id}`)
+          setVariantDelete(undefined)
+        }}>{t('characterDraft.deleteVariantAction')}</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </>
