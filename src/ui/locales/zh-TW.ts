@@ -212,7 +212,7 @@ export const zhTW: Messages= {
       "footwear": "鞋履"
     },
     "baseReplacement": {
-      "title": "更換角色基底？",
+      "title": "更換角色基底 PNG",
       "description": "適用於姿勢、比例與位置相同的小修，現有衣物與配件會保留。若身形或姿勢不同，請取消並建立新角色。",
       "confirm": "同姿勢，保留素材",
     },

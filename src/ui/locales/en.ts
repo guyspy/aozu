@@ -149,7 +149,7 @@ export const en = {
     },
     outfitSlots: { top: 'Top', bottom: 'Bottom', 'one-piece': 'One-piece', outerwear: 'Outerwear', footwear: 'Footwear' },
     "baseReplacement": {
-      "title": "Replace Canonical Body?",
+      "title": "Replace canonical body PNG",
       "description": "Use this for a small correction with the same pose, proportions and placement. Existing clothes and accessories will be kept. For a different body or pose, cancel and create a new Character.",
       "confirm": "Same pose — keep layers",
     },

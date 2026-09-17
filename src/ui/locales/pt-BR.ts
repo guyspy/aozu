@@ -212,7 +212,7 @@ export const ptBR: Messages= {
       "footwear": "Calçados"
     },
     "baseReplacement": {
-      "title": "Substituir a base do personagem?",
+      "title": "Substituir o PNG base do personagem",
       "description": "Use para pequenas correções com a mesma pose, proporções e posição. Roupas e acessórios serão mantidos. Se o corpo ou a pose mudar, cancele e crie um novo personagem.",
       "confirm": "Mesma pose, manter camadas",
     },

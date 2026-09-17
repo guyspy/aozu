@@ -212,7 +212,7 @@ export const zhCN: Messages= {
       "footwear": "鞋履"
     },
     "baseReplacement": {
-      "title": "更换角色基底？",
+      "title": "更换角色基底 PNG",
       "description": "适用于姿势、比例与位置相同的小修，现有衣物与配件会保留。若身形或姿势不同，请取消并建立新角色。",
       "confirm": "同姿势，保留素材",
     },

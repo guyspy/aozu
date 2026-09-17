@@ -212,7 +212,7 @@ export const ko: Messages= {
       "footwear": "신발"
     },
     "baseReplacement": {
-      "title": "캐릭터 베이스를 교체할까요?",
+      "title": "캐릭터 베이스 PNG 교체",
       "description": "같은 자세, 비율, 위치의 작은 수정에 사용하세요. 기존 옷과 액세서리는 유지됩니다. 체형이나 자세가 다르면 취소하고 새 캐릭터를 만드세요.",
       "confirm": "같은 자세로 소재 유지",
     },

@@ -300,7 +300,10 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     commit((current) => updateCharacterVariantMetadata(current, variant.group, variant.id, patch))
   const fileInput = (variant: CharacterDraftVariant, layer: CharacterVariantLayer) => {
     const targetKey = `${variantKey(variant)}:${layer}`
+    const layerLabel = variant.group === 'body' ? t('characterDraft.baseReplacement.title')
+      : t(layer === 'back' ? 'characterDraft.layers.behindOptional' : layer === 'head' ? 'characterDraft.layers.head' : 'characterDraft.layers.primary')
     return <input ref={variant.group === 'body' ? baseFileInput : undefined} className="sr-only" type="file" accept="image/png" disabled={Boolean(busy)}
+      aria-label={`${layerLabel} · ${variant.label}`}
       data-webmcp-upload="character-asset" data-group={variant.group} data-variant-id={variant.id} data-layer={layer}
       onChange={async (event) => {
         const file = event.target.files?.[0]
@@ -508,14 +511,14 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               </p>}
             </div></TooltipProvider>}
             <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="asset-upload-card">
+            <label className="asset-upload-card" data-webmcp-upload-trigger="character-asset" data-group={selectedVariant.group} data-variant-id={selectedVariant.id} data-layer={primaryLayer}>
               <span className="asset-upload-preview">{primaryAsset
                 ? <CharacterAssetThumbnail blob={primaryAsset.blob} bounds={primaryAsset.inspection.visibleBounds} />
                 : <CharacterVariantPlaceholder group={selectedVariant.group} variantId={selectedVariant.id} />}</span>
               <span>{t(layeredAccessory ? 'characterDraft.layers.primary' : `characterDraft.layers.${primaryLayer}`)}</span>
               {fileInput(selectedVariant, primaryLayer)}
             </label>
-            {layeredAccessory && <label className="asset-upload-card">
+            {layeredAccessory && <label className="asset-upload-card" data-webmcp-upload-trigger="character-asset" data-group={selectedVariant.group} data-variant-id={selectedVariant.id} data-layer="back">
               <span className="asset-upload-preview">{behindAsset
                 ? <CharacterAssetThumbnail blob={behindAsset.blob} bounds={behindAsset.inspection.visibleBounds} />
                 : <Layers2Icon className="size-8 text-muted-foreground" />}</span>
@@ -598,7 +601,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         <div className="character-stage-preview">
         <WorkspaceToolbar><div className="min-w-0 flex-1">{appearanceControls}</div>
           {baseVariant && hasBase && <>
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="outline" size="icon" disabled={Boolean(busy)} aria-label={t('characterDraft.baseReplacement.title')} onClick={() => baseFileInput.current?.click()}><ImageUpIcon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.baseReplacement.title')}</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="outline" size="icon" disabled={Boolean(busy)} aria-label={t('characterDraft.baseReplacement.title')} data-webmcp-upload-trigger="character-asset" data-group="body" data-variant-id="base" data-layer="body" onClick={() => baseFileInput.current?.click()}><ImageUpIcon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.baseReplacement.title')}</TooltipContent></Tooltip></TooltipProvider>
             {fileInput(baseVariant, 'body')}
           </>}
         </WorkspaceToolbar>
@@ -608,6 +611,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
             className="character-stage-upload aspect-2/3 h-full max-h-full max-w-full"
             aria-label={t('characterDraft.missingRequired')}
             title={t('characterDraft.missingRequired')}
+            data-webmcp-upload-trigger="character-asset" data-group="body" data-variant-id="base" data-layer="body"
           >
             <CharacterRenderer label={draft.name} layers={previewLayers} />
             {fileInput(baseVariant, 'body')}

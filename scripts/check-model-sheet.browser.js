@@ -182,7 +182,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(stale && staleHash && state().persistedRevision === afterPose, 'Stale revision/hash changed reference')
     const body = (await call('inspect_character_contract', { characterId: id, group: 'body', variantId: 'base', layer: 'body' })).data
     check(body.target.generationRecipe.pose === 'a-pose' && body.target.alignment.visualReview, 'First Appearance lacks A-pose review')
-    check(body.assetTransfer.protocol === 'chatgpt-host-data-url-v1' && body.assetTransfer.toolkit.read.includes('node:fs/promises') && body.assetTransfer.toolkit.call.includes('capabilities.get("webmcp")') && body.assetTransfer.fallback.selector.includes('data-webmcp-upload'), 'Character contract lacks direct PNG transfer and uploader fallback guidance')
+    check(body.assetTransfer.protocol === 'chatgpt-host-data-url-v1' && body.assetTransfer.toolkit.read.includes('node:fs/promises') && body.assetTransfer.toolkit.call.includes('capabilities.get("webmcp")') && body.assetTransfer.fallback.selector.includes('data-webmcp-upload') && body.assetTransfer.fallback.triggerSelector.includes('data-webmcp-upload-trigger') && body.assetTransfer.fallback.label === 'Replace canonical body PNG', 'Character contract lacks direct PNG transfer and exact visible uploader fallback guidance')
     const backup = await app.prepareCharacterLibraryImport(await app.exportCharacterLibrary())
     check(backup.entries.some((entry) => entry.id === id && entry.data.modelSheet.heightCm === 185), 'Library backup lost model sheet')
     await app.editor.reload(); await ready(() => document.querySelectorAll('.model-sheet-art img').length === 3)
@@ -330,6 +330,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     }), 'Explicit body rebase lost a registered layer')
     // The visible uploader uses the same guard and preserves dependent art on confirmation.
     await ready(() => document.querySelector('input[data-webmcp-upload="character-asset"][data-group="body"]'))
+    check(document.querySelector('[data-webmcp-upload-trigger="character-asset"][data-group="body"][data-variant-id="base"][data-layer="body"]'), 'Canonical body upload lacks an exact visible WebMCP fallback trigger')
     const uploadBody = () => {
       const input = document.querySelector('input[data-webmcp-upload="character-asset"][data-group="body"]')
       const transfer = new DataTransfer()

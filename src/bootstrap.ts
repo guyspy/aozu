@@ -83,7 +83,7 @@ const pngFromDataUrl = (dataUrl: string) => {
   return new Blob([bytes], { type: 'image/png' })
 }
 type PngPayload = { dataUrl?: string; dataSha256?: string }
-const characterAssetTransfer = (fallback?: { path: string; selector: string }) => ({
+const characterAssetTransfer = (fallback?: { path: string; selector: string; triggerSelector?: string; label?: string }) => ({
   protocol: 'chatgpt-host-data-url-v1',
   toolkit: {
     runtime: 'ChatGPT Browser Use host JavaScript',
@@ -96,7 +96,9 @@ const characterAssetTransfer = (fallback?: { path: string; selector: string }) =
   input: { dataUrl: 'one complete data:image/png;base64 string', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
   ...(fallback ? { fallback: {
     kind: 'browser-file-chooser', accept: 'image/png', ...fallback,
-    instruction: 'Navigate to path, start Browser Use waitForEvent("filechooser"), click selector, and set the trusted local PNG path.',
+    instruction: fallback.triggerSelector
+      ? 'Navigate to path, start Browser Use waitForEvent("filechooser"), click triggerSelector, and set the trusted local PNG path. selector identifies the exact input only; do not click a different visible uploader.'
+      : 'Navigate to path, start Browser Use waitForEvent("filechooser"), click selector, and set the trusted local PNG path.',
   } } : {}),
 })
 const sha256Blob = async (blob: Blob) => Array.from(
@@ -1359,6 +1361,8 @@ export function createApplication(document: Document) {
           assetTransfer: characterAssetTransfer(target ? {
             path: target.alignment.reviewPath,
             selector: `input[data-webmcp-upload="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
+            triggerSelector: `[data-webmcp-upload-trigger="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
+            label: target.input.group === 'body' ? 'Replace canonical body PNG' : target.input.layer === 'back' ? 'Behind character · Optional' : target.input.group === 'expression' ? 'Head' : 'Primary sprite',
           } : undefined),
           authoringGuide: CHARACTER_AUTHORING_GUIDE,
           productionBrief: [

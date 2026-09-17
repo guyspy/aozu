@@ -212,7 +212,7 @@ export const de: Messages= {
       "footwear": "Schuhe"
     },
     "baseReplacement": {
-      "title": "Charakterbasis ersetzen?",
+      "title": "PNG der Charakterbasis ersetzen",
       "description": "Für kleine Korrekturen bei gleicher Pose, Proportion und Position. Kleidung und Zubehör bleiben erhalten. Bei anderem Körperbau oder anderer Pose abbrechen und einen neuen Charakter erstellen.",
       "confirm": "Gleiche Pose, Ebenen behalten",
     },

@@ -212,7 +212,7 @@ export const fr: Messages= {
       "footwear": "Chaussures"
     },
     "baseReplacement": {
-      "title": "Remplacer la base du personnage ?",
+      "title": "Remplacer le PNG de base du personnage",
       "description": "Pour une petite correction avec la même pose, les mêmes proportions et la même position. Les vêtements et accessoires sont conservés. Si le corps ou la pose change, annulez et créez un nouveau personnage.",
       "confirm": "Même pose, conserver les calques",
     },
