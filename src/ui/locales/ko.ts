@@ -216,6 +216,7 @@ export const ko: Messages= {
       "description": "같은 자세, 비율, 위치의 작은 수정에 사용하세요. 기존 옷과 액세서리는 유지됩니다. 체형이나 자세가 다르면 취소하고 새 캐릭터를 만드세요.",
       "confirm": "같은 자세로 소재 유지",
     },
+    composition: { smart: "스마트 겹치기", smartHelp: "켜기: 레이어와 배타 규칙 적용. 끄기: 선택 순서대로 제한 없이 겹치기.","title": "레이어와 상호 배제", "help": "같은 배제 키를 가진 소재는 서로 교체됩니다. 레이어 관계는 기본 순서보다 우선합니다.", "exclusive": "배제 키 (쉼표로 구분)", "layer": "현재 레이어", "relation": "순서", "target": "다른 소재의 레이어", "add": "관계 추가", "remove": "관계 삭제", "front": "앞면", "back": "뒷면", "head": "머리", "body": "몸체", "above": "위에 표시", "below": "아래에 표시"},
     "metadata": {
       "slot": "옷장 슬롯",
       "garmentType": "의상 유형",

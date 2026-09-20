@@ -1,10 +1,9 @@
 import { strToU8, zipSync } from 'fflate'
 import { mapCharacterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
-import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
 
 import {
-  characterLibraryDigest, inspectCharacterLibrarySnapshot,
+  characterLibraryDigest, inspectCharacterLibrarySnapshot, migrateCharacterLibrarySnapshot,
   type CharacterLibrarySnapshot,
 } from '../../core/application/character-library.ts'
 import type { CharacterAssetContent, CharacterAssetInspection, CharacterDraft, CharacterDraftAsset } from '../../core/domain/character.ts'
@@ -30,6 +29,7 @@ interface Manifest {
 
 /** One lossless library archive: editable workspaces, Collections, installed packs, staged assets, and legacy drafts. */
 export async function exportCharacterLibraryZip(snapshot: CharacterLibrarySnapshot, inspect = inspectCharacterImage): Promise<Blob> {
+  snapshot = migrateCharacterLibrarySnapshot(snapshot)
   await inspectCharacterLibrarySnapshot(snapshot, inspect)
   const files: Record<string, Uint8Array> = {}
   const integrity: IntegrityFile[] = []
@@ -94,7 +94,6 @@ export async function readCharacterLibraryZip(blob: Blob, inspect: (blob: Blob) 
     if (!draft || !Array.isArray(draft.variants)) throw new Error('Invalid legacy Character library draft')
     for (const variant of draft.variants) if (!variant || !variant.layers || typeof variant.layers !== 'object' || Array.isArray(variant.layers)) throw new Error('Invalid legacy Character library layers')
     if (draft.modelSheet !== undefined) validateModelSheet(draft.modelSheet)
-    validateCharacterAppearances(draft)
     return { ...draft, ...await mapCharacterAssets(draft, (asset) => {
       const blob = take(asset)
       const { path: _path, mediaType: _mediaType, ...descriptor } = asset
@@ -102,7 +101,7 @@ export async function readCharacterLibraryZip(blob: Blob, inspect: (blob: Blob) 
     }) }
   }))
   if (assetPaths.size) throw new Error('Unreferenced Character library archive asset')
-  const snapshot = { entries: manifest.entries, assets, legacyDrafts }
+  const snapshot = migrateCharacterLibrarySnapshot({ entries: manifest.entries, assets, legacyDrafts })
   await inspectCharacterLibrarySnapshot(snapshot, inspect)
   return snapshot
 }

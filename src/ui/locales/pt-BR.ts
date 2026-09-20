@@ -216,6 +216,7 @@ export const ptBR: Messages= {
       "description": "Use para pequenas correções com a mesma pose, proporções e posição. Roupas e acessórios serão mantidos. Se o corpo ou a pose mudar, cancele e crie um novo personagem.",
       "confirm": "Mesma pose, manter camadas",
     },
+    composition: { smart: "Sobreposição inteligente", smartHelp: "Ativado: aplicar regras de camadas e exclusão. Desativado: empilhar por ordem de clique sem exclusões.","title": "Camadas e exclusões", "help": "Itens com a mesma chave de exclusão substituem uns aos outros. As relações entre camadas prevalecem sobre a ordem padrão.", "exclusive": "Chaves de exclusão (separadas por vírgulas)", "layer": "Esta camada", "relation": "Ordem", "target": "Camada de outro item", "add": "Adicionar relação", "remove": "Remover relação", "front": "Frente", "back": "Trás", "head": "Cabeça", "body": "Corpo", "above": "Acima", "below": "Abaixo"},
     "metadata": {
       "slot": "Espaço do guarda-roupa",
       "garmentType": "Tipo de peça",

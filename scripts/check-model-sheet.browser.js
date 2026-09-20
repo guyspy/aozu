@@ -354,7 +354,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(uploadedSha !== replacementSha && state().character.variants.find((v) => v.group === 'prop').layers.front.canonicalSha256 === uploadedSha, 'Confirmed uploader lost dependent art')
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: true })
     const modified = (await call('inspect_character_contract', { characterId: id, scope: 'model-sheet' })).data
-    check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.props[0] === 'prop-1', 'Current Appearance was not autosaved')
+    check(modified.character.autoSave === 'current-appearance' && modified.character.appearances[0].selected.items.filter((item) => item.group === 'prop').map((item) => item.id)[0] === 'prop-1', 'Current Appearance was not autosaved')
     check(modified.modelSheet.views.front.needsReview, 'A manual front did not flag changed composition')
     // View gestures must never become authoring edits or alter export pixels.
     await ready(() => document.querySelector('[aria-label="Zoom in"]:not(:disabled)'))
@@ -416,9 +416,9 @@ if (new URLSearchParams(location.search).has('responsive')) {
     const historyBefore = app.editor.history.getState().pastStates.length
     await call('set_character_variant_selection', { characterId: id, expectedRevision: state().persistedRevision, group: 'prop', variantId: 'prop-1', active: false })
     const edited = state().character.appearances[1]
-    check(edited.selected.props.length === 0 && edited.modelSheet.views.front.asset.inspection.sha256 !== autoFront.asset.inspection.sha256, 'Autosave did not synchronize the named selection and front')
+    check(edited.selected.items.filter((item) => item.group === 'prop').map((item) => item.id).length === 0 && edited.modelSheet.views.front.asset.inspection.sha256 !== autoFront.asset.inspection.sha256, 'Autosave did not synchronize the named selection and front')
     check(edited.modelSheet.views.side.needsReview && edited.modelSheet.views.side.guides.head === 0.12, 'Existing side art/guides were not retained with a review flag')
-    check(state().character.appearances[0].selected.props[0] === 'prop-1', 'Editing the copy overwrote the original look')
+    check(state().character.appearances[0].selected.items.filter((item) => item.group === 'prop').map((item) => item.id)[0] === 'prop-1', 'Editing the copy overwrote the original look')
     check(app.editor.history.getState().pastStates.length === historyBefore + 1, 'Automatic front synchronization added a second undo frame')
     const currentImage = await app.exportCharacterPng(state().character)
     await call('update_character_profile', { characterId: id, expectedRevision: state().persistedRevision, name: 'Profile test', description: 'Description survives', backstory: 'Story survives', attributes: { age: 42, parent: true } })
@@ -433,29 +433,29 @@ if (new URLSearchParams(location.search).has('responsive')) {
     check(document.querySelectorAll('.character-attribute-row').length === 2 && (await call('inspect_workspace', {})).data.view.hasUncommittedInput, 'Profile form lost typed attributes or local-input guard')
     buttons('Cancel').click()
     await call('undo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
-    check(state().character.name === 'Profile test' && state().character.appearances[1].selected.props[0] === 'prop-1', 'Appearance Undo changed the profile or lost its selection')
+    check(state().character.name === 'Profile test' && state().character.appearances[1].selected.items.filter((item) => item.group === 'prop').map((item) => item.id)[0] === 'prop-1', 'Appearance Undo changed the profile or lost its selection')
     check(state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256 && !state().character.appearances[1].modelSheet.views.side.needsReview, 'Undo did not restore front and review state together')
     await call('redo_character_change', { characterId: id, expectedRevision: state().persistedRevision })
-    check(state().character.appearances[1].selected.props.length === 0 && state().character.appearances[1].modelSheet.views.side.needsReview, 'Redo lost the Appearance edit')
+    check(state().character.appearances[1].selected.items.filter((item) => item.group === 'prop').map((item) => item.id).length === 0 && state().character.appearances[1].modelSheet.views.side.needsReview, 'Redo lost the Appearance edit')
     // Rapid UI edits may queue before the prior front has rendered; Undo must still recover the right composite.
     await Promise.all([
-      app.editor.dispatch((draft) => ({ ...draft, selected: { ...draft.selected, props: ['prop-1'] } })),
-      app.editor.dispatch((draft) => ({ ...draft, selected: { ...draft.selected, props: [] } })),
+      app.editor.dispatch((draft) => ({ ...draft, selected: { smartOrder: true, items: [...draft.selected.items.filter((item) => item.group !== 'prop'), { group: 'prop', id: 'prop-1' }] } })),
+      app.editor.dispatch((draft) => ({ ...draft, selected: { smartOrder: true, items: [...draft.selected.items.filter((item) => item.group !== 'prop'), ] } })),
     ])
     await app.editor.undo()
-    check(state().character.appearances[1].selected.props[0] === 'prop-1' && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Queued edit Undo restored a stale front')
+    check(state().character.appearances[1].selected.items.filter((item) => item.group === 'prop').map((item) => item.id)[0] === 'prop-1' && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === autoFront.asset.inspection.sha256, 'Queued edit Undo restored a stale front')
     await app.editor.undo()
-    check(state().character.appearances[1].selected.props.length === 0 && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === edited.modelSheet.views.front.asset.inspection.sha256, 'Queued edits did not undo back to the starting Appearance')
+    check(state().character.appearances[1].selected.items.filter((item) => item.group === 'prop').map((item) => item.id).length === 0 && state().character.appearances[1].modelSheet.views.front.asset.inspection.sha256 === edited.modelSheet.views.front.asset.inspection.sha256, 'Queued edits did not undo back to the starting Appearance')
     await call('navigate_workspace', { resource: 'character', id, view: 'model-sheet' })
     await ready(() => document.querySelector('main[data-category="model-sheet"] button[aria-label="Saved Appearance"]'))
     const preservedFront = state().character.appearances[0].modelSheet.views.front
     await appearanceMenu('Gym')
     await ready(() => state().character.activeAppearanceId === gym); await settled()
-    check(state().character.selected.props[0] === 'prop-1' && state().character.appearances[0].modelSheet.views.front === preservedFront, 'Switching lost the original look or its manual front')
+    check(state().character.selected.items.filter((item) => item.group === 'prop').map((item) => item.id)[0] === 'prop-1' && state().character.appearances[0].modelSheet.views.front === preservedFront, 'Switching lost the original look or its manual front')
     check(app.editor.history.getState().pastStates.length === 0 && !await app.editor.undo(), 'Undo crosses Appearance navigation')
     const oldRevision = state().persistedRevision
     await call('set_character_variant_selection', { characterId: id, expectedRevision: oldRevision, appearance: { action: 'select', id: withProp } })
-    check(state().character.selected.props.length === 0, 'Switching back lost autosaved edits')
+    check(state().character.selected.items.filter((item) => item.group === 'prop').map((item) => item.id).length === 0, 'Switching back lost autosaved edits')
     const restoredRevision = state().persistedRevision
     const staleSelection = await call('set_character_variant_selection', { characterId: id, expectedRevision: oldRevision, appearance: { action: 'select', id: gym } }).then(() => false, () => true)
     check(staleSelection && state().persistedRevision === restoredRevision && state().character.activeAppearanceId === withProp, 'Stale Appearance selection changed the reference set')
@@ -467,7 +467,7 @@ if (new URLSearchParams(location.search).has('responsive')) {
     await appearanceMenu('Add new')
     await ready(() => state().character.appearances.length === 3); await settled()
     const fresh = state().character.activeAppearanceId
-    check(state().character.selected.props.length === 0 && !state().character.selected.expression && state().character.selected.outfits.length === 0 && state().character.variants === preservedVariants, 'Add new did not reset only the selection')
+    check(state().character.selected.items.filter((item) => item.group === 'prop').map((item) => item.id).length === 0 && !state().character.selected.items.find((item) => item.group === 'expression')?.id && state().character.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id).length === 0 && state().character.variants === preservedVariants, 'Add new did not reset only the selection')
     check(state().character.appearances.slice(0, 2).every((look, index) => look === preservedLooks[index]) && Object.keys(sheet().views).length === 0, 'Add new overwrote existing looks or populated references')
     await appearanceMenu('Rename')
     await ready(() => document.querySelector('section[data-has-uncommitted-input="true"] input'))

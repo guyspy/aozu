@@ -105,13 +105,18 @@ const modelSheetSchema = objectSchema({
   heightCm: { type: 'number', exclusiveMinimum: 0, maximum: 100_000 },
   ...referenceSetProperties,
 }, ['views'])
+const itemRefSchema = objectSchema({ group: { enum: CHARACTER_VARIANT_GROUPS }, id: referenceIdSchema }, ['group', 'id'])
+const itemCompositionSchema = objectSchema({
+  exclusiveKeys: { type: 'array', maxItems: 8, uniqueItems: true, items: referenceIdSchema },
+  order: { type: 'array', maxItems: 16, items: objectSchema({
+    layer: { enum: ['head', 'back', 'front'] }, relation: { enum: ['above', 'below'] },
+    target: objectSchema({ ...itemRefSchema.properties, layer: { enum: ['head', 'back', 'front'] } }, ['group', 'id', 'layer']),
+  }, ['layer', 'relation', 'target']) },
+})
 const characterSelectionSchema = objectSchema({
-  expression: { type: 'string', minLength: 1, maxLength: 40 },
-  outfits: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
-  hair: { type: 'string', minLength: 1, maxLength: 40 },
-  headwear: { type: 'string', minLength: 1, maxLength: 40 },
-  props: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
-}, ['outfits', 'props'])
+  smartOrder: { type: 'boolean' },
+  items: { type: 'array', maxItems: 100, uniqueItems: true, items: itemRefSchema },
+}, ['items', 'smartOrder'])
 
 const characterAttributesSchema: JsonSchema = {
   type: 'object',
@@ -120,7 +125,7 @@ const characterAttributesSchema: JsonSchema = {
 }
 
 export const characterWorkspaceProperties = {
-  schemaVersion: { const: 6 },
+  schemaVersion: { const: 7 },
   packId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' },
   rigProfile: objectSchema({
     id: { const: CHARACTER_RIG.id },
@@ -161,6 +166,7 @@ export const characterWorkspaceProperties = {
         sourceSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
         outfit: objectSchema({ slot: { enum: CHARACTER_OUTFIT_SLOTS }, garmentType: { type: 'string', minLength: 1, maxLength: 80 } }, ['slot', 'garmentType']),
         faceStyleId: referenceIdSchema,
+        composition: itemCompositionSchema,
       }),
       layers: objectSchema({
         body: characterAssetDescriptorSchema,
@@ -259,6 +265,7 @@ export const CHARACTER_BACKBONE_SOURCES = [
         tags: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 40 } },
         sourceSha256: { type: ['string', 'null'], pattern: '^[0-9a-f]{64}$' },
         outfit: objectSchema({ slot: { enum: CHARACTER_OUTFIT_SLOTS }, garmentType: { type: 'string', minLength: 1, maxLength: 80 } }, ['slot', 'garmentType']),
+        composition: { oneOf: [itemCompositionSchema, { type: 'null' }] },
         faceStyleId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         faceStyle: objectSchema({
           id: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' }, label: { type: 'string', minLength: 1, maxLength: 80 },
@@ -365,13 +372,14 @@ export const CHARACTER_BACKBONE_SOURCES = [
     'authoring/set-character-variant-selection.yaml',
     envelope('Procedure', 'set-character-variant-selection', {
       title: 'Set Character Variant Selection',
-      description: `Activate or deactivate an existing expression, garment, hair, headwear, or prop using the inspected revision. Outfits and props are independent toggles; their selected arrays persist bottom-to-top activation order. Activating an inactive item puts it on top, activating an active item keeps its order, and deactivating then reactivating moves it to the top. Wardrobe slots are descriptive metadata and do not make garments mutually exclusive. Edits automatically save into the current named Appearance. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create opens a fresh look with no selected variants and an empty model sheet. ${CHARACTER_NAVIGATION_GUIDANCE}`,
+      description: `Activate or deactivate an existing expression, garment, hair, headwear, or prop using the inspected revision. All optional items share selected.items activation order. Alternatively supply only smartOrder:true|false to set the current Appearance mode. Smart defaults on. Off ignores all exclusivity and ordering rules, preserving click order within front/back planes. Re-enabling Smart keeps the last-activated item in each conflict. Activating an item replaces conflicting items (hair, headwear and expression have category exclusivity; metadata.composition.exclusiveKeys adds explicit conflicts). Garments and props stack by default. Declared per-layer above/below relations override category defaults; unconstrained peers retain activation order. Re-activating an active item is idempotent; off/on moves it after its peers. The response reports removed items and resolved paintOrder. To change rules use update_character_variant_metadata.composition; inspect before editing. No pixel occlusion is inferred. Edits automatically save into the current named Appearance. Alternatively use appearance:{action:create|save-as|select|rename|delete,id,label?}, omitting group/variantId/active. create opens a fresh look with no selected variants and an empty model sheet. ${CHARACTER_NAVIGATION_GUIDANCE}`,
       input: objectSchema({
         characterId: { type: 'string', minLength: 1 },
         group: { enum: ['expression', 'outfit', 'hair', 'headwear', 'prop'] },
         variantId: { type: 'string', pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' },
         expectedRevision: { type: 'integer', minimum: 0 },
         active: { type: 'boolean' },
+        smartOrder: { type: 'boolean' },
         appearance: objectSchema({ action: { enum: ['create', 'save-as', 'select', 'rename', 'delete'] }, id: referenceIdSchema, label: { type: 'string', minLength: 1, maxLength: 80 } }, ['action', 'id']),
       }, ['characterId', 'expectedRevision']),
       output: toolResultSchema,

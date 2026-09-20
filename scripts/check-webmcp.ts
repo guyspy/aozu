@@ -126,8 +126,8 @@ for (const tool of registered.values()) {
   if (!tool.annotations.readOnlyHint) assert.match(tool.description, /AOZU itself handles effects.navigation/)
 }
 assert.equal(registered.get('set_character_variant_selection')!.annotations.readOnlyHint, false)
-assert.match(registered.get('set_character_variant_selection')!.description, /bottom-to-top activation order/)
-assert.match(registered.get('set_character_variant_selection')!.description, /Outfits and props are independent toggles/)
+assert.match(registered.get('set_character_variant_selection')!.description, /selected.items activation order/)
+assert.match(registered.get('set_character_variant_selection')!.description, /Garments and props stack by default/)
 const selection = { characterId: 'id', group: 'prop', variantId: 'hat', active: true, expectedRevision: 1 }
 assert.deepEqual(await registered.get('set_character_variant_selection')!.execute(selection, {}), {
   status: 'ok', data: { trigger: 'set-character-variant-selection', input: selection },

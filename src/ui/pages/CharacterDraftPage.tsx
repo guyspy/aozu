@@ -1,8 +1,10 @@
+import { CharacterItemCompositionEditor } from '@/ui/CharacterItemComposition'
+import { itemSelected, setSmartOrder } from '@/core/domain/character-composition'
 import { Workspace, WorkspaceActions, WorkspaceHistoryActions, WorkspaceToolbar, WorkspaceScroll, WorkspaceAddCard, WorkspaceCard, WorkspaceSplit, WorkspaceSurface, WorkspaceTabs } from '@/ui/Workspace'
 import { Input } from '@/ui/components/ui/input'
 import { Textarea } from '@/ui/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/components/ui/select'
-import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, CrownIcon, ImageUpIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, ShapesIcon, ShirtIcon, SmileIcon, Trash2Icon, WavesIcon, type LucideIcon } from 'lucide-react'
+import { ArrowLeftIcon, CircleSlash2Icon, CopyIcon, CrownIcon, ImageUpIcon, Layers2Icon, LoaderCircleIcon, MoveHorizontalIcon, MoveVerticalIcon, PencilIcon, PlusIcon, ScalingIcon, ShapesIcon, ShirtIcon, SmileIcon, Trash2Icon, WavesIcon, WandSparklesIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
@@ -266,23 +268,12 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     event.currentTarget.releasePointerCapture(event.pointerId)
     commitTransform({ group: active.group, id: active.variantId }, active.current)
   }
-  const selectedId = (group: CharacterVariantGroup) => {
-    if (group === 'body') return undefined
-    if (group === 'expression') return draft.selected.expression
-    if (group === 'hair' || group === 'headwear') return draft.selected[group]
-    return undefined
-  }
   const selectVariant = (variant: CharacterDraftVariant) => commit((current) => activateCharacterVariant(current, variant))
   const clearVariant = (group: CharacterVariantGroup) => commit((current) => clearCharacterVariantSelection(current, group))
-  const isSelected = (variant: CharacterDraftVariant) => variant.group === 'prop' ? draft.selected.props.includes(variant.id)
-    : variant.group === 'outfit' ? draft.selected.outfits.includes(variant.id)
-      : selectedId(variant.group) === variant.id
-  const toggleVariant = (variant: CharacterDraftVariant) => {
-    if (!['outfit', 'prop'].includes(variant.group) || !isSelected(variant)) return selectVariant(variant)
-    commit((current) => deactivateCharacterVariant(current, variant))
-  }
-  const hasSelection = (group: CharacterVariantGroup) => group === 'prop' ? Boolean(draft.selected.props.length)
-    : group === 'outfit' ? Boolean(draft.selected.outfits.length) : Boolean(selectedId(group))
+  const isSelected = (variant: CharacterDraftVariant) => itemSelected(draft.selected, variant)
+  const toggleVariant = (variant: CharacterDraftVariant) => isSelected(variant)
+    ? commit((current) => deactivateCharacterVariant(current, variant)) : selectVariant(variant)
+  const hasSelection = (group: CharacterVariantGroup) => draft.selected.items.some((item) => item.group === group)
   const addVariant = (group: CharacterVariantGroup) => {
     const count = draft.variants.filter((variant) => variant.group === group).length + 1
     const variant: CharacterDraftVariant = {
@@ -363,6 +354,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
+        <TooltipProvider><div className="mb-2 flex justify-end"><Tooltip><TooltipTrigger asChild><Button size="icon" variant={draft.selected.smartOrder ? "default" : "ghost"} aria-label={t('characterDraft.composition.smart')} aria-pressed={draft.selected.smartOrder} data-testid="smart-order" onClick={() => commit((current) => ({ ...current, selected: setSmartOrder(current.variants, current.selected, !current.selected.smartOrder) }))}><WandSparklesIcon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.composition.smartHelp')}</TooltipContent></Tooltip></div></TooltipProvider>
         {!selectedVariant && <TooltipProvider><TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-5">
           {characterCategories.map(({ id, icon: Icon }) => <Tooltip key={id}>
             <TooltipTrigger asChild><TabsTrigger value={id} aria-label={t(`characterDraft.categories.${id}`)}>
@@ -467,6 +459,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
               </>}
               </div>
             </details>
+            {selectedVariant.group !== 'body' && <CharacterItemCompositionEditor key={`${selectedVariant.group}:${selectedVariant.id}`} item={selectedVariant} items={draft.variants} onChange={(composition) => updateVariantMetadata(selectedVariant, { composition })} />}
             {(primaryAsset || behindAsset) && <TooltipProvider><div className="transform-grid" aria-label={t('characterDraft.transform.label')}>
               {([['x', MoveHorizontalIcon], ['y', MoveVerticalIcon], ['scale', ScalingIcon]] as const).map(([field, Icon]) => <Tooltip key={field}><TooltipTrigger asChild><label className="relative min-w-0 text-muted-foreground">
                 <Icon className="pointer-events-none mx-auto mb-1 size-4 sm:absolute sm:left-2 sm:top-1/2 sm:mb-0 sm:-translate-y-1/2" aria-hidden="true" />

@@ -216,6 +216,7 @@ export const zhTW: Messages= {
       "description": "適用於姿勢、比例與位置相同的小修，現有衣物與配件會保留。若身形或姿勢不同，請取消並建立新角色。",
       "confirm": "同姿勢，保留素材",
     },
+    composition: { smart: "智慧疊合", smartHelp: "開啟：依圖層與互斥規則排列。關閉：依點選順序疊加，不互斥。","title": "圖層與互斥", "help": "相同互斥鍵的素材會互相替換；圖層關係優先於預設排序。", "exclusive": "互斥鍵（逗號分隔）", "layer": "此圖層", "relation": "順序", "target": "其他素材圖層", "add": "新增關係", "remove": "移除關係", "front": "前層", "back": "後層", "head": "頭部", "body": "身體", "above": "在上方", "below": "在下方"},
     "metadata": {
       "slot": "衣櫥位置",
       "garmentType": "衣物類型",

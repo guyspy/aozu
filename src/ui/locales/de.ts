@@ -216,6 +216,7 @@ export const de: Messages= {
       "description": "Für kleine Korrekturen bei gleicher Pose, Proportion und Position. Kleidung und Zubehör bleiben erhalten. Bei anderem Körperbau oder anderer Pose abbrechen und einen neuen Charakter erstellen.",
       "confirm": "Gleiche Pose, Ebenen behalten",
     },
+    composition: { smart: "Intelligente Ebenen", smartHelp: "An: Ebenen- und Ausschlussregeln anwenden. Aus: ohne Ausschlüsse in Klickreihenfolge stapeln.","title": "Ebenen und Ausschlüsse", "help": "Materialien mit demselben Ausschlussschlüssel ersetzen einander. Ebenenregeln haben Vorrang vor der Standardreihenfolge.", "exclusive": "Ausschlussschlüssel (kommagetrennt)", "layer": "Diese Ebene", "relation": "Reihenfolge", "target": "Ebene eines anderen Elements", "add": "Regel hinzufügen", "remove": "Regel entfernen", "front": "Vorne", "back": "Hinten", "head": "Kopf", "body": "Körper", "above": "Darüber", "below": "Darunter"},
     "metadata": {
       "slot": "Garderobenplatz",
       "garmentType": "Kleidungsart",

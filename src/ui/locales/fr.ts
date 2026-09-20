@@ -216,6 +216,7 @@ export const fr: Messages= {
       "description": "Pour une petite correction avec la même pose, les mêmes proportions et la même position. Les vêtements et accessoires sont conservés. Si le corps ou la pose change, annulez et créez un nouveau personnage.",
       "confirm": "Même pose, conserver les calques",
     },
+    composition: { smart: "Superposition intelligente", smartHelp: "Activé : appliquer les règles de calques et d’exclusion. Désactivé : empiler dans l’ordre des clics sans exclusion.","title": "Calques et exclusions", "help": "Les éléments partageant une clé d’exclusion se remplacent mutuellement. Les relations entre calques priment sur l’ordre par défaut.", "exclusive": "Clés d’exclusion (séparées par des virgules)", "layer": "Ce calque", "relation": "Ordre", "target": "Calque d’un autre élément", "add": "Ajouter une relation", "remove": "Supprimer la relation", "front": "Avant", "back": "Arrière", "head": "Tête", "body": "Corps", "above": "Au-dessus", "below": "En dessous"},
     "metadata": {
       "slot": "Emplacement de garde-robe",
       "garmentType": "Type de vêtement",

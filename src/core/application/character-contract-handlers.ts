@@ -2,7 +2,7 @@ import { characterAssetTransfer, readDataUrl } from '../../adapters/webmcp/png-t
 import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_COMPONENT_RULES, CHARACTER_LAYER_GUIDANCE, CHARACTER_A_POSE_GUIDANCE, CHARACTER_VISUAL_REVIEW, MODEL_SHEET_REVIEW, characterMetadataStatus, modelSheetGenerationGuidance } from './character-agent-guidance.ts'
 import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY, CHARACTER_CREATION_GROUPS, characterNormalizationContract } from './character-asset-policy.ts'
 import { characterCoverageContract, measureCharacterMaskAlignment, measureCharacterPointAlignment, measureProtectedRegionDelta, suggestCharacterFit, suggestCharacterVisualRegistration, type CharacterAlignmentPoint } from './character-alignment.ts'
-import { REQUIRED_CHARACTER_TARGETS, characterAssetPlacement, characterRegistrationFrame, isCharacterDraftAssetCurrent, resolveCharacterAssetSources, resolveCharacterDraftLayers, resolveCharacterDraftReferenceLayers, transformCharacterBounds } from './character-creation.ts'
+import { REQUIRED_CHARACTER_TARGETS, characterAssetPlacement, characterRegistrationFrame, isCharacterDraftAssetCurrent, resolveCharacterAssetSources, resolveCharacterDraftLayers, resolveCharacterDraftPlacements, resolveCharacterDraftReferenceLayers, transformCharacterBounds } from './character-creation.ts'
 import { characterModelSheet, isTurnaroundView, modelSheetReferences, validateReferenceId } from './character-model-sheet.ts'
 import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl } from '../../adapters/browser/character-image.ts'
 import { CHARACTER_RIG, type CharacterAssetInspection, type CharacterAssetTarget, type CharacterDraft, type CharacterReferenceMetadata, type CharacterVariantGroup, type CharacterVariantLayer } from '../domain/character.ts'
@@ -79,7 +79,9 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
       bottom: Math.max(0, currentBounds.y + currentBounds.height - CHARACTER_RIG.canvas.height),
     } : undefined
     const placementLayers = resolveCharacterDraftReferenceLayers(draft, { group: input.group, id: input.variantId })
-    const placement = characterAssetPlacement(input.group, input.layer)
+    const paintOrder = resolveCharacterDraftPlacements(draft, { group: input.group, id: input.variantId })
+    const resolvedPlacement = paintOrder.find(({ variant, layer }) => variant.group === input.group && variant.id === input.variantId && layer === input.layer)
+    const placement = characterAssetPlacement(input.group, input.layer, resolvedPlacement?.layerOrder)
     const lineage = input.group === 'body' ? 'establish-canonical'
       : input.group === 'expression' ? headRegistration ? 'derive-from-head-registration' : 'establish-head-registration'
         : ['outfit', 'hair', 'headwear'].includes(input.group) ? 'derive-registered-overlay-from-canonical'
@@ -194,6 +196,12 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
       required: REQUIRED_CHARACTER_TARGETS.some((target) => target.group === input.group && target.variantId === input.variantId && target.layer === input.layer),
       acceptance: CHARACTER_ASSET_LANES[input.group],
       coverageContract,
+      composition: {
+        smartOrder: draft.selected.smartOrder,
+        rules: variant?.metadata?.composition ?? null,
+        paintOrder: paintOrder.map(({ variant, layer }) => ({ group: variant.group, id: variant.id, layer })),
+        instruction: 'Optional items share selection and layering. Smart on applies explicit above/below rules and exclusivity; Smart off ignores both and uses click order within front/back planes. Use set_character_variant_selection with smartOrder to change mode, or update_character_variant_metadata with composition to edit rules. Respect the user’s stacking intent.',
+      },
       placement: { slot: placement.slot, slotOrder: CHARACTER_RIG.slots.find(({ id }) => id === placement.slot)!.order, layerOrder: placement.order },
       alignmentReference: alignmentReference ? {
         filename: alignmentReference.filename,
@@ -412,7 +420,7 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
       generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
       sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
       productionBrief: [
-        'References belong to modelSheet.appearanceId. Edits automatically save into the current Appearance, including its expression/outfit/ordered props. Use set_character_variant_selection with appearance:{action:"save-as",id,label} BEFORE editing to keep the original look, appearance:{action:"create",id,label} for a new look with no selected variants or references, appearance:{action:"select",id} to switch, or appearance:{action:"delete",id} to remove a look and its references (keep at least one). Shared assets are retained. Switching waits for saving and starts a new Appearance undo session. Shared variant art affects all looks that use it. Captured fronts follow composition edits; existing other views are retained with needsReview:true after the composition changes. Inspect and visually compare them before replacing art or clearing needsReview. Default adopts legacy working art in memory; reads do not save. Save-as keeps the combination with a front and empty other views; create keeps the shared body/assets with no selected variants and an empty sheet.',
+        'References belong to modelSheet.appearanceId. Edits automatically save into the current Appearance, including its ordered items and Smart stacking setting. Use set_character_variant_selection with appearance:{action:"save-as",id,label} BEFORE editing to keep the original look, appearance:{action:"create",id,label} for a new look with no selected variants or references, appearance:{action:"select",id} to switch, or appearance:{action:"delete",id} to remove a look and its references (keep at least one). Shared assets are retained. Switching waits for saving and starts a new Appearance undo session. Shared variant art affects all looks that use it. Captured fronts follow composition edits; existing other views are retained with needsReview:true after the composition changes. Inspect and visually compare them before replacing art or clearing needsReview. Default adopts legacy working art in memory; reads do not save. Save-as keeps the combination with a front and empty other views; create keeps the shared body/assets with no selected variants and an empty sheet.',
         'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
         'Keep one consistent outfit and identity across the four turnaround views. Save as captures the new look’s front; use fromAppearance to explicitly fill or replace one. Add new leaves references empty until you add them or edit the composition. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
         'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
