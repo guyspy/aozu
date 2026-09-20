@@ -46,4 +46,4 @@ export const pngPayloadProperties = {
   dataSha256: { type: 'string', pattern: '^[0-9a-f]{64}$' },
 } satisfies Record<string, JsonSchema>
 
-export const PNG_WEBMCP_TRANSFER_GUIDANCE = 'Pass one complete dataUrl directly from host file bytes; never print or route base64 through model text. Follow the inspected assetTransfer toolkit; use its browser-file-chooser fallback if host access is unavailable or decoding fails.'
+export const PNG_WEBMCP_TRANSFER_GUIDANCE = 'In ChatGPT Browser Use host JavaScript, read the trusted local PNG with node:fs/promises, hash its bytes with node:crypto, build one complete dataUrl (data:image/png;base64,...), and call WebMCP with dataUrl and dataSha256 in the same execution; never print or route base64 through model text, terminal output, or the clipboard. Use the exact assetTransfer.toolkit snippet from inspect_character_contract; if host file access is unavailable or decoding fails, use its browser-file-chooser fallback.'

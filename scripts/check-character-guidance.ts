@@ -7,6 +7,7 @@ import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, characterMeta
 import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY, CHARACTER_CREATION_GROUPS } from '../src/core/application/character-asset-policy.ts'
 import { createCharacterDraft, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { measureCharacterPointAlignment, measureCharacterMaskAlignment, type CharacterAlignmentPoint } from '../src/core/application/character-alignment.ts'
+import { pngFromPayload } from '../src/adapters/webmcp/png-transfer.ts'
 
 const points: CharacterAlignmentPoint[] = [
   { label: 'upper left', candidate: { x: 100, y: 100 }, reference: { x: 120, y: 140 } },
@@ -90,12 +91,13 @@ const helper = guide.match(/```js\n([\s\S]*?)\/\/ In the same host runtime/)![1]
 const { pngWebMcpPayload } = await import(`data:text/javascript,${encodeURIComponent(`${helper}\nexport { pngWebMcpPayload };`)}`)
 const temp = mkdtempSync(join(tmpdir(), 'aozu-guide-'))
 try {
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAEklEQVR4nGO4EGDyHx9mGBkKAKpclMEw7buyAAAAAElFTkSuQmCC', 'base64')
   const path = join(temp, 'source.png'); writeFileSync(path, png)
   const payload = await pngWebMcpPayload(path)
   assert.equal(payload.filename, 'source.png')
   assert.equal(payload.dataSha256, createHash('sha256').update(png).digest('hex'))
   assert.deepEqual(Buffer.from(payload.dataUrl.split(',')[1], 'base64'), png)
+  assert.equal((await pngFromPayload(payload)).receivedSha256, payload.dataSha256)
   writeFileSync(path, 'not a PNG')
   await assert.rejects(pngWebMcpPayload(path), /original PNG/)
 } finally { rmSync(temp, { recursive: true, force: true }) }
