@@ -238,6 +238,8 @@ export const zhCN: Messages= {
       "failed": "WebMCP 工具注册失败",
       "guideTitle": "一起工作 AOZU 使用人工智能",
       "guideDescription": "将此提示复制到您的 AI 助手，以指导您的导游 AOZU 图书馆。",
+      "guideUnavailable": "当前浏览器无法让 AI 使用这份资料库的 WebMCP 工具。请在支持 WebMCP 的浏览器打开 AOZU。数据只保存在这里；先到资料库下载完整备份，再在另一个浏览器导入。",
+      "guideVerify": "请先确认你能在这个浏览器实际调用 AOZU 的 WebMCP 工具。如果不能，请明确告诉我并停止，不要声称已经查看我的资料库。",
       "guidePrompt": "使用 AOZU的 WebMCP 引导我浏览这个库的工具。 从...开始 inspect_workspace 了解当前页面和此浏览器中存储的数据。 简要解释收藏、人物、地点、专辑、故事书和故事板，它们的关系以及已经存在的东西。 使用 navigate_workspace 而不是猜测网址。 在任何编辑之前，检查确切的 ID 和 revisions; 每次操作后，再次检查并验证可见页面。 保留定义的字符、位置和条件的引用； 有用时可以创建未定义的主题。 我的数据保留在此浏览器中，并未同步到云。 首先给我一个概述，然后问我接下来想做什么。"
     }
   },

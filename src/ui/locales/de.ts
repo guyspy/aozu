@@ -238,6 +238,8 @@ export const de: Messages= {
       "failed": "Registrierung der WebMCP-Tools fehlgeschlagen",
       "guideTitle": "AOZU mit KI verwenden",
       "guideDescription": "Kopiere diesen Prompt in deinen KI-Assistenten, um eine Führung durch deine AOZU-Bibliothek zu erhalten.",
+      "guideUnavailable": "Die KI kann die WebMCP-Tools dieser Bibliothek in diesem Browser nicht nutzen. Öffne AOZU in einem WebMCP-fähigen Browser. Deine Daten bleiben hier: Lade in der Bibliothek ein vollständiges Backup herunter und importiere es im anderen Browser.",
+      "guideVerify": "Prüfe zuerst, ob du die AOZU-WebMCP-Tools in diesem Browser tatsächlich aufrufen kannst. Falls nicht, sag es mir und stoppe; behaupte nicht, meine Bibliothek geprüft zu haben.",
       "guidePrompt": "Führe mich mit den WebMCP-Tools von AOZU durch diese Bibliothek. Beginne mit inspect_workspace, um die aktuelle Seite und die in diesem Browser gespeicherten Daten zu verstehen. Erkläre kurz Sammlungen, Charaktere, Orte, Alben, Story-Bücher und Storyboards, ihre Beziehungen und die bereits vorhandenen Inhalte. Verwende navigate_workspace, statt URLs zu erraten. Prüfe vor jeder Änderung die genauen IDs und Revisionen; prüfe danach erneut die sichtbare Seite. Behalte Referenzen auf definierte Charaktere, Orte und Bedingungen bei; nicht definierte Inhalte dürfen bei Bedarf erstellt werden. Meine Daten bleiben in diesem Browser und werden nicht mit der Cloud synchronisiert. Gib mir zuerst einen Überblick und frage dann, was ich als Nächstes tun möchte."
     }
   },

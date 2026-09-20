@@ -23,7 +23,8 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState('')
   const label = t(`main.webmcp.${webmcp.status}`, { count: webmcp.toolCount })
-  const guidePrompt = t('main.webmcp.guidePrompt')
+  const webmcpReady = webmcp.status === 'ready'
+  const guidePrompt = `${t('main.webmcp.guideVerify')} ${t('main.webmcp.guidePrompt')}`
   const color = webmcp.status === 'ready' ? 'bg-emerald-500' : webmcp.status === 'registering' ? 'bg-amber-500'
     : webmcp.status === 'failed' ? 'bg-red-500' : 'bg-muted-foreground/50'
 
@@ -62,12 +63,14 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg" closeLabel={t('common.close')}>
-              <DialogTitle>{t('main.webmcp.guideTitle')}</DialogTitle>
-              <DialogDescription>{t('main.webmcp.guideDescription')}</DialogDescription>
-              <div className="max-h-64 select-text overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{guidePrompt}</div>
-              <Button type="button" onClick={() => void navigator.clipboard.writeText(guidePrompt).then(() => { setCopied(true); setCopyError('') }, (caught: unknown) => setCopyError(caught instanceof Error ? caught.message : String(caught)))}>
-                <CopyIcon />{t(copied ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}
-              </Button>
+              <DialogTitle>{webmcpReady || webmcp.status === 'registering' ? t('main.webmcp.guideTitle') : label}</DialogTitle>
+              <DialogDescription>{webmcpReady ? t('main.webmcp.guideDescription') : webmcp.status === 'registering' ? label : t('main.webmcp.guideUnavailable')}</DialogDescription>
+              {webmcpReady && <>
+                <div className="max-h-64 select-text overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">{guidePrompt}</div>
+                <Button type="button" onClick={() => void navigator.clipboard.writeText(guidePrompt).then(() => { setCopied(true); setCopyError('') }, (caught: unknown) => setCopyError(caught instanceof Error ? caught.message : String(caught)))}>
+                  <CopyIcon />{t(copied ? 'characterDraft.start.copied' : 'characterDraft.start.copy')}
+                </Button>
+              </>}
               {copyError && <p role="alert" className="text-sm text-destructive">{t('data.error')} {copyError}</p>}
             </DialogContent>
           </Dialog>

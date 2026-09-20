@@ -167,6 +167,8 @@ export const en = {
       failed: 'WebMCP tool registration failed',
       guideTitle: 'Work with AOZU using AI',
       guideDescription: 'Copy this prompt to your AI assistant for a guided tour of your AOZU library.',
+      guideUnavailable: 'AI cannot use this library’s WebMCP tools in this browser session. Open AOZU in a WebMCP-compatible browser. Your data stays here; use Library → Download complete backup, then import it in the other browser.',
+      guideVerify: 'First check that you can actually call AOZU WebMCP tools in this browser. If you cannot, tell me and stop; do not claim to have inspected my library.',
       guidePrompt: `Use AOZU's WebMCP tools to guide me through this library. Start with inspect_workspace to understand the current page and the data stored in this browser. Briefly explain Collections, Characters, Locations, Albums, Story Books, and Storyboards, how they relate, and what already exists. Use navigate_workspace instead of guessing URLs. Before any edit, inspect the exact IDs and revisions; after every action, inspect again and verify the visible page. Keep references for defined Characters, Locations, and Conditions; undefined subjects may be created when useful. My data stays in this browser and is not synced to the cloud. First give me an overview, then ask what I want to do next.`,
     },
   },

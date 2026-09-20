@@ -238,6 +238,8 @@ export const ptBR: Messages= {
       "failed": "Falha ao registrar as ferramentas WebMCP",
       "guideTitle": "Usar o AOZU com IA",
       "guideDescription": "Copie este prompt para o seu assistente de IA receber um tour guiado pela sua biblioteca AOZU.",
+      "guideUnavailable": "A IA não pode usar as ferramentas WebMCP desta biblioteca neste navegador. Abra o AOZU em um navegador compatível com WebMCP. Seus dados ficam aqui: baixe um backup completo na Biblioteca e importe-o no outro navegador.",
+      "guideVerify": "Primeiro confirme que você consegue chamar as ferramentas WebMCP do AOZU neste navegador. Se não conseguir, avise-me e pare; não diga que examinou minha biblioteca.",
       "guidePrompt": "Use as ferramentas WebMCP do AOZU para me guiar por esta biblioteca. Comece com inspect_workspace para entender a página atual e os dados armazenados neste navegador. Explique brevemente as coleções, os personagens, os locais, os álbuns, os livros de histórias e os storyboards, como eles se relacionam e o que já existe. Use navigate_workspace em vez de adivinhar URLs. Antes de qualquer edição, inspecione os IDs e as revisões exatos; depois de cada ação, inspecione novamente e verifique a página visível. Mantenha referências para personagens, locais e condições definidos; elementos não definidos podem ser criados quando forem úteis. Meus dados permanecem neste navegador e não são sincronizados com a nuvem. Primeiro, apresente uma visão geral e depois pergunte o que quero fazer."
     }
   },
