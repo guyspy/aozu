@@ -350,19 +350,22 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
     </TooltipProvider>
   </WorkspaceActions>
 
-  const workbench = (stacked: boolean) => <WorkspaceSurface className="doll-workbench" aria-label={t('characterDraft.customizeTitle')}>
+  const smartToggle = <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant={draft.selected.smartOrder ? 'default' : 'ghost'} disabled={!hasBase} aria-label={t('characterDraft.composition.smart')} aria-pressed={draft.selected.smartOrder} data-testid="smart-order" onClick={() => commit((current) => ({ ...current, selected: setSmartOrder(current.variants, current.selected, !current.selected.smartOrder) }))}><WandSparklesIcon /></Button></TooltipTrigger><TooltipContent className="max-w-64 whitespace-normal">{t('characterDraft.composition.smartHelp')}</TooltipContent></Tooltip>
+  const workbench = (stacked: boolean) => <>
+    {stacked && <TooltipProvider><div className="absolute right-14 top-3 z-10">{smartToggle}</div></TooltipProvider>}
+    <WorkspaceSurface className="doll-workbench" aria-label={t('characterDraft.customizeTitle')}>
         <div className="workbench-lockable">
         <div className="workbench-body" inert={!hasBase ? true : undefined} aria-hidden={!hasBase}>
         <Tabs value={category.id} onValueChange={(id) => navigate(`/characters/${encodeURIComponent(draft.id)}/${id}`)} className="min-h-0 flex-1 gap-0">
-        <TooltipProvider><div className="mb-2 flex justify-end"><Tooltip><TooltipTrigger asChild><Button size="icon" variant={draft.selected.smartOrder ? "default" : "ghost"} aria-label={t('characterDraft.composition.smart')} aria-pressed={draft.selected.smartOrder} data-testid="smart-order" onClick={() => commit((current) => ({ ...current, selected: setSmartOrder(current.variants, current.selected, !current.selected.smartOrder) }))}><WandSparklesIcon /></Button></TooltipTrigger><TooltipContent>{t('characterDraft.composition.smartHelp')}</TooltipContent></Tooltip></div></TooltipProvider>
-        {!selectedVariant && <TooltipProvider><TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid w-full grid-cols-5">
+        {!selectedVariant ? <TooltipProvider><div className="flex items-center gap-2"><TabsList aria-label={t('characterDraft.categorySwitcher')} className="workbench-tabs grid min-w-0 flex-1 grid-cols-5">
           {characterCategories.map(({ id, icon: Icon }) => <Tooltip key={id}>
             <TooltipTrigger asChild><TabsTrigger value={id} aria-label={t(`characterDraft.categories.${id}`)}>
               <Icon aria-hidden="true" />
             </TabsTrigger></TooltipTrigger>
             <TooltipContent>{t(`characterDraft.categories.${id}`)}</TooltipContent>
           </Tooltip>)}
-        </TabsList></TooltipProvider>}
+        </TabsList>{!stacked && smartToggle}</div></TooltipProvider>
+          : !stacked && <TooltipProvider><div className="flex justify-end">{smartToggle}</div></TooltipProvider>}
 
         <TabsContent value={category.id} className="workbench-content workspace-scroll">
         {!selectedVariant && <>
@@ -529,6 +532,7 @@ export function CharacterDraftPage({ webmcpReady = false, editor, savedRevision,
         {!hasBase && <div className="workbench-lock" role="status"><p>{t('characterDraft.missingRequired')}</p></div>}
         </div>
       </WorkspaceSurface>
+    </>
 
   const profile = (stacked: boolean) => <WorkspaceSurface id="character-profile" className="character-profile-panel"><WorkspaceScroll>
           {error && stacked && <p role="alert" className="text-sm text-destructive">{error}</p>}
