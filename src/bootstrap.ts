@@ -13,216 +13,34 @@ import { exportLibraryArchive, importLibraryArchive } from './core/application/l
 import { createStoryboardService } from './core/application/storyboard.ts'
 import type { SettingSnapshot } from './core/domain/storyboard.ts'
 import { createWebMcpController, readWorkspaceView } from './adapters/webmcp/controller.ts'
-import { CHARACTER_COMPONENT_RULES, CHARACTER_AUTHORING_GUIDE, CHARACTER_LAYER_GUIDANCE, characterMetadataStatus, CHARACTER_A_POSE_GUIDANCE, modelSheetGenerationGuidance, MODEL_SHEET_REVIEW, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_NAVIGATION_GUIDANCE, CHARACTER_VISUAL_REVIEW } from './core/application/character-agent-guidance.ts'
+import { blobFromDataUrl } from './adapters/webmcp/png-transfer.ts'
 import { AUTHORING_NAMESPACE } from './core/application/authoring.ts'
 import {
-  CHARACTER_ALIGN_MODES,
-  CHARACTER_GENERATION_CANVAS,
-  CHARACTER_REFERENCE_VIEWS,
-  type CharacterReferenceView,
   type CharacterReferenceMetadata,
-  type CharacterReference,
-  CHARACTER_RESIZE_MODES,
-  CHARACTER_RIG,
-  NO_CHARACTER_NORMALIZATION,
-  type CharacterAssetInspection,
   type CharacterAssetTarget,
   type CharacterDraft,
-  type CharacterNormalization,
-  type CharacterProfilePatch,
   type CharacterVariantGroup,
-  type CharacterVariantLayer,
-  type CharacterVariantTransform,
-  type CharacterVariantProfilePatch,
 } from './core/domain/character.ts'
 import {
-  CHARACTER_CREATION_GROUPS,
   REQUIRED_CHARACTER_TARGETS,
-  activateCharacterVariant,
-  deactivateCharacterVariant,
   migrateLegacyCharacterLibrary,
   hasCurrentCharacterLayer,
-  isCharacterDraftAssetCurrent,
-  characterAssetPlacement,
-  characterAssetInspectionRejection,
-  characterRegistrationFrame,
   resolveCharacterDraftAtlasSources,
   resolveCharacterDraftLayers,
   resolveCharacterDraftPlacements,
-  resolveCharacterDraftReferenceLayers,
-  resolveCharacterAssetSources,
   setCharacterVariantTransform,
-  transformCharacterBounds,
-  updateCharacterProfile,
-  updateCharacterVariantMetadata,
-  saveCharacterDraftAsset,
 } from './core/application/character-creation.ts'
-import { updateCharacterModelSheet, characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference, validateReferenceId, isTurnaroundView } from './core/application/character-model-sheet.ts'
-import { changeCharacterAppearance, type CharacterAppearanceCommand } from './core/application/character-appearances.ts'
+import { characterModelSheet, withCharacterModelSheet, modelSheetReferences, setModelSheetReference } from './core/application/character-model-sheet.ts'
+import type { CharacterAppearanceCommand } from './core/application/character-appearances.ts'
 import { createCharacterEditor } from './core/application/character-editor.ts'
-import { characterCoverageContract, measureCharacterPointAlignment, type CharacterAlignmentPoint, highConfidenceCharacterAutoFit, inspectCharacterAssetOwnership, measureCharacterMaskAlignment, measureProtectedRegionDelta, planCharacterAlignment, planCharacterResize, suggestCharacterFit, suggestCharacterVisualRegistration } from './core/application/character-alignment.ts'
-import { inspectCharacterImage, readCharacterAlphaMask, readCharacterPixels, readCharacterVisualSample, renderCharacterCanvasDownscale, renderCharacterCompositeBlob, renderCharacterThumbnail, renderCharacterCompositeDataUrl, renderCharacterEditMaskDataUrl, renderStitchedCharacterEditBlob } from './adapters/browser/character-image.ts'
+import { createCharacterWebMcpHandlers } from './core/application/character-webmcp-handlers.ts'
+import { createWorkspaceInspector } from './core/application/workspace-inspection.ts'
+import { inspectCharacterImage, renderCharacterCompositeBlob, renderCharacterThumbnail } from './adapters/browser/character-image.ts'
 import { requestPersistentStorage } from './adapters/browser/storage-persistence.ts'
 import { createCharacterWorkspaceEvents } from './adapters/browser/character-workspace-events.ts'
 import { exportCharacterDraftZip, readCharacterDraftZip } from './adapters/zip/character-draft.ts'
 import { DEFAULT_CHARACTER_COLLECTION, type CharacterCollectionProfile } from './core/domain/character-collection.ts'
 import { compileAuthoringBackbone } from './core/mantle/backbone.ts'
-
-const readDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader()
-  reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read character asset'))
-  reader.onerror = () => reject(reader.error)
-  reader.readAsDataURL(blob)
-})
-
-const pngFromDataUrl = (dataUrl: string) => {
-  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
-  if (!match || dataUrl.length > 7_100_000) throw new Error('Expected a PNG data URL under 5 MiB')
-  const bytes = Uint8Array.from(atob(match[1]), (character) => character.charCodeAt(0))
-  if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte)) throw new Error('Submitted dataUrl is not PNG bytes; provide the complete original PNG base64 payload')
-  return new Blob([bytes], { type: 'image/png' })
-}
-type PngPayload = { dataUrl?: string; dataSha256?: string }
-const characterAssetTransfer = (fallback?: { path: string; selector: string; triggerSelector?: string; label?: string }) => ({
-  protocol: 'chatgpt-host-data-url-v1',
-  toolkit: {
-    runtime: 'ChatGPT Browser Use host JavaScript',
-    read: "const { readFile } = await import('node:fs/promises'); const bytes = await readFile(trustedLocalPngPath)",
-    hash: "const { createHash } = await import('node:crypto'); const dataSha256 = createHash('sha256').update(bytes).digest('hex')",
-    encode: "const dataUrl = `data:image/png;base64,${bytes.toString('base64')}`",
-    call: 'const webmcp = await aozuTab.capabilities.get("webmcp"); const tools = await webmcp.fetchTools(); await tools.call(toolName, { ...requiredInput, filename, dataUrl, dataSha256 })',
-    rule: 'Read, encode, and call WebMCP in the same host-runtime execution. Keep bytes in memory; never print or route base64 through model text, terminal output, or the clipboard.',
-  },
-  input: { dataUrl: 'one complete data:image/png;base64 string', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
-  ...(fallback ? { fallback: {
-    kind: 'browser-file-chooser', accept: 'image/png', ...fallback,
-    instruction: fallback.triggerSelector
-      ? 'Navigate to path, start Browser Use waitForEvent("filechooser"), click triggerSelector, and set the trusted local PNG path. selector identifies the exact input only; do not click a different visible uploader.'
-      : 'Navigate to path, start Browser Use waitForEvent("filechooser"), click selector, and set the trusted local PNG path.',
-  } } : {}),
-})
-const sha256Blob = async (blob: Blob) => Array.from(
-  new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('')
-const pngFromPayload = async ({ dataUrl, dataSha256 }: PngPayload) => {
-  if (!dataUrl) throw new Error('Provide one complete PNG dataUrl built directly from local file bytes in the ChatGPT Browser Use host runtime')
-  const blob = pngFromDataUrl(dataUrl)
-  const receivedSha256 = await sha256Blob(blob)
-  if (dataSha256 && receivedSha256 !== dataSha256) throw new Error(`PNG payload changed in transit; expected sha256 ${dataSha256}, received ${receivedSha256}. Re-read the local PNG and rebuild dataUrl in the same Browser Use host-runtime call.`)
-  return { blob, receivedSha256 }
-}
-const blobFromDataUrl = (dataUrl: string) => {
-  const match = /^data:(application\/zip|image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
-  if (!match || dataUrl.length > 28_000_000) throw new Error('Expected a supported base64 data URL under 20 MiB')
-  return new Blob([Uint8Array.from(atob(match[2]), (character) => character.charCodeAt(0))], { type: match[1] })
-}
-const describeReference = ({ asset, ...reference }: CharacterReference) => ({
-  ...reference, filename: asset.filename, sha256: asset.inspection.sha256, width: asset.inspection.width, height: asset.inspection.height,
-})
-const modelSheetPath = (id: string, referenceId?: string) => `/characters/${encodeURIComponent(id)}/model-sheet${referenceId ? `/${encodeURIComponent(referenceId)}` : ''}`
-const describeAppearances = (character: CharacterDraft) => ({
-  activeAppearanceId: character.activeAppearanceId ?? null,
-  autoSave: 'current-appearance',
-  appearances: (character.appearances ?? []).map(({ id, label, selected, modelSheet }) => ({ id, label, selected,
-    referenceCount: Object.keys(modelSheetReferences(modelSheet)).length })),
-})
-const describeModelSheet = (character: CharacterDraft) => ({
-  appearanceId: character.activeAppearanceId ?? null,
-  heightCm: character.modelSheet?.heightCm ?? null,
-  views: Object.fromEntries(Object.entries(characterModelSheet(character).views).map(([id, reference]) => [id, describeReference(reference)])),
-  references: Object.fromEntries(Object.entries(characterModelSheet(character).references ?? {}).map(([id, reference]) => [id, describeReference(reference)])),
-})
-const MODEL_SHEET_POLICY = {
-  tool: 'update_character_model_sheet', views: CHARACTER_REFERENCE_VIEWS,
-  input: { mediaType: 'image/png', maxBytes: 5 * 1024 * 1024, maxWidth: 4096, maxHeight: 4096, background: 'opaque or transparent', preserveOriginalCanvas: true },
-  instruction: 'Four full-body turnaround slots share one Appearance and pose. Appearance starts in A-pose. Save as captures the current front for the new Appearance; visually review it. Add new keeps the shared base body but starts with no selected variants or references. Existing reference images are preserved. Supplement with independent head, structure (T-pose/raised arm), expression, detail and style references. Preserve identity, outfit and proportions. Left/right mean the character’s own sides. New unseen designs are proposals to record in notes, not established canon. Height in cm is optional; never infer it from image pixels. Guides use fractions of the original image height, head above feet; calibrate visually and exclude hats and held props. Reference art does not change appearance layers.',
-}
-interface ModelSheetInput extends CharacterReferenceMetadata {
-  referenceId?: string
-  fromAppearance?: boolean
-  remove?: boolean
-  characterId: string
-  expectedRevision: number
-  view?: CharacterReferenceView
-  notes?: string
-  guides?: CharacterReference['guides'] | null
-  filename?: string
-  dataUrl?: string
-  dataSha256?: string
-  expectedAssetSha256?: string | null
-}
-
-type CharacterBounds = NonNullable<CharacterAssetInspection['visibleBounds']>
-type CharacterAlignmentMeasurement = ReturnType<typeof measureCharacterMaskAlignment>
-
-const CHARACTER_ASSET_POLICY = {
-  workflow: {
-    inspectBeforeMutation: true,
-    exactRevisionAndAssetSha256: 'required',
-    canonicalBodyBeforeDerivedLayers: 'required',
-    navigation: CHARACTER_NAVIGATION_GUIDANCE,
-    visualReview: CHARACTER_VISUAL_REVIEW,
-  },
-  input: {
-    mediaType: 'image/png',
-    finalCanvas: { ...CHARACTER_RIG.canvas },
-    visiblePixels: 'required',
-    canvasEdge: { body: 'reject', expression: 'reject', outfit: 'reject', hair: 'reject', headwear: 'reject', prop: 'warning' },
-    alpha: {
-      required: true,
-      websiteRemovesBackground: false,
-      opaqueInput: 'reject',
-      instruction: CHARACTER_BACKGROUND_GUIDANCE,
-      preparation: {
-        default: 'new-art-only-solid-background-then-remove',
-        suppliedArt: 'Preserve requested alpha, glow and edge treatment; skip background removal for finished transparent art.',
-        generateOn: 'one flat high-contrast color absent from the subject',
-        avoid: ['painted checkerboard', 'cropped silhouette'],
-        beforeSubmission: ['discover a permitted background-removal tool, image editor, or local image-processing CLI/library (for example Apple Vision foreground masking on macOS)', 'remove the solid background without cropping or reframing', 'verify real alpha and inspect edges on light and dark backgrounds', 'submit genuine RGBA PNG; AOZU rejects indexed or opaque PNGs'],
-      },
-    },
-  },
-  layers: {
-    body: { content: 'canonical-body', pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE },
-    expression: { content: 'complete-whole-head-only', instruction: CHARACTER_LAYER_GUIDANCE.expression, outsideHeadOwnership: 'transparent', referenceOverlap: 'required' },
-    outfit: {
-      content: 'garment-only-transparent-overlay',
-      characterPixels: 'reject',
-      registration: 'exact-canonical-canvas',
-      layers: { back: 'only parts genuinely behind the body', front: 'visible garment surface' },
-    },
-    hair: { content: 'hair-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'hair behind the head', front: 'hair over the head' } },
-    headwear: { content: 'headwear-only-transparent-overlay', characterPixels: 'reject', layers: { back: 'parts behind the head', front: 'visible headwear' } },
-    prop: { content: 'object-with-optional-gripping-hand-patch', instruction: CHARACTER_LAYER_GUIDANCE.prop },
-  },
-} as const
-
-/** The one deterministic alignment reference per group, read from the shared registration frame. */
-const characterReferenceBounds = (
-  frame: ReturnType<typeof characterRegistrationFrame>,
-  group: CharacterVariantGroup,
-): CharacterBounds | undefined => group === 'expression' ? frame.headEnvelope?.bounds : undefined
-
-/** What a submission may and should ask the website to normalize, from the same geometry submission validates against. */
-const characterNormalizationContract = (alignAvailable: boolean) => ({
-  allowed: { resize: CHARACTER_RESIZE_MODES, align: alignAvailable ? CHARACTER_ALIGN_MODES : (['none'] as const) },
-  recommended: {
-    resize: 'exact-aspect-downscale' as const,
-    align: alignAvailable ? 'reference-visible-bounds' as const : 'none' as const,
-  },
-  generateAt: { ...CHARACTER_GENERATION_CANVAS },
-  finalizeAt: { ...CHARACTER_RIG.canvas },
-  requirements: [
-    CHARACTER_BACKGROUND_GUIDANCE,
-    `Default submissions must already be exactly ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}.`,
-    `"exact-aspect-downscale" accepts only genuine RGBA at the exact ${CHARACTER_RIG.canvas.width}:${CHARACTER_RIG.canvas.height} aspect and at least that size; it never upscales, crops, or reframes.`,
-    alignAvailable
-      ? '"reference-visible-bounds" fits the candidate alpha bounds onto the returned reference bounds with one uniform scale plus translation, and is rejected if it would leave the canvas.'
-      : 'Alignment normalization is unavailable for this target; submit exact-canvas pixels that already match the returned geometry.',
-  ],
-})
-
 const CHARACTER_WEBMCP_TRIGGERS = [
   'inspect-workspace',
   'inspect-storyboard',
@@ -261,6 +79,7 @@ export function createApplication(document: Document) {
   const authoringPlan = compileAuthoringBackbone()
   let authoringRuntime: Promise<MantleRuntime> | undefined
   const invokeContext = { user: null, staff: null, env: {} }
+  let characterHandlers!: ReturnType<typeof createCharacterWebMcpHandlers>
 
   const getAuthoringRuntime = () => authoringRuntime ??= bootMantleRuntime({
     plan: authoringPlan,
@@ -283,19 +102,19 @@ export function createApplication(document: Document) {
       'companion.export-library': exportLibrary,
       'companion.import-library': importLibrary,
       'companion.update-collection-profile': updateCollectionProfile,
-      'companion.update-character-profile': updateProfile,
-      'companion.update-character-variant-metadata': updateVariantMetadata,
-      'companion.update-character-model-sheet': (input) => updateModelSheet(input),
-      'companion.set-character-variant-selection': setCharacterSelection,
+      'companion.update-character-profile': (input) => characterHandlers.updateProfile(input),
+      'companion.update-character-variant-metadata': (input) => characterHandlers.updateVariantMetadata(input),
+      'companion.update-character-model-sheet': (input) => characterHandlers.updateModelSheet(input),
+      'companion.set-character-variant-selection': (input) => characterHandlers.setCharacterSelection(input),
       'companion.create-local-companion': storyModeUnavailable,
       'companion.inspect-experience-contract': storyModeUnavailable,
       'companion.submit-experience-candidate': storyModeUnavailable,
-      'companion.inspect-character-contract': inspectCharacterContract,
-      'companion.replace-character-asset': replaceCharacterAssetTool,
-      'companion.repair-character-asset': repairCharacterAssetTool,
-      'companion.set-character-variant-transform': setCharacterTransform,
-      'companion.undo-character-change': characterHistoryTool('undo'),
-      'companion.redo-character-change': characterHistoryTool('redo'),
+      'companion.inspect-character-contract': (input) => characterHandlers.inspectCharacterContract(input),
+      'companion.replace-character-asset': (input) => characterHandlers.replaceCharacterAssetTool(input),
+      'companion.repair-character-asset': (input) => characterHandlers.repairCharacterAssetTool(input),
+      'companion.set-character-variant-transform': (input) => characterHandlers.setCharacterTransform(input),
+      'companion.undo-character-change': (input) => characterHandlers.characterHistoryTool('undo')(input),
+      'companion.redo-character-change': (input) => characterHandlers.characterHistoryTool('redo')(input),
     },
   })
   const storedCharacterDrafts = createCharacterWorkspaceRepository(getAuthoringRuntime, createIndexedDbAssetRepository)
@@ -363,7 +182,8 @@ export function createApplication(document: Document) {
     worldLibrary,
     webmcp,
     editor,
-    changeCharacterAppearance: applyCharacterAppearance,
+    changeCharacterAppearance: (characterId: string, command: CharacterAppearanceCommand, expectedRevision: number) =>
+      characterHandlers.applyCharacterAppearance(characterId, command, expectedRevision),
     subscribeCharacterChanges: characterChanges.subscribe,
     async loadCharacterLibrary() {
       await migrateLegacyCharacters()
@@ -438,9 +258,9 @@ export function createApplication(document: Document) {
     },
     /** Read-only: the same high-confidence fit WebMCP reports, so the editor can explain it before applying. */
     characterFitSuggestion: (group: CharacterVariantGroup, variantId: string) =>
-      characterFit(group, variantId).then(({ fit }) => fit),
+      characterHandlers.characterFit(group, variantId).then(({ fit }) => fit),
     async autoFitCharacterVariant(group: CharacterVariantGroup, variantId: string) {
-      const { revision, fit } = await characterFit(group, variantId)
+      const { revision, fit } = await characterHandlers.characterFit(group, variantId)
       if (fit.status === 'aligned') return
       if (fit.status !== 'suggested') throw new Error('No high-confidence fit is available; use the visual alignment controls.')
       await editor.dispatch((current) => setCharacterVariantTransform(current, group, variantId, fit.transform), revision)
@@ -449,7 +269,7 @@ export function createApplication(document: Document) {
       await editor.open(characterId)
       const { character, revision } = activeCharacter()
       const current = character.variants.find(({ group, id }) => group === target.group && id === target.variantId)?.layers[target.layer]
-      const result = await mutateCharacterAsset('replace', {
+      const result = await characterHandlers.mutateCharacterAsset('replace', {
         ...target,
         characterId,
         expectedRevision: options.expectedRevision ?? revision,
@@ -463,7 +283,7 @@ export function createApplication(document: Document) {
     async replaceCharacterReference(characterId: string, referenceId: string, blob?: Blob, metadata: CharacterReferenceMetadata = {}) {
       await editor.open(characterId)
       const { character, revision } = activeCharacter()
-      return updateModelSheet({ characterId, expectedRevision: revision, referenceId, ...metadata,
+      return characterHandlers.updateModelSheet({ characterId, expectedRevision: revision, referenceId, ...metadata,
         ...(blob ? { filename: blob instanceof File ? blob.name : `${referenceId}.png` } : { fromAppearance: true }),
         expectedAssetSha256: modelSheetReferences(characterModelSheet(character))[referenceId]?.asset.inspection.sha256 ?? null,
       }, blob, 'user')
@@ -517,15 +337,6 @@ export function createApplication(document: Document) {
     if (missingCondition) throw new Error(`${missingCondition.name} is defined in AOZU and requires its Location setting ref`)
     const missingPhoto = unreferencedMention(text, world.photos.map((photo) => ({ name: photo.name, referenced: pinned('photo', photo.id), value: photo })))
     if (missingPhoto) throw new Error(`${missingPhoto.name} is defined in AOZU and requires an Album Photo setting ref`)
-  }
-
-  const characterFit = async (group: CharacterVariantGroup, variantId: string) => {
-    const { character, revision } = activeCharacter()
-    const variant = character.variants.find((candidate) => candidate.group === group && candidate.id === variantId)
-    const layer = variant && CHARACTER_CREATION_GROUPS.find((candidate) => candidate.group === group)?.layers.find((candidate) => variant.layers[candidate])
-    if (!variant || !layer) throw new Error('Character variant is empty or missing')
-    const { fit } = await measureCharacterFit(character, { group, variantId, layer })
-    return { revision, fit }
   }
 
   const categoryFor = (group: CharacterVariantGroup) => group === 'expression' ? 'expressions'
@@ -582,164 +393,34 @@ export function createApplication(document: Document) {
     return { id: book.id, name: book.name, description: book.description, backstory: book.backstory, revision: book.version }
   }
 
-  async function inspectWorkspace(rawInput: unknown) {
-    const { includeSnapshot = false, resource, id, images = [], intent } = rawInput as { includeSnapshot?: boolean; resource?: string; id?: string; images?: string[]; intent?: 'character' | 'world' | 'storyboard' }
-    if (images.length > 5 || new Set(images).size !== images.length) throw new Error('Request at most five distinct Library images')
-    const route = browser?.location.pathname ?? '/'
-    const view = readWorkspaceView(document)
-    const books = await collections.list()
-    const visualLibrary = await worldLibrary.load()
-    if (resource && !id) throw new Error(`${resource} ID is required`)
-    const exists = resource === 'collection' ? books.some((item) => item.id === id)
-      : resource === 'album' ? visualLibrary.albums.some((item) => item.id === id)
-      : resource === 'photo' ? visualLibrary.photos.some((item) => item.id === id)
-      : resource === 'location' ? visualLibrary.locations.some((item) => item.id === id)
-      : resource === 'story-book' ? visualLibrary.storyBooks.some((item) => item.id === id) : true
-    if (!exists) throw new Error(`${resource} not found`)
-    const locationId = resource === 'location' ? id : view?.locationId
-    const albumId = resource === 'album' ? id : view?.albumId
-    const photoId = resource === 'photo' ? id : view?.photoId
-    const bookId = resource === 'story-book' ? id : view?.bookId ?? (view?.boardId ? visualLibrary.boardBooks[view.boardId] : undefined)
-    const requestedImages = await Promise.all(images.map(async (imageId) => {
-      const photo = visualLibrary.photos.find((item) => item.id === imageId)
-      const reference = visualLibrary.locations.flatMap((location) => [...location.images, ...location.conditions.flatMap((condition) => condition.images)]).find((item) => item.id === imageId)
-      const image = photo?.image ?? reference?.image; if (!image) throw new Error(`Library image not found: ${imageId}`)
-      return { id: imageId, ...image, dataUrl: await readDataUrl(await worldLibrary.image(image.sha256)) }
-    }))
-    const selectedRoute = routeSelection(route)
-    const records = await listCharacterDrafts()
-    const saved = records.find(({ character }) => character.id === selectedRoute?.characterId)
-    const current = saved ? await editor.view(saved.character.id) : selectedRoute?.characterId === 'new' ? (await editor.open('new'), await editor.view('new')) : null
-    const character = current?.character ?? null
-    const renderSnapshot = async () => {
-      const unavailable = (reason: string) => ({ status: 'unavailable' as const, reason })
-      if (view?.boardId) return unavailable('Use inspect_storyboard with boardId and explicit image IDs to view the original storyboard images.')
-      if (locationId || photoId) {
-        if (view?.hasUncommittedInput) return unavailable('Finish or cancel local edits before requesting a snapshot.')
-        const location = visualLibrary.locations.find((l) => l.id === locationId)
-        const photo = visualLibrary.photos.find((p) => p.id === photoId)
-        const image = photo?.image ?? location?.images.find((i) => i.purpose === 'design')?.image ?? location?.images[0]?.image
-        if (!image) return unavailable('This setting has no image yet.')
-        const dataUrl = await readDataUrl(await worldLibrary.image(image.sha256))
-        if (browser?.location.pathname !== route || (await worldLibrary.load()).revision !== visualLibrary.revision) return unavailable('The source changed while loading; inspect again.')
-        return { status: 'ready', source: photo ? 'album-photo' : 'location-setting', ...image, dataUrl }
-      }
-      if (!character || !current) return unavailable('No Character is open. Ask the user to open the Character they want feedback on.')
-      if (view?.hasUncommittedInput) return unavailable('The view has uncommitted input. Finish or cancel the local edit, then inspect again.')
-      const state = editor.store.getState()
-      if (state.saveStatus !== 'saved') return unavailable('Character changes are not saved. Wait for saving, or resolve the save error, then inspect again.')
-      if (view?.characterId !== character.id || view.revision !== current.version || state.activeCharacterId !== character.id
-        || state.persistedRevision !== current.version || view.category !== selectedRoute?.category || view.viewedVariantId !== selectedRoute?.variantId) {
-        return unavailable('The rendered view and Character revision do not match. Let the page finish rendering, then inspect again.')
-      }
-      if (view.category === 'model-sheet') {
-        const referenceId = view.referenceView ?? selectedRoute?.variantId
-        const reference = referenceId ? modelSheetReferences(characterModelSheet(character))[referenceId] : undefined
-        if (!reference) return unavailable('Open a reference image or call inspect_character_contract with scope:model-sheet and images:[referenceId]. Request images:["appearance"] for the current Appearance separately.')
-        return { status: 'ready' as const, source: 'model-sheet-reference', characterId: character.id, revision: current.version, referenceId,
-          ...describeReference(reference), dataUrl: await readDataUrl(reference.asset.blob), instruction: MODEL_SHEET_REVIEW.instruction }
-      }
-      const preview = view.viewedVariantId ? character.variants.find((variant) =>
-        variant.id === view.viewedVariantId && categoryFor(variant.group) === view.category && variant.group !== 'body'
-      ) : undefined
-      if (view.viewedVariantId && !preview) return unavailable('The viewed variant is no longer available. Inspect the current page again.')
-      const layers = resolveCharacterDraftLayers(character, preview)
-      if (!layers.length) return unavailable('This Character preview has no artwork to review yet.')
-      const dataUrl = await renderCharacterCompositeDataUrl(layers)
-      const latest = editor.store.getState()
-      if (browser?.location.pathname !== route || JSON.stringify(readWorkspaceView(document)) !== JSON.stringify(view)
-        || latest.character !== state.character || latest.persistedRevision !== current.version || latest.saveStatus !== 'saved') {
-        return unavailable('The Character or page changed while rendering the snapshot. Inspect again for the current result.')
-      }
-      return {
-        status: 'ready' as const,
-        characterId: character.id,
-        revision: current.version,
-        source: 'current-view-composite',
-        preview: preview ? { group: preview.group, id: preview.id } : null,
-        layerIds: layers.map(({ id }) => id),
-        mediaType: 'image/png',
-        ...CHARACTER_RIG.canvas,
-        dataUrl,
-        instruction: 'Open or decode and view this PNG before giving visual feedback. It is the full current composition with real alpha, without Overlay/Difference/Align guides. Metadata or a base64 string alone is not visual evidence. Give the requested opinion; modify artwork only when the user asks.',
-      }
-    }
-    const missingCharacterTargets = character ? REQUIRED_CHARACTER_TARGETS
-      .filter((target) => !hasCurrentCharacterLayer(character, target.group, target.variantId, target.layer)) : REQUIRED_CHARACTER_TARGETS
-    const navigation = [{ destination: 'home', path: '/' }, { destination: 'albums', path: '/albums' }, { destination: 'storyboards', path: '/storyboards' }, { destination: 'characters', path: '/collections' }, ...(character ? [
-      { destination: 'character-expressions', path: characterPath(character.id, 'expression') },
-      { destination: 'character-wardrobe', path: characterPath(character.id, 'outfit') },
-      { destination: 'character-hair', path: characterPath(character.id, 'hair') },
-      { destination: 'character-headwear', path: characterPath(character.id, 'headwear') },
-      { destination: 'character-props', path: characterPath(character.id, 'prop') },
-      { destination: 'character-profile', path: `/characters/${encodeURIComponent(character.id)}/profile` },
-      { destination: 'character-model-sheet', path: `/characters/${encodeURIComponent(character.id)}/model-sheet` },
-    ] : [])]
-    const nextActions = character ? characterNextActions(character) : [{
-      tool: 'navigate_workspace', required: false, reason: records.length ? 'Open a Character before editing its assets.' : 'Open a new Character workshop.', input: records.length ? { resource: 'collections' } : { resource: 'character', id: 'new', view: 'expressions' },
-    }]
-    const requestedCollectionId = resource === 'collection' ? id : view?.collectionId
-    const selectedCollection = books.find(({ id }) => id === requestedCollectionId)
-    const worldContext = intent === 'world' || ['albums', 'locations', 'story-book'].includes(view?.surface ?? '') || ['collection', 'album', 'photo', 'location', 'story-book'].includes(resource ?? '')
-    const worldNextActions = intent === 'world' && !selectedCollection ? books.map((book) => ({
-      tool: 'inspect_workspace', required: true, reason: `Read ${book.name}'s backstory, Characters and Locations before creating world art.`, input: { intent: 'world', resource: 'collection', id: book.id },
-    })) : [{ tool: 'navigate_workspace', required: false, reason: 'Open the selected Collection locations or another exact Library resource.', input: selectedCollection ? { resource: 'collection', id: selectedCollection.id, view: 'locations' } : { resource: 'albums' } }]
-    return {
-      status: 'ok',
-      data: {
-        route: { path: route, ...selectedRoute },
-        view,
-        contextFreshness: 'Snapshot at tool invocation, not a live subscription. Re-inspect after user navigation, panel/preview changes, and tool mutations. viewedVariantId is the variant being previewed; currentCharacter.selected is the applied composition. Uncommitted form, numeric, and drag inputs are not included in the Character contract; inspect the visible UI and let those edits settle before mutating.',
-        storyboards: (await storyboards.inspect()).boards,
-        currentStoryboard: view?.boardId ? await storyboards.inspect(view.boardId) : null,
-        currentCollection: selectedCollection ?? null,
-        collections: books,
-        visualLibrary: { revision: visualLibrary.revision, albums: visualLibrary.albums, storyBooks: visualLibrary.storyBooks,
-          locations: visualLibrary.locations.map(({ id, collectionId, parentId, name, tags }) => ({ id, collectionId, parentId, name, tags })),
-          currentLocation: visualLibrary.locations.find((l) => l.id === locationId) ?? null,
-          currentPhoto: visualLibrary.photos.find((p) => p.id === photoId) ?? null,
-          currentAlbum: albumId ? { album: visualLibrary.albums.find((a) => a.id === albumId), photos: visualLibrary.photos.filter((p) => p.albumId === albumId) } : null,
-          currentStoryBook: visualLibrary.storyBooks.find((item) => item.id === bookId) ?? null,
-          requestedImages,
-          policy: 'Location and Condition setting images are owned directly by that setting. Album photos are finished compositions built from Characters, Locations, situation prompts and Collection backstory. An Album photo is linked back to a Location only when explicitly requested. Pinned storyboard references are snapshots and do not follow source edits.' },
-        ...(worldContext ? { worldWorkflow: selectedCollection ? {
-          step: 'context-ready',
-          collection: selectedCollection,
-          characters: records.filter(({ character }) => selectedCollection.characterIds.includes(character.id)).map(({ character, version }) => ({ id: character.id, name: character.name, description: character.description ?? '', backstory: character.backstory ?? '', revision: version })),
-          locations: visualLibrary.locations.filter((location) => location.collectionId === selectedCollection.id),
-          instruction: 'Use this Collection backstory plus its Characters, Location hierarchy and Conditions before generating setting art or a finished Album photo. Undefined subjects may be invented freely. Every defined Character used in an Album photo must come from inspect_character_contract with scope:model-sheet and images:[appearance], and every defined Location or Condition must be passed as a source reference.',
-        } : { step: 'choose-collection', instruction: 'Choose a Collection from nextActions and inspect it before generating world art.' } } : {}),
-        characters: records.map(({ character: draft, version }) => ({
-          id: draft.id,
-          name: draft.name,
-          description: draft.description ?? '',
-          revision: version,
-          updatedAt: draft.updatedAt,
-        })),
-        currentCharacter: character && current ? {
-          id: character.id,
-          name: character.name,
-          description: character.description ?? '',
-          backstory: character.backstory ?? '',
-          attributes: character.attributes ?? {},
-          heightCm: character.modelSheet?.heightCm ?? null,
-          modelSheet: describeModelSheet(character),
-          collection: await collectionFor(character.id),
-          revision: current.version,
-          updatedAt: character.updatedAt,
-          selected: character.selected,
-          ...describeAppearances(character),
-          missingTargets: missingCharacterTargets,
-        } : null,
-        ...(includeSnapshot ? { snapshot: await renderSnapshot() } : {}),
-        history: historyStatus(),
-        navigation,
-        assetPolicy: view?.surface?.startsWith('storyboard') ? 'Storyboard PNG originals retain their dimensions and opacity. Use inspect_storyboard for exact selections, pinned references and source images.' : worldContext ? 'PNG, JPEG and WebP are accepted up to 5 MiB and 4096×4096. Location and Condition images are direct setting assets. Album photos are finished compositions; record their Character, Location, situation prompt and Collection backstory provenance in description/source.' : view?.category === 'model-sheet' ? MODEL_SHEET_POLICY : CHARACTER_ASSET_POLICY,
-        authoringGuide: CHARACTER_AUTHORING_GUIDE,
-      },
-      nextActions: view?.surface?.startsWith('storyboard') ? [{ tool: 'inspect_storyboard', required: false, reason: 'Inspect the storyboard and request exact image IDs before visual feedback.', input: view.boardId ? { boardId: view.boardId } : {} }] : worldContext ? worldNextActions : view?.category === 'model-sheet' && character ? [{ tool: 'inspect_character_contract', required: false, reason: 'Inspect the reference task and explicitly request source images before generating art.', input: { characterId: character.id, scope: 'model-sheet', referenceId: view.referenceView ?? selectedRoute?.variantId ?? 'front' } }] : nextActions,
-    }
-  }
+  characterHandlers = createCharacterWebMcpHandlers({
+    document,
+    editor,
+    activeCharacter,
+    settledRevision,
+    characterNextActions,
+    characterPath,
+    collectionFor,
+    historyStatus,
+    routeSelection,
+    currentPath: () => browser?.location.pathname ?? '',
+    exportCharacterPng: (character) => renderCharacterCompositeBlob(resolveCharacterDraftLayers(character)),
+  })
+
+  const inspectWorkspace = createWorkspaceInspector({
+    document,
+    currentPath: () => browser?.location.pathname ?? '/',
+    collections,
+    worldLibrary,
+    storyboards,
+    editor,
+    listCharacterDrafts,
+    routeSelection,
+    characterPath,
+    characterNextActions,
+    collectionFor,
+    historyStatus,
+  })
 
   async function navigateWorkspace(rawInput: unknown) {
     const { resource, id, view, itemId } = rawInput as { resource: string; id?: string; view?: string; itemId?: string }
@@ -909,51 +590,6 @@ export function createApplication(document: Document) {
     throw new Error('Unsupported import resource')
   }
 
-  async function updateProfile(rawInput: unknown) {
-    const { characterId, expectedRevision, ...patch } = rawInput as CharacterProfilePatch & { characterId: string; expectedRevision: number }
-    if (!Object.keys(patch).length) throw new Error('At least one Character profile field is required')
-    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the Character profile')
-    await editor.open(characterId)
-    const changed = await editor.dispatch((character) => updateCharacterProfile(character, patch), expectedRevision)
-    const character = activeCharacter().character
-    const revision = settledRevision('Character profile')
-    const path = `/characters/${encodeURIComponent(character.id)}/profile`
-    return {
-      status: 'ok',
-      data: {
-        characterId: character.id,
-        profile: {
-          name: character.name,
-          description: character.description ?? '',
-          backstory: character.backstory ?? '',
-          attributes: character.attributes ?? {},
-          heightCm: character.modelSheet?.heightCm ?? null,
-        },
-        revision,
-        changed,
-      },
-      nextActions: characterNextActions(character),
-      effects: { navigation: { path, mode: 'push', reason: 'Open the updated Character profile.' } },
-    }
-  }
-
-  async function updateVariantMetadata(rawInput: unknown) {
-    const { characterId, expectedRevision, group, variantId, ...patch } = rawInput as CharacterVariantProfilePatch & {
-      characterId: string; expectedRevision: number; group: CharacterVariantGroup; variantId: string
-    }
-    if (!Object.keys(patch).length) throw new Error('At least one metadata field is required')
-    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing variant metadata')
-    await editor.open(characterId)
-    const changed = await editor.dispatch((character) => updateCharacterVariantMetadata(character, group, variantId, patch), expectedRevision)
-    const character = activeCharacter().character
-    return {
-      status: 'ok',
-      data: { characterId: character.id, variant: character.variants.find((item) => item.group === group && item.id === variantId), faceStyles: character.faceStyles, revision: settledRevision('Character variant metadata'), changed },
-      nextActions: [{ tool: 'inspect_character_contract', required: true, reason: 'Read the updated metadata status and exact revision before submitting pixels.', input: { characterId: character.id, scope: 'appearance', group, variantId, layer: group === 'body' ? 'body' : group === 'expression' ? 'head' : 'front' } }],
-      effects: { navigation: { path: characterPath(character.id, group, variantId), mode: 'push', reason: 'Review the updated variant metadata.' } },
-    }
-  }
-
   async function prepareAppearanceReferences(draft: CharacterDraft, previous: CharacterDraft | null): Promise<CharacterDraft> {
     const composition = (character: CharacterDraft) => JSON.stringify(resolveCharacterDraftPlacements(character).map(({ variant, layer, transform }) =>
       [variant.layers[layer]!.inspection.sha256, transform]))
@@ -973,7 +609,7 @@ export function createApplication(document: Document) {
       const followsAppearance = front?.fromAppearance ?? (front?.asset.filename === 'front-appearance.png' && front.sourceSha256 === front.asset.inspection.sha256)
       const hasArt = resolveCharacterDraftLayers(current).length > 0
       if ((!front || followsAppearance) && hasArt) {
-        const asset = await editor.stageAsset(await application.exportCharacterPng(current), 'front-appearance.png', front?.asset.source ?? 'user', undefined, 'reference')
+        const asset = await editor.stageAsset(await renderCharacterCompositeBlob(resolveCharacterDraftLayers(current)), 'front-appearance.png', front?.asset.source ?? 'user', undefined, 'reference')
         if (front?.asset.inspection.sha256 === asset.inspection.sha256) continue
         sheet = setModelSheetReference(sheet, 'front', { ...front, asset, fromAppearance: true, sourceSha256: asset.inspection.sha256, guides: undefined, needsReview: undefined })
       }
@@ -986,860 +622,6 @@ export function createApplication(document: Document) {
     return result
   }
 
-  async function applyCharacterAppearance(characterId: string, command: CharacterAppearanceCommand, expectedRevision: number) {
-    await editor.open(characterId)
-    const { character, revision } = activeCharacter()
-    if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
-    const next = changeCharacterAppearance(character, command)
-    const changed = await editor.dispatch((current) => {
-      if (current !== character) throw new Error('Character changed; inspect it again')
-      return next
-    }, expectedRevision)
-    settledRevision('Appearance')
-    return changed
-  }
-
-  async function setCharacterSelection(rawInput: unknown) {
-    const { characterId, expectedRevision, group, variantId, active, appearance } = rawInput as {
-      characterId: string
-      expectedRevision: number
-      group: 'expression' | 'outfit' | 'hair' | 'headwear' | 'prop'
-      variantId: string
-      active: boolean
-      appearance?: CharacterAppearanceCommand
-    }
-    if (appearance ? group !== undefined || variantId !== undefined || active !== undefined
-      : !['expression', 'outfit', 'hair', 'headwear', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') throw new Error('Choose either appearance or group/variantId/active')
-    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
-    await editor.open(characterId)
-    const target = { group, id: variantId }
-    const changed = appearance ? await applyCharacterAppearance(characterId, appearance, expectedRevision)
-      : await editor.dispatch((character) => active
-      ? activateCharacterVariant(character, target)
-      : deactivateCharacterVariant(character, target), expectedRevision)
-    const character = activeCharacter().character
-    return {
-      status: 'ok',
-      data: {
-        characterId: character.id,
-        selected: character.selected,
-        ...describeAppearances(character),
-        modelSheet: describeModelSheet(character),
-        revision: settledRevision('Character selection'),
-        changed,
-      },
-      nextActions: characterNextActions(character),
-      effects: { navigation: { path: characterPath(character.id, appearance ? 'expression' : group), mode: 'push', reason: 'Show the selected Character composition.' } },
-    }
-  }
-
-  const measureCharacterFit = async (draft: CharacterDraft, target: Pick<CharacterAssetTarget, 'group' | 'variantId' | 'layer'>) => {
-    const { asset, canonical, headRegistration, transform, alignmentReference, referenceTransform } = resolveCharacterAssetSources(draft, target)
-    const measurement = asset ? measureCharacterMaskAlignment(
-      target.group,
-      alignmentReference ? await readCharacterAlphaMask(alignmentReference.blob) : null,
-      await readCharacterAlphaMask(asset.blob),
-      transform,
-      referenceTransform,
-    ) : null
-    const visualFit = asset && canonical && target.group === 'expression' && headRegistration?.variant.id === target.variantId
-      ? suggestCharacterVisualRegistration(await readCharacterVisualSample(canonical.blob), await readCharacterVisualSample(asset.blob), transform)
-      : null
-    const fit = suggestCharacterFit({
-      measurement,
-      visualFit,
-      headAnchor: target.group === 'expression' && headRegistration?.variant.id === target.variantId,
-    })
-    return { measurement, visualFit, fit }
-  }
-
-  const characterTarget = async (draft: CharacterDraft, revision: number, rawInput: unknown) => {
-    const input = rawInput as Partial<{ group: CharacterVariantGroup; variantId: string; layer: CharacterVariantLayer; alignmentPoints: { expectedRevision: number; assetSha256: string; referenceSha256: string; points: CharacterAlignmentPoint[] } }>
-    if (!input.group && !input.variantId && !input.layer && !input.alignmentPoints) return null
-    if (!input.group || !input.variantId || !input.layer) throw new Error('Character target requires group, variantId, and layer')
-    const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)
-    if (!group || !group.layers.includes(input.layer) || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(input.variantId)) throw new Error('Unknown character asset target')
-    if (input.group === 'body' && input.variantId !== 'base') throw new Error('The body group only supports body/base/body')
-    const { asset, headRegistration, current, transform, alignmentReference, referenceTransform, editSource, editSourceTransform } = resolveCharacterAssetSources(draft, input as CharacterAssetTarget)
-    const variant = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)
-    const coverageContract = characterCoverageContract(input.group, variant?.metadata?.outfit?.slot)
-    const label = variant?.label ?? input.variantId
-    const registrationFrame = characterRegistrationFrame(draft)
-    const allowedOperations = [
-      'replace' as const,
-      ...(current && input.group === 'expression' ? ['repair' as const] : []),
-      ...(current && input.group !== 'body' ? ['transform' as const] : []),
-    ]
-    const { measurement, visualFit, fit } = await measureCharacterFit(draft, input as CharacterAssetTarget)
-    if (input.alignmentPoints && (input.alignmentPoints.expectedRevision !== revision || !asset || !current || !alignmentReference || input.group === 'body' || input.alignmentPoints.assetSha256 !== asset.inspection.sha256 || input.alignmentPoints.referenceSha256 !== alignmentReference.inspection.sha256)) throw new Error('Alignment point sources changed or are unavailable; inspect and view the exact current target and reference again')
-    const pointFit = input.alignmentPoints ? measureCharacterPointAlignment(input.alignmentPoints.points, transform) : null
-    const currentBounds = asset?.inspection.visibleBounds ? transformCharacterBounds(asset.inspection.visibleBounds, transform) : undefined
-    const overflow = currentBounds ? {
-      left: Math.max(0, -currentBounds.x),
-      top: Math.max(0, -currentBounds.y),
-      right: Math.max(0, currentBounds.x + currentBounds.width - CHARACTER_RIG.canvas.width),
-      bottom: Math.max(0, currentBounds.y + currentBounds.height - CHARACTER_RIG.canvas.height),
-    } : undefined
-    const placementLayers = resolveCharacterDraftReferenceLayers(draft, { group: input.group, id: input.variantId })
-    const placement = characterAssetPlacement(input.group, input.layer)
-    const lineage = input.group === 'body' ? 'establish-canonical'
-      : input.group === 'expression' ? headRegistration ? 'derive-from-head-registration' : 'establish-head-registration'
-        : ['outfit', 'hair', 'headwear'].includes(input.group) ? 'derive-registered-overlay-from-canonical'
-          : 'place-against-current-composite'
-    const editableRegion = current && input.group === 'expression' ? registrationFrame.editableRegions.expression : undefined
-    const referenceBounds = characterReferenceBounds(registrationFrame, input.group)
-    const normalization = {
-      ...characterNormalizationContract(Boolean(referenceBounds)),
-      referenceVisibleBounds: referenceBounds ?? null,
-    }
-    const protectedRegionDelta = asset && editSource && editableRegion
-      ? measureProtectedRegionDelta(
-          await readCharacterPixels(editSource.blob, editSourceTransform),
-          await readCharacterPixels(asset.blob, transform),
-          editableRegion,
-        )
-      : null
-    const reviewPath = characterPath(draft.id, input.group, input.variantId)
-    const visualReview = input.group !== 'body' ? {
-      ...CHARACTER_VISUAL_REVIEW,
-      requiredAfterMutation: true,
-      path: reviewPath,
-      correctionTool: 'set_character_variant_transform',
-      correctionScope: 'translation-and-uniform-scale-only',
-      current: transform,
-      axes: { x: 'right-positive', y: 'down-positive' },
-      regenerateWhen: ['local deformation', 'wrong pose', 'identity drift', 'bad transparency'],
-    } : { requiredAfterMutation: true, path: reviewPath, instruction: CHARACTER_A_POSE_GUIDANCE, checks: ['View the actual PNG: A-pose, complete silhouette, neutral face, identity and proportions.', 'Check real alpha and edges on light and dark backgrounds.'] }
-    const replacementAction = {
-      tool: 'replace_character_asset',
-      required: !current,
-      reason: current ? 'Replace this asset only when the user has a final target-owned layer and the client can serialize its bytes directly.' : 'Install the final exact-canvas RGBA target layer only with direct client byte serialization; otherwise ask the user to use the visible file control.',
-      input: {
-        characterId: draft.id,
-        group: input.group,
-        variantId: input.variantId,
-        label,
-        layer: input.layer,
-        expectedRevision: revision,
-        expectedAssetSha256: asset?.inspection.sha256 ?? null,
-        normalization: normalization.recommended,
-      },
-    }
-    const metadataStatus = characterMetadataStatus(draft, input.group, input.variantId)
-    const metadataAction = !metadataStatus.complete ? {
-      tool: 'update_character_variant_metadata',
-      required: true,
-      reason: `Complete ${metadataStatus.missing.join(', ')} for this asset, then re-inspect this exact target. Choose real descriptions, tags and category values from the artwork; do not copy placeholders.`,
-      input: { characterId: draft.id, expectedRevision: revision, group: input.group, variantId: input.variantId, label },
-    } : null
-    const repairAction = current && input.group === 'expression' ? {
-      tool: 'repair_character_asset',
-      required: false,
-      reason: 'Repair only the editable region of this existing asset; protected pixels remain byte-identical.',
-      input: {
-        characterId: draft.id,
-        group: input.group,
-        variantId: input.variantId,
-        label,
-        layer: input.layer,
-        expectedRevision: revision,
-        expectedAssetSha256: asset!.inspection.sha256,
-        normalization: normalization.recommended,
-      },
-    } : null
-    const maskFit = fit.status === 'suggested' && fit.source === 'mask-alignment'
-    const fitActions = fit.status !== 'suggested' ? [] : [{
-      tool: 'set_character_variant_transform',
-      required: maskFit,
-      reason: maskFit
-        ? 'Apply the suggested absolute transform, then inspect the alpha-mask alignment again.'
-        : 'Try the experimental native pixel-and-edge correlation fit, then visually review the head alignment view.',
-      input: { characterId: draft.id, group: input.group, variantId: input.variantId, expectedRevision: revision, ...fit.transform },
-    }]
-    const reviewAction = {
-      tool: 'inspect_workspace', required: true,
-      reason: input.group === 'body'
-        ? 'Inspect the canonical base and the current composite. Verify preserved assets still align after a compatible replacement.'
-        : 'Open alignment.visualReview.path if needed, then observe this exact target in Composite, Overlay, Difference and Align. Resolve visible defects before the next asset; visiting modes is not a pass.',
-      input: { intent: 'character', includeSnapshot: true },
-    }
-    const pointActions = pointFit?.suggestedTransform ? [{
-      tool: 'set_character_variant_transform', required: false,
-      reason: 'Check the observed correspondences, then apply this absolute fit and re-measure the same points. It does not prove visual correctness.',
-      input: { characterId: draft.id, group: input.group, variantId: input.variantId, expectedRevision: revision, ...pointFit.suggestedTransform },
-    }] : []
-    const nextActions = metadataAction ? [metadataAction] : !current ? [replacementAction]
-      : [reviewAction, ...pointActions, ...fitActions,
-        ...(pointFit?.status === 'needs-artwork-correction' ? [{ ...replacementAction, reason: 'Observed attachment points cannot share one scale and translation. Correct the artwork; do not force a whole-body fit.' }] : []),
-        ...(repairAction ? [repairAction] : [])]
-    const dependentAssetCount = input.group === 'body' && asset ? draft.variants.reduce((count, candidate) => count + (candidate.group === 'body' ? 0 : Object.values(candidate.layers).filter(Boolean).length), 0) : 0
-    return {
-      input: { group: input.group, variantId: input.variantId, layer: input.layer },
-      allowedOperations,
-      metadataStatus,
-      componentRules: CHARACTER_COMPONENT_RULES,
-      workflow: {
-        nextStep: !metadataStatus.complete ? 'complete-metadata' : current ? 'review-or-replace' : 'prepare-and-submit',
-        steps: ['agree-components', 'inspect-source', 'prepare-background-removal', 'prepare-target-pixels', 'complete-metadata', 'submit', 'align-and-review'],
-        instruction: CHARACTER_LAYER_GUIDANCE[input.group],
-        visualReview: 'Required after every accepted change; current:true means registered, not visually reviewed or user-approved.',
-      },
-      expectedRevision: revision,
-      current: asset ? {
-        filled: true,
-        current,
-        dataUrl: await readDataUrl(asset.blob),
-        filename: asset.filename,
-        sha256: asset.inspection.sha256,
-        transform,
-      } : { filled: false, current: false, transform },
-      required: REQUIRED_CHARACTER_TARGETS.some((target) => target.group === input.group && target.variantId === input.variantId && target.layer === input.layer),
-      acceptance: CHARACTER_ASSET_POLICY.layers[input.group],
-      coverageContract,
-      placement: { slot: placement.slot, slotOrder: CHARACTER_RIG.slots.find(({ id }) => id === placement.slot)!.order, layerOrder: placement.order },
-      alignmentReference: alignmentReference ? {
-        filename: alignmentReference.filename,
-        sha256: alignmentReference.inspection.sha256,
-        transform: referenceTransform ?? { x: 0, y: 0, scale: 1 },
-        dataUrl: await readDataUrl(alignmentReference.blob),
-      } : null,
-      editSource: editSource ? {
-        filename: editSource.filename,
-        sha256: editSource.inspection.sha256,
-        transform: editSourceTransform ?? { x: 0, y: 0, scale: 1 },
-        coordinates: 'final-canvas',
-        visibleBounds: editSource.inspection.visibleBounds && editSourceTransform
-          ? transformCharacterBounds(editSource.inspection.visibleBounds, editSourceTransform)
-          : editSource.inspection.visibleBounds,
-        dataUrl: editSourceTransform ? await renderCharacterCompositeDataUrl([{
-          id: 'edit-source', blobId: 'edit-source', slot: 'expression-head',
-          slotOrder: 35, layerOrder: 0, transform: editSourceTransform, blob: editSource.blob,
-        }]) : await readDataUrl(editSource.blob),
-      } : null,
-      editableRegion: editableRegion ? {
-        ...editableRegion,
-        mask: {
-          filename: `${input.group}-${input.variantId}-${input.layer}-edit-mask.png`,
-          mediaType: 'image/png',
-          semantics: 'transparent-editable-opaque-protected',
-          dataUrl: renderCharacterEditMaskDataUrl(editableRegion),
-        },
-      } : null,
-      ownership: input.group === 'expression' ? {
-        assetRole: 'whole-head',
-        outside: 'transparent',
-        bounds: registrationFrame.headEnvelope?.bounds ?? null,
-      } : ['outfit', 'hair', 'headwear'].includes(input.group) ? {
-        assetRole: `${input.group}-only-overlay`,
-        characterPixels: 'forbidden',
-        layerSemantics: input.layer === 'back' ? 'only pixels genuinely behind the canonical body/head' : 'visible overlay pixels',
-      } : {
-        assetRole: input.group === 'body' ? 'canonical-body' : 'object-with-optional-gripping-hand-patch',
-      },
-      ...(input.group === 'body' ? { replacementImpact: {
-        dependentAssetCount,
-        requiresExplicitRebaseChoice: dependentAssetCount > 0,
-        rebaseMeaning: 'For a compatible small correction, explicitly set rebaseDerivedAssets:true after comparing pose, silhouette and registration. This preserves pixels, transforms and selections, but is not a geometric proof. Major changes must use a new Character; false is rejected when dependent artwork exists.',
-      } } : {}),
-      generationRecipe: {
-        lineage,
-        ...(input.group === 'body' ? { pose: 'a-pose', instruction: CHARACTER_A_POSE_GUIDANCE } : {}),
-        method: CHARACTER_LAYER_GUIDANCE[input.group],
-        placementReference: placementLayers.length ? {
-          layerCount: placementLayers.length,
-          dataUrl: await renderCharacterCompositeDataUrl(placementLayers),
-        } : null,
-        preserveCanvasCoordinates: true,
-        backgroundPreparation: CHARACTER_BACKGROUND_GUIDANCE,
-        output: {
-          generateAt: { ...CHARACTER_GENERATION_CANVAS },
-          finalizeAt: { ...CHARACTER_RIG.canvas },
-          rgba: true,
-          realAlpha: true,
-          content: input.group === 'body' ? 'canonical-body'
-            : input.group === 'expression' ? 'complete-whole-head'
-              : ['outfit', 'hair', 'headwear'].includes(input.group) ? `${input.group}-only-overlay` : 'object-with-optional-gripping-hand-patch',
-        },
-      },
-      alignment: {
-        mode: input.group === 'expression' ? 'whole-head-bounds'
-          : ['outfit', 'hair', 'headwear'].includes(input.group) ? 'pose-frame'
-            : input.group === 'prop' ? 'composite-review'
-              : 'establish-frame',
-        transform,
-        referenceBounds: measurement && 'metrics' in measurement && measurement.metrics && 'referenceBounds' in measurement.metrics
-          ? measurement.metrics.referenceBounds : undefined,
-        candidateBounds: currentBounds,
-        overflow,
-        measurement,
-        protectedRegionDelta,
-        autoFit: fit,
-        visualFit,
-        pointFit,
-        pointComparison: {
-          tool: 'inspect_character_contract', inputField: 'alignmentPoints',
-          available: Boolean(asset && current && alignmentReference && input.group !== 'body'),
-          expectedRevision: revision,
-          assetSha256: asset?.inspection.sha256 ?? null, referenceSha256: alignmentReference?.inspection.sha256 ?? null,
-          coordinates: 'reference points on the rendered alignmentReference at 512×768; candidate points on the raw target image downscaled to 512×768, before its transform',
-          instruction: 'View both images. Supply 3–12 labelled matching attachment points spread across the item. Use actual corresponding contacts, not whole-body bounds. Read before/after residuals; never invent points to obtain a fit.',
-        },
-        normalization,
-        visualReview,
-        registration: input.group === 'expression' ? {
-          role: headRegistration?.variant.id === input.variantId ? 'head-anchor' : 'follower',
-          anchorVariantId: headRegistration?.variant.id ?? null,
-          calibration: headRegistration?.variant.id === input.variantId ? {
-            status: 'visual-required',
-            compareAgainst: 'canonical-body-default-head',
-            tool: 'set_character_variant_transform',
-            rebasesCurrentExpressions: true,
-          } : null,
-        } : null,
-        reviewPath,
-      },
-      nextActions,
-    }
-  }
-
-  async function inspectCharacterContract(rawInput: unknown) {
-      const { characterId, scope = 'appearance', candidate, ...targetInput } = rawInput as { characterId: string; scope?: 'appearance' | 'model-sheet'; candidate?: Pick<CharacterAssetMutationInput, 'filename' | 'dataUrl' | 'dataSha256' | 'normalization' | 'rebaseDerivedAssets' | 'preflightPoints'> }
-      if (scope === 'model-sheet') {
-        if ('alignmentPoints' in targetInput || candidate) throw new Error('Candidate images and alignment points require scope:appearance and an exact target')
-        return inspectModelSheetContract(rawInput)
-      }
-      if (['referenceId', 'images', 'label', 'kind', 'viewpoint', 'pose', 'sourceSha256'].some((key) => key in targetInput)) throw new Error('Reference inputs require scope:model-sheet')
-      const { character: draft, version } = await editor.view(characterId)
-      const canonical = draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body
-      const target = await characterTarget(draft, version, targetInput)
-      if (candidate && !target) throw new Error('Candidate preflight requires group, variantId, and layer')
-      const candidatePreflight = candidate && target ? await mutateCharacterAsset('replace', {
-        ...candidate,
-        characterId: draft.id,
-        ...target.input,
-        label: draft.variants.find(({ group, id }) => group === target.input.group && id === target.input.variantId)?.label ?? target.input.variantId,
-        expectedRevision: version,
-        expectedAssetSha256: target.current?.sha256 ?? null,
-      }, undefined, 'agent', true) : null
-      return {
-        status: 'ok',
-        data: {
-          collection: await collectionFor(draft.id),
-          rig: CHARACTER_RIG,
-          creationGroups: CHARACTER_CREATION_GROUPS,
-          variants: draft.variants.map((variant) => ({
-            group: variant.group,
-            id: variant.id,
-            label: variant.label,
-            metadata: variant.metadata ?? null,
-            layers: CHARACTER_CREATION_GROUPS.find(({ group }) => group === variant.group)!.layers.map((layer) => ({
-              layer,
-              filled: Boolean(variant.layers[layer]),
-              current: isCharacterDraftAssetCurrent(draft, variant, layer),
-            })),
-          })),
-          character: {
-            id: draft.id,
-            name: draft.name,
-            description: draft.description ?? '',
-            backstory: draft.backstory ?? '',
-            attributes: draft.attributes ?? {},
-            heightCm: draft.modelSheet?.heightCm ?? null,
-            selected: draft.selected,
-            faceStyles: draft.faceStyles,
-            ...describeAppearances(draft),
-            revision: version,
-          },
-          modelSheet: describeModelSheet(draft),
-          modelSheetPolicy: MODEL_SHEET_POLICY,
-          registrationFrame: characterRegistrationFrame(draft),
-          canonicalReference: canonical ? {
-            filename: canonical.filename,
-            sha256: canonical.inspection.sha256,
-            ...(target ? {} : { dataUrl: await readDataUrl(canonical.blob) }),
-          } : null,
-          assetTransfer: characterAssetTransfer(target ? {
-            path: target.alignment.reviewPath,
-            selector: `input[data-webmcp-upload="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
-            triggerSelector: `[data-webmcp-upload-trigger="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
-            label: target.input.group === 'body' ? 'Replace canonical body PNG' : target.input.layer === 'back' ? 'Behind character · Optional' : target.input.group === 'expression' ? 'Head' : 'Primary sprite',
-          } : undefined),
-          authoringGuide: CHARACTER_AUTHORING_GUIDE,
-          productionBrief: [
-            'Use the Collection context and Character profile; the user-approved artwork is the source of truth.',
-            CHARACTER_A_POSE_GUIDANCE,
-            target ? CHARACTER_LAYER_GUIDANCE[target.input.group] : 'Choose one target and re-inspect before generating. Follow the guide for garment, hairstyle, prop and Facial Variant workflows.',
-            'Complete target.metadataStatus through update_character_variant_metadata before submission. Record provenance only from known source hashes.',
-            'Keep image bytes in host memory using assetTransfer.toolkit. Review each accepted image before the next asset; metadata and technical acceptance do not establish user approval.',
-          ],
-          assetPolicy: CHARACTER_ASSET_POLICY,
-          target,
-          candidatePreflight: candidatePreflight?.data ?? null,
-        },
-        nextActions: candidatePreflight?.nextActions ?? target?.nextActions ?? characterNextActions(draft),
-      }
-  }
-
-  type CharacterAssetMutationInput = {
-    characterId: string
-    group: CharacterVariantGroup
-    variantId: string
-    label: string
-    layer: CharacterVariantLayer
-    expectedRevision: number
-    expectedAssetSha256: string | null
-    filename: string
-    dataUrl?: string
-    dataSha256?: string
-    normalization?: CharacterNormalization
-    rebaseDerivedAssets?: boolean
-    preflightPoints?: { referenceSha256: string; points: CharacterAlignmentPoint[] }
-  }
-
-  async function inspectModelSheetContract(rawInput: unknown) {
-    const { characterId, referenceId, images = [], scope: _scope, ...metadata } = rawInput as CharacterReferenceMetadata & { characterId: string; referenceId?: string; images?: string[]; scope: string }
-    if (['group', 'variantId', 'layer'].some((key) => key in metadata)) throw new Error('Model-sheet references do not use Appearance group/variant/layer targets')
-    if (referenceId) validateReferenceId(referenceId)
-    const { character: draft, version } = await editor.view(characterId)
-    const references = modelSheetReferences(characterModelSheet(draft))
-    const current = referenceId ? references[referenceId] : undefined
-    const sourceImages = await Promise.all(images.map(async (id) => {
-      const asset = id === 'canonical' ? draft.variants.find(({ group, id }) => group === 'body' && id === 'base')?.layers.body : references[id]?.asset
-      const blob = id === 'appearance' ? await application.exportCharacterPng(draft) : asset?.blob
-      if (!blob || (id === 'appearance' && !resolveCharacterDraftLayers(draft).length)) throw new Error(`Source image ${id} is missing; inspect the model sheet or create Appearance first`)
-      const inspection = asset?.inspection ?? await inspectCharacterImage(blob)
-      return { id, filename: asset?.filename ?? 'appearance.png', sha256: inspection.sha256, width: inspection.width, height: inspection.height,
-        ...(id === 'appearance' ? { selected: draft.selected } : {}), dataUrl: await readDataUrl(blob) }
-    }))
-    const submission = referenceId ? { characterId: draft.id, expectedRevision: version, referenceId, ...metadata,
-      expectedAssetSha256: current?.asset.inspection.sha256 ?? null } : undefined
-    const nextActions = submission ? [{ tool: 'update_character_model_sheet', required: false,
-      reason: 'After generating and visually checking art, submit image bytes only when the client can serialize them directly; otherwise ask the user to use the visible file control. For metadata-only edits, add notes or guides.', input: submission },
-      ...(referenceId === 'front' ? [{ tool: 'update_character_model_sheet', required: false, reason: 'Capture the actual current Appearance into front without regenerating it; then visually review its pose.', input: { ...submission, fromAppearance: true } }] : [])] : []
-    return { status: 'ok', data: {
-      character: { id: draft.id, name: draft.name, description: draft.description ?? '', backstory: draft.backstory ?? '', attributes: draft.attributes ?? {}, heightCm: draft.modelSheet?.heightCm ?? null, revision: version, selected: draft.selected, ...describeAppearances(draft) },
-      collection: await collectionFor(draft.id), modelSheet: describeModelSheet(draft), assetPolicy: MODEL_SHEET_POLICY,
-      assetTransfer: characterAssetTransfer(referenceId ? current || isTurnaroundView(referenceId) ? {
-        path: modelSheetPath(draft.id, referenceId),
-        selector: `input[data-webmcp-upload="model-sheet-reference"][data-reference-id="${referenceId}"]`,
-      } : {
-        path: modelSheetPath(draft.id, 'new'),
-        selector: 'input[data-webmcp-upload="model-sheet-new-reference"]',
-      } : undefined),
-      authoringGuide: CHARACTER_AUTHORING_GUIDE,
-      generationGuidance: modelSheetGenerationGuidance(metadata.kind ?? current?.kind ?? (referenceId && isTurnaroundView(referenceId) ? 'full-body' : undefined)),
-      sourceImages, target: referenceId ? { referenceId, current: current ? describeReference(current) : null, ...metadata } : null,
-      productionBrief: [
-        'References belong to modelSheet.appearanceId. Edits automatically save into the current Appearance, including its expression/outfit/ordered props. Use set_character_variant_selection with appearance:{action:"save-as",id,label} BEFORE editing to keep the original look, appearance:{action:"create",id,label} for a new look with no selected variants or references, appearance:{action:"select",id} to switch, or appearance:{action:"delete",id} to remove a look and its references (keep at least one). Shared assets are retained. Switching waits for saving and starts a new Appearance undo session. Shared variant art affects all looks that use it. Captured fronts follow composition edits; existing other views are retained with needsReview:true after the composition changes. Inspect and visually compare them before replacing art or clearing needsReview. Default adopts legacy working art in memory; reads do not save. Save-as keeps the combination with a front and empty other views; create keeps the shared body/assets with no selected variants and an empty sheet.',
-        'Use images:["appearance"] for the current composed outfit/expression/props; canonical is only the base body. Use stored reference IDs (for example front) for an established sheet baseline. Open/decode and actually view each source PNG before generating.',
-        'Keep one consistent outfit and identity across the four turnaround views. Save as captures the new look’s front; use fromAppearance to explicitly fill or replace one. Add new leaves references empty until you add them or edit the composition. Do not create a second mandatory A-pose. T-pose and raised-arm images use separate supplemental IDs with kind:structure.',
-        'Create only the reference requested: a complete full-body view, head angle sheet, expression sheet, pose, detail or palette sheet. Use label, kind, viewpoint and pose to identify it. New supplemental references require label and kind.',
-        'Generate PNG with a neutral background that does not interfere with silhouette or color judgment, or a transparent background; choose according to the reference purpose. Use an appropriate original canvas, at most 4096 × 4096 and 5 MiB. No background removal or 512 × 768 normalization is needed for references. Do not fit a wide T-pose to the Appearance silhouette.',
-        'Supply sourceSha256 from the image used as the primary source. Set optional heightCm through update_character_profile (null clears it); never put it in custom attributes. Height is a character property; image guides are y fractions from the top. Do not infer centimeters from pixels or calibrate a head/detail collage as full-body height.',
-        'Landmark editing, automatic lineup and approval workflow are planned, not available tools. Do not add skeleton data or claim user approval in metadata.',
-      ], visualReview: { ...MODEL_SHEET_REVIEW, path: modelSheetPath(draft.id, current ? referenceId : undefined) },
-    }, nextActions }
-  }
-
-  async function updateModelSheet(rawInput: unknown, providedBlob?: Blob, source: 'user' | 'agent' = 'agent') {
-    const input = rawInput as ModelSheetInput
-    const { characterId, expectedRevision, view, referenceId = view, fromAppearance, remove, label, kind, viewpoint, pose, sourceSha256, needsReview } = input
-    if (view !== undefined && (!isTurnaroundView(view) || (input.referenceId && input.referenceId !== view))) throw new Error('Use one referenceId; view is only an alias for a default turnaround slot')
-    if (referenceId) validateReferenceId(referenceId)
-    const hasPayload = Boolean(input.dataUrl)
-    if (fromAppearance && (referenceId !== 'front' || hasPayload || providedBlob || input.filename || remove)) throw new Error('fromAppearance captures front only; omit file input and remove')
-    if (remove && (hasPayload || providedBlob || input.notes !== undefined || input.guides !== undefined || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined)) throw new Error('Remove cannot be combined with reference edits')
-    const editsReference = input.notes !== undefined || input.guides !== undefined || hasPayload || providedBlob || fromAppearance || remove || label || kind || viewpoint || pose || sourceSha256 || needsReview !== undefined
-    if (!editsReference) throw new Error('No model sheet changes supplied')
-    if (!referenceId && editsReference) throw new Error('Choose a referenceId')
-    if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before editing the model sheet')
-    await editor.open(characterId)
-    const { character, revision } = activeCharacter()
-    if (revision !== expectedRevision) throw new Error('Character changed; inspect it again')
-    const references = modelSheetReferences(characterModelSheet(character))
-    const previous = referenceId ? references[referenceId] : undefined
-    if ((hasPayload || providedBlob || fromAppearance || remove) && input.expectedAssetSha256 !== (previous?.asset.inspection.sha256 ?? null)) throw new Error('Reference changed; inspect its current hash again')
-    if (referenceId && !isTurnaroundView(referenceId) && !previous && (!label?.trim() || !kind)) throw new Error('New supplemental references require label and kind')
-    if (fromAppearance && !resolveCharacterDraftLayers(character).length) throw new Error('Create Appearance before capturing front')
-    const blob = fromAppearance ? await application.exportCharacterPng(character) : providedBlob ?? (hasPayload ? (await pngFromPayload(input)).blob : undefined)
-    const filename = fromAppearance ? 'front-appearance.png' : input.filename
-    if (blob && (!filename?.trim() || filename.length > 200)) throw new Error('A valid filename is required')
-    if (sourceSha256 && !Object.values(references).some(({ asset }) => asset.inspection.sha256 === sourceSha256) &&
-      !character.variants.some(({ layers }) => Object.values(layers).some((asset) => asset?.inspection.sha256 === sourceSha256)) &&
-      (await inspectCharacterImage(await application.exportCharacterPng(character))).sha256 !== sourceSha256) throw new Error('Source image changed; inspect source images again')
-    const asset = blob ? await editor.stageAsset(blob, filename!, source, undefined, 'reference') : undefined
-    await editor.dispatch((current) => {
-      if (current.id !== character.id) throw new Error('Active Character changed; inspect it again')
-      let sheet = characterModelSheet(current)
-      const reference = referenceId ? modelSheetReferences(sheet)[referenceId] : undefined
-      if (referenceId && !asset && !reference) throw new Error('Add reference art before editing or removing it')
-      if (referenceId) sheet = setModelSheetReference(sheet, referenceId, remove ? undefined : {
-        ...reference, ...(asset ? { asset, guides: undefined, sourceSha256: undefined, fromAppearance: fromAppearance || undefined, needsReview: undefined } : {}),
-        ...(needsReview !== undefined ? { needsReview } : {}),
-        ...(label !== undefined ? { label } : {}), ...(kind !== undefined ? { kind } : {}),
-        ...(viewpoint !== undefined ? { viewpoint } : {}), ...(pose !== undefined ? { pose } : {}),
-        ...(sourceSha256 || fromAppearance ? { sourceSha256: fromAppearance ? asset!.inspection.sha256 : sourceSha256 } : {}),
-        ...(input.notes !== undefined ? { notes: input.notes } : {}),
-        ...(input.guides !== undefined ? { guides: input.guides ?? undefined } : {}),
-      } as CharacterReference)
-      return updateCharacterModelSheet(current, sheet)
-    }, expectedRevision)
-    const saved = activeCharacter().character
-    const path = modelSheetPath(saved.id, remove ? undefined : referenceId)
-    return { status: 'ok', data: { accepted: true, characterId: saved.id, revision: settledRevision('Model sheet'), modelSheet: describeModelSheet(saved), visualReview: { ...MODEL_SHEET_REVIEW, path } },
-      nextActions: [{ tool: 'inspect_workspace', required: true, reason: 'View the actual submitted reference and follow visualReview before continuing.', input: { includeSnapshot: true } }],
-      effects: { navigation: { path, mode: 'push', reason: 'Review the exact Character reference.' } } }
-  }
-
-  const replaceCharacterAssetTool = (rawInput: unknown) => mutateCharacterAsset('replace', rawInput as CharacterAssetMutationInput)
-  const repairCharacterAssetTool = (rawInput: unknown) => mutateCharacterAsset('repair', rawInput as CharacterAssetMutationInput)
-
-  async function mutateCharacterAsset(
-    mode: 'replace' | 'repair',
-    input: CharacterAssetMutationInput,
-    providedBlob?: Blob,
-    source: 'user' | 'agent' = 'agent',
-    dryRun = false,
-  ) {
-      const requested = input.normalization ?? NO_CHARACTER_NORMALIZATION
-      const target: CharacterAssetTarget = {
-        group: input.group,
-        variantId: input.variantId,
-        label: input.label,
-        layer: input.layer,
-      }
-      const group = CHARACTER_CREATION_GROUPS.find(({ group }) => group === target.group)
-      if (!group || !group.layers.includes(target.layer) || (target.group === 'body' && target.variantId !== 'base')) throw new Error('Unknown character asset target')
-      if (input.rebaseDerivedAssets !== undefined && target.group !== 'body') throw new Error('rebaseDerivedAssets is only valid for body/base/body')
-      // Mutations target the active editing session; preflight only reads persisted state.
-      if (!dryRun) await editor.open(input.characterId)
-      const viewed = dryRun ? await editor.view(input.characterId) : null
-      const { character: current, revision } = viewed ? { character: viewed.character, revision: viewed.version } : activeCharacter()
-      if (revision !== input.expectedRevision) throw new Error(`Character changed; expected revision ${input.expectedRevision}, current ${revision}`)
-      const sources = resolveCharacterAssetSources(current, target)
-      const assetSha256 = sources.asset?.inspection.sha256 ?? null
-      if (assetSha256 !== input.expectedAssetSha256) throw new Error('Character asset changed; inspect the target again')
-      if (mode === 'repair' && (target.group !== 'expression' || target.layer !== 'head' || !sources.current || !sources.editSource)) {
-        throw new Error('Repair requires a current expression head; use replace_character_asset for outfits and other replacement-only target layers')
-      }
-      const metadataStatus = characterMetadataStatus(current, target.group, target.variantId)
-      const targetVariant = current.variants.find(({ group, id }) => group === target.group && id === target.variantId)
-      const outfitSlot = targetVariant?.metadata?.outfit?.slot
-      if (source === 'agent' && !metadataStatus.complete) throw new Error(`Complete variant metadata before submitting pixels: ${metadataStatus.missing.join(', ')}. Use update_character_variant_metadata, then inspect_character_contract for a fresh revision.`)
-      if (!(target.group === 'body' && target.variantId === 'base' && target.layer === 'body') && !sources.canonical) throw new Error('Submit body/base/body before derived character assets')
-      const { filename } = input
-      const payload = providedBlob ? undefined : await pngFromPayload(input)
-      const submitted = providedBlob ?? payload!.blob
-      let submittedInspection: CharacterAssetInspection
-      try { submittedInspection = await inspectCharacterImage(submitted) }
-      catch { throw new Error(`${providedBlob ? 'Submitted image' : 'Submitted PNG'} (${submitted.size} bytes${payload ? `, sha256 ${payload.receivedSha256}` : ''}) could not be decoded as PNG. Do not retry through model text; re-inspect the contract and use its browser-file-chooser fallback.`) }
-      const registrationFrame = characterRegistrationFrame(current)
-      const editableRegion = mode === 'repair' ? registrationFrame.editableRegions.expression : undefined
-      const referenceBounds = characterReferenceBounds(registrationFrame, target.group)
-      const contract = characterNormalizationContract(Boolean(referenceBounds))
-      const alignmentMode = target.group === 'expression' ? 'whole-head-bounds'
-        : target.group === 'outfit' ? 'pose-frame'
-          : target.group === 'prop' ? 'composite-review' : 'establish-frame'
-
-      let resizeScale: number | null = null
-      let resizedBounds: CharacterBounds | undefined
-      let alignTransform: CharacterVariantTransform | null = null
-      let alignedBounds: CharacterBounds | null = null
-      let afterResize: CharacterAlignmentMeasurement | null = null
-      let afterAlignment: CharacterAlignmentMeasurement | null = null
-      let finalSize: { width: number; height: number } | null = null
-      let protectedRegionDelta: ReturnType<typeof measureProtectedRegionDelta> = null
-      let ownership: ReturnType<typeof inspectCharacterAssetOwnership> = { status: 'valid' }
-      let pointFit: ReturnType<typeof measureCharacterPointAlignment> | null = null
-      const requiresPointFit = source === 'agent' && mode === 'replace' && ['outfit', 'hair', 'headwear'].includes(target.group)
-      // No normalization happens silently: accepted and rejected submissions both report this.
-      const report = () => {
-        const bounds = alignedBounds ?? resizedBounds
-        return {
-          requested,
-          applied: {
-            resize: resizeScale === null ? 'none' as const : 'exact-aspect-downscale' as const,
-            align: alignTransform ? 'reference-visible-bounds' as const : 'none' as const,
-          },
-          input: { width: submittedInspection.width, height: submittedInspection.height },
-          final: finalSize,
-          scale: resizeScale,
-          transform: alignTransform,
-          referenceVisibleBounds: referenceBounds ?? null,
-          candidateVisibleBounds: { afterResize: resizedBounds ?? null, afterAlignment: alignedBounds },
-          overflow: bounds ? {
-            left: Math.max(0, -bounds.x),
-            top: Math.max(0, -bounds.y),
-            right: Math.max(0, bounds.x + bounds.width - CHARACTER_RIG.canvas.width),
-            bottom: Math.max(0, bounds.y + bounds.height - CHARACTER_RIG.canvas.height),
-          } : null,
-          metrics: { afterResize, afterAlignment },
-          protectedRegionDelta,
-        }
-      }
-      const rejected = (reason: string, rejection?: { code: string; message: string }, preflightStatus = 'rejected') => ({
-        status: 'ok',
-        data: {
-          ...(dryRun ? { preflight: true, persisted: false, canSubmit: false, status: preflightStatus } : { accepted: false }),
-          target,
-          filename,
-          ...(rejection ? { rejection } : {}),
-          inspection: {
-            width: submittedInspection.width,
-            height: submittedInspection.height,
-            genuineRgba: submittedInspection.genuineRgba,
-            hasTransparentPixels: submittedInspection.hasTransparentPixels,
-            visibleBounds: submittedInspection.visibleBounds,
-            visiblePixelCount: submittedInspection.visiblePixelCount,
-          },
-          normalization: report(),
-          alignment: { mode: alignmentMode, measurement: afterAlignment ?? afterResize, pointFit },
-          ownership,
-        },
-        nextActions: dryRun ? [] : [{
-          tool: mode === 'replace' ? 'replace_character_asset' : 'repair_character_asset',
-          required: true,
-          reason,
-          input: {
-            characterId: current.id,
-            group: target.group,
-            variantId: target.variantId,
-            label: target.label,
-            layer: target.layer,
-            expectedRevision: revision,
-            expectedAssetSha256: assetSha256,
-            normalization: contract.recommended,
-          },
-        }],
-      })
-
-      // 1. Deterministic downscale first, so strict inspection and stitching only ever see the exact rig canvas.
-      const resize = planCharacterResize(requested.resize, submittedInspection)
-      if (!resize.ok) return rejected(resize.message, { code: resize.code, message: resize.message })
-      resizeScale = resize.scale
-      const resized = resize.scale === null ? submitted : await renderCharacterCanvasDownscale(submitted)
-      const inspection = resize.scale === null ? submittedInspection : await inspectCharacterImage(resized)
-      resizedBounds = inspection.visibleBounds
-      finalSize = { width: inspection.width, height: inspection.height }
-      const invalidAsset = characterAssetInspectionRejection(inspection)
-      if (invalidAsset) return rejected(invalidAsset.message, invalidAsset)
-
-      // 2. One uniform scale plus translation onto the reference bounds this contract published.
-      const referenceMask = sources.alignmentReference ? await readCharacterAlphaMask(sources.alignmentReference.blob) : null
-      const candidateMask = await readCharacterAlphaMask(resized)
-      ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
-        headBounds: registrationFrame.headEnvelope?.bounds,
-        bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
-        outfitSlot,
-      })
-      if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
-      afterResize = measureCharacterMaskAlignment(target.group, referenceMask, candidateMask, undefined, sources.referenceTransform)
-      const align = planCharacterAlignment(requested.align, target.group, inspection.visibleBounds, referenceBounds)
-      if (!align.ok) return rejected(align.message, { code: align.code, message: align.message })
-      if (align.transform) {
-        alignTransform = align.transform
-        alignedBounds = align.bounds ?? null
-        afterAlignment = measureCharacterMaskAlignment(target.group, referenceMask, candidateMask, align.transform, sources.referenceTransform)
-      }
-
-      // 3. The existing safety diagnostics decide, on the normalized pixels.
-      const alignment = afterAlignment ?? afterResize
-      if (alignment.status === 'invalid') {
-        const diagnostic = alignment.diagnostics[0]
-        return rejected(diagnostic?.message ?? 'Regenerate the rejected character asset.', diagnostic && { code: diagnostic.code, message: diagnostic.message })
-      }
-
-      pointFit = input.preflightPoints ? (() => {
-        if (!sources.alignmentReference || sources.alignmentReference.inspection.sha256 !== input.preflightPoints!.referenceSha256) throw new Error('Alignment reference changed; inspect the exact target again')
-        return measureCharacterPointAlignment(input.preflightPoints!.points)
-      })() : null
-      if (requiresPointFit && !pointFit) {
-        const message = 'Registered outfit, hair, and headwear submissions require 3–12 observed alignment points from the inspected candidate and alignment reference.'
-        if (!dryRun) throw new Error(message)
-        return rejected(message, { code: 'ALIGNMENT_POINTS_REQUIRED', message }, 'needs-alignment-points')
-      }
-      if (requiresPointFit && pointFit?.status === 'needs-artwork-correction') {
-        const message = 'Observed attachment points cannot share one scale and translation. Correct the artwork before replacing the asset.'
-        if (!dryRun) throw new Error(message)
-        return rejected(message, { code: 'ALIGNMENT_POINTS_CONFLICT', message }, 'needs-artwork-correction')
-      }
-      // Agent-observed correspondences replace the old whole-body bounds fit for partial overlays.
-      const pointTransform = requiresPointFit
-        ? pointFit?.suggestedTransform ?? { x: 0, y: 0, scale: 1 }
-        : null
-      const autoFit = alignTransform ?? pointTransform ?? highConfidenceCharacterAutoFit(alignment)
-      ownership = inspectCharacterAssetOwnership(target.group, candidateMask, {
-        headBounds: registrationFrame.headEnvelope?.bounds,
-        bodyMask: ['outfit', 'hair', 'headwear'].includes(target.group) ? referenceMask ?? undefined : undefined,
-        transform: autoFit ?? undefined,
-        outfitSlot,
-      })
-      if (ownership.status === 'invalid') return rejected(ownership.message, { code: ownership.code, message: ownership.message })
-      const dependentAssetCount = current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter(Boolean).length), 0)
-      const needsRebaseDecision = target.group === 'body' && dependentAssetCount > 0 && inspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true
-      if (dryRun) {
-        const canSubmit = !needsRebaseDecision && pointFit?.status !== 'needs-artwork-correction'
-        return {
-          status: 'ok',
-          data: {
-            preflight: true,
-            persisted: false,
-            canSubmit,
-            status: needsRebaseDecision ? 'needs-rebase-decision' : pointFit ? pointFit.status : 'needs-visual-review',
-            target,
-            filename,
-            inspection: {
-              width: inspection.width,
-              height: inspection.height,
-              genuineRgba: inspection.genuineRgba,
-              hasTransparentPixels: inspection.hasTransparentPixels,
-              visibleBounds: inspection.visibleBounds,
-              visiblePixelCount: inspection.visiblePixelCount,
-              sha256: inspection.sha256,
-            },
-            previewDataUrl: await readDataUrl(resized),
-            normalization: report(),
-            alignment: { mode: alignmentMode, measurement: alignment, pointFit },
-            ownership,
-            autoFit: autoFit ? { suggested: true, transform: autoFit } : { suggested: false },
-          },
-          nextActions: canSubmit ? [{
-            tool: 'replace_character_asset',
-            required: false,
-            reason: pointFit ? 'Candidate pixels and supplied correspondences passed preflight. Visually review previewDataUrl before storing, then submit the same preflightPoints.' : 'Candidate pixels passed technical preflight. Visually review previewDataUrl before storing.',
-            input: { characterId: current.id, ...target, expectedRevision: revision, expectedAssetSha256: assetSha256, filename, normalization: requested,
-              ...(input.preflightPoints ? { preflightPoints: input.preflightPoints } : {}) },
-          }] : [],
-        }
-      }
-      const stitchedBlob = mode === 'repair' && sources.editSource && editableRegion
-        ? await renderStitchedCharacterEditBlob(
-            sources.editSource.blob,
-            resized,
-            editableRegion,
-            sources.editSourceTransform,
-            autoFit ?? undefined,
-          )
-        : null
-      const savedBlob = stitchedBlob ?? resized
-      const savedInspection = stitchedBlob ? await inspectCharacterImage(stitchedBlob) : inspection
-      if (target.group === 'body' && dependentAssetCount && savedInspection.sha256 !== assetSha256 && input.rebaseDerivedAssets !== true) {
-        throw new Error(`Replacing this body affects ${dependentAssetCount} registered layers. For a compatible small correction set rebaseDerivedAssets:true to preserve existing layers. For changed pose, proportions, identity or registration, create a new Character instead; do not invalidate this one.`)
-      }
-      // Blob first; then one command (asset swap plus optional auto-fit) creates exactly one history frame.
-      const asset = await editor.stageAsset(savedBlob, filename, source, savedInspection)
-      await editor.dispatch((character) => {
-        let placed = saveCharacterDraftAsset(character, target, asset, input.rebaseDerivedAssets === true)
-        if (!stitchedBlob && autoFit && target.group !== 'body') placed = setCharacterVariantTransform(placed, target.group, target.variantId, autoFit)
-        return activateCharacterVariant(placed, { group: target.group, id: target.variantId })
-      }, input.expectedRevision)
-      const draft = activeCharacter().character
-      const savedRevision = settledRevision('Character asset')
-      const savedVariant = draft.variants.find(({ group, id }) => group === target.group && id === target.variantId)!
-      const specification = source === 'user' ? null : await characterTarget(draft, savedRevision, target)
-      protectedRegionDelta = stitchedBlob && sources.editSource && editableRegion
-        ? measureProtectedRegionDelta(
-            await readCharacterPixels(sources.editSource.blob, sources.editSourceTransform),
-            await readCharacterPixels(stitchedBlob),
-            editableRegion,
-          ) : null
-      const path = characterPath(draft.id, target.group, target.variantId)
-      return {
-        status: 'ok',
-        data: {
-          accepted: true,
-          target: { ...target, label: savedVariant.label },
-          filename,
-          byteLength: savedBlob.size,
-          inspection: {
-            width: savedInspection.width,
-            height: savedInspection.height,
-            genuineRgba: savedInspection.genuineRgba,
-            hasTransparentPixels: savedInspection.hasTransparentPixels,
-            visibleBounds: savedInspection.visibleBounds,
-            visiblePixelCount: savedInspection.visiblePixelCount,
-          },
-          normalization: report(),
-          alignment: specification?.alignment,
-          workflow: specification ? { ...specification.workflow, nextStep: 'align-and-review' } : undefined,
-          operation: mode,
-          rebasedDerivedAssets: input.rebaseDerivedAssets === true ? current.variants.reduce((count, variant) => count + (variant.group === 'body' ? 0 : Object.values(variant.layers).filter((layer) => layer?.canonicalSha256 === assetSha256).length), 0) : 0,
-          ownership,
-          compositor: stitchedBlob ? { applied: true, protectedRegionDelta } : { applied: false },
-          autoFit: autoFit ? { applied: true, transform: autoFit, bakedIntoAsset: Boolean(stitchedBlob) } : { applied: false },
-          revision: savedRevision,
-        },
-        nextActions: specification?.nextActions ?? characterNextActions(draft),
-        effects: { navigation: { path, mode: 'push', reason: 'Open the accepted Character asset for visual review.' } },
-      }
-  }
-
-  async function setCharacterTransform(rawInput: unknown) {
-      const input = rawInput as {
-        characterId: string
-        group: CharacterVariantGroup
-        variantId: string
-        expectedRevision: number
-        x: number
-        y: number
-        scale: number
-      }
-      await editor.open(input.characterId)
-      const { character: current } = activeCharacter()
-      const measuredLayer = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)?.layers.find((layer) => current.variants.find((v) => v.group === input.group && v.id === input.variantId)?.layers[layer])
-      const beforeMeasurement = measuredLayer ? (await measureCharacterFit(current, { ...input, layer: measuredLayer })).measurement : null
-      const before = current.variants.find(({ group, id }) => group === input.group && id === input.variantId)?.transform ?? { x: 0, y: 0, scale: 1 }
-      const calibratesHead = input.group === 'expression' && current.headRegistration?.variantId === input.variantId
-      await editor.dispatch((character) => setCharacterVariantTransform(character, input.group, input.variantId, {
-        x: input.x,
-        y: input.y,
-        scale: input.scale,
-      }), input.expectedRevision)
-      const draft = activeCharacter().character
-      const revision = settledRevision('Character transform')
-      const variant = draft.variants.find(({ group, id }) => group === input.group && id === input.variantId)!
-      const firstLayer = CHARACTER_CREATION_GROUPS.find(({ group }) => group === input.group)!.layers.find((layer) => variant.layers[layer])!
-      const specification = await characterTarget(draft, revision, { group: input.group, variantId: input.variantId, layer: firstLayer })
-      const path = characterPath(draft.id, input.group, input.variantId)
-      return {
-        status: 'ok',
-        data: {
-          target: { group: input.group, variantId: input.variantId },
-          before,
-          after: variant.transform,
-          comparison: { before: beforeMeasurement, after: specification?.alignment.measurement, interpretation: 'Descriptive overlap only for partial overlays; use corresponding attachment points and visual review to judge fit.' },
-          rebasedVariantIds: calibratesHead ? draft.variants.filter((candidate) =>
-            candidate.group === 'expression' && candidate.id !== input.variantId && isCharacterDraftAssetCurrent(draft, candidate, 'head')
-          ).map(({ id }) => id) : [],
-          revision,
-          alignment: specification?.alignment,
-          workflow: specification ? { ...specification.workflow, nextStep: 'align-and-review' } : undefined,
-        },
-        nextActions: specification?.nextActions ?? characterNextActions(draft),
-        effects: { navigation: { path, mode: 'push', reason: 'Open the adjusted Character variant for visual review.' } },
-      }
-  }
-
-  function characterHistoryTool(direction: 'undo' | 'redo') {
-    return async (rawInput: unknown) => {
-      const input = rawInput as { characterId: string; expectedRevision: number }
-      const state = editor.store.getState()
-      const history = historyStatus()
-      if (state.activeCharacterId !== input.characterId || !state.character) return { status: 'no_active_history', data: history }
-      if (state.saveStatus !== 'saved') return { status: 'not_settled', data: history }
-      if (state.persistedRevision !== input.expectedRevision) return { status: 'revision_conflict', data: history }
-      if (!(direction === 'undo' ? history.canUndo : history.canRedo)) return { status: `nothing_to_${direction}`, data: history }
-      await editor[direction]()
-      settledRevision(`Character ${direction}`)
-      const route = browser?.location.pathname ?? ''
-      const path = routeSelection(route)?.characterId === input.characterId ? route : characterPath(input.characterId)
-      return {
-        status: 'ok',
-        data: { ...historyStatus(), characterId: input.characterId },
-        effects: { navigation: { path, mode: 'push', reason: `Review the Character after ${direction}.` } },
-      }
-    }
-  }
 
   return application
 }

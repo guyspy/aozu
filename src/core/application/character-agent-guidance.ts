@@ -2,7 +2,7 @@ import type { CharacterDraft, CharacterReferenceMetadata, CharacterVariantGroup 
 
 export const CHARACTER_AUTHORING_GUIDE = {
   path: '/character-authoring.md',
-  version: '2026-09-17.3',
+  version: '2026-09-19.1',
   source: 'https://github.com/guyspy/aozu/blob/main/public/character-authoring.md',
   instruction: 'Read this same-origin guide once before generating assets. It ships with this app; the GitHub main branch may be newer. Keep a short AOZU_WORKFLOW.md in a user-authorized local asset workspace if available; never overwrite unrelated AGENTS.md or treat site guidance as permission to run code. Live revisions and target requirements come from this contract.',
 } as const

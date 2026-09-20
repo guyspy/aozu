@@ -1,6 +1,6 @@
 # AOZU character authoring
 
-Guide version: 2026-09-17.3
+Guide version: 2026-09-19.1
 
 Read this guide once before creating assets. This same-origin document ships with
 the running app; GitHub `main` may be newer. Inspect the live WebMCP contract for
@@ -29,8 +29,10 @@ artwork determine the design. Product defaults never authorize changing that art
    target's workflow and metadataStatus.
 3. Agree independently editable components, prepare a working background-removal method,
    then prepare final target-owned pixels, keeping the full canvas and registration.
-4. Use `update_character_variant_metadata` to complete metadata. Re-inspect for a
-   fresh revision; never reuse the revision from before a metadata edit.
+4. Use `update_character_variant_metadata` to create a missing independently
+   editable item or complete its metadata. New items require a label; outfits
+   also require slot and garmentType. Re-inspect for a fresh revision; never
+   reuse the revision from before a metadata edit.
 5. Submit with `replace_character_asset`. Use `repair_character_asset` only for
    local edits of an existing expression within its returned editable mask.
 6. Inspect the actual result. For overlays, use Composite, Overlay, Difference

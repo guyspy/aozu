@@ -18,7 +18,7 @@ makeup, face paint, facial hair and other face changes, each with its own
 consistent whole-head expression set. Appearance means a saved combination.
 
 Use the page's currently registered tools, not a copied static tool inventory.
-update_character_variant_metadata records asset descriptions and classifications;
+update_character_variant_metadata creates or updates independently editable items and records their descriptions and classifications;
 replace_character_asset submits the final layer. For small compatible base
 corrections preserve existing layers; major redesigns need a new Character.
 

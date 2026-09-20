@@ -24,6 +24,12 @@ const context = { user: null, staff: null, env: {} }
 const previewKeyFor = (data: CharacterWorkspaceData) => JSON.stringify(resolveCharacterDraftPlacements(data)
   .map(({ variant, layer, transform, id }) => [id, variant.layers[layer]!.blobId, transform]))
 
+const migratedData = (entry: Entry): CharacterWorkspaceData => {
+  // Legacy `revision`/`published` metadata stays stored until the next real save; a read never writes.
+  const { revision: _revision, published: _published, ...data } = structuredClone(entry.data) as unknown as CharacterWorkspaceData & { revision?: unknown; published?: unknown }
+  return migrateCharacterDraft({ ...data, id: entry.id, updatedAt: entry.updatedAt } as unknown as CharacterDraft) as unknown as CharacterWorkspaceData
+}
+
 const dataFrom = async (draft: CharacterDraft): Promise<CharacterWorkspaceData> => ({
   schemaVersion: draft.schemaVersion,
   packId: draft.packId,
@@ -52,8 +58,7 @@ export function createCharacterWorkspaceRepository(
     }))
   }
   const hydrate = async (entry: Entry): Promise<CharacterRecord> => {
-    // Legacy `revision`/`published` metadata stays stored until the next real save; a read never writes.
-    const { revision: _revision, published: _published, ...data } = structuredClone(entry.data) as unknown as CharacterWorkspaceData & { revision?: unknown; published?: unknown }
+    const data = migratedData(entry)
     const repository = assets(characterAssetScope(data.packId))
     const content = await mapCharacterAssets(data, async ({ blobId, ...descriptor }) => {
       const blob = await repository.get(blobId)
@@ -68,7 +73,7 @@ export function createCharacterWorkspaceRepository(
     async listSummaries() {
       const rows = await (await entries()).readPublished({ collection: CHARACTER_WORKSPACE_COLLECTION })
       return rows.map((entry) => {
-        const data = entry.data as unknown as CharacterWorkspaceData
+        const data = migratedData(entry)
         const previewKey = previewKeyFor(data)
         return { id: entry.id, name: data.name, description: data.description ?? '', revision: entry.version, updatedAt: entry.updatedAt, previewKey }
       }).sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
@@ -76,7 +81,7 @@ export function createCharacterWorkspaceRepository(
     async getPreview(id: string, expectedKey?: string) {
       const entry = await (await entries()).readById(id)
       if (entry?.collection !== CHARACTER_WORKSPACE_COLLECTION || entry.status !== 'published') throw new Error('Character not found')
-      const data = entry.data as unknown as CharacterWorkspaceData
+      const data = migratedData(entry)
       if (expectedKey !== undefined && previewKeyFor(data) !== expectedKey) throw new Error('Character preview changed; refresh the library')
       const repository = assets(characterAssetScope(data.packId))
       return Promise.all(resolveCharacterDraftPlacements(data).map(async ({ variant, layer, ...placement }) => {

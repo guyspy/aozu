@@ -6,6 +6,7 @@ import { createWebMcpController, readWorkspaceView } from '../src/adapters/webmc
 import { bindMantleWebMcpTools, createAgentCapability } from '../src/adapters/webmcp/tools.ts'
 import { compileAuthoringBackbone } from '../src/core/mantle/backbone.ts'
 import { CHARACTER_A_POSE_GUIDANCE, CHARACTER_VISUAL_REVIEW, modelSheetGenerationGuidance } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY } from '../src/core/application/character-asset-policy.ts'
 
 // A fresh inspection follows UI-only changes, independent of the saved variant selection.
 const page = {
@@ -95,6 +96,7 @@ const inspectSchema = registered.get('inspect_character_contract')!.inputSchema
 assert.ok(inspectSchema.properties.candidate.required.includes('dataUrl'))
 assert.equal(inspectSchema.properties.candidate.properties.preflightPoints.properties.points.minItems, 3)
 assert.ok(!registered.get('update_character_variant_metadata')!.inputSchema.properties.faceStyle.required.includes('facialHair'))
+assert.match(registered.get('update_character_variant_metadata')!.description, /creates it for every addable lane/)
 assert.match(registered.get('set_character_variant_transform')!.description, /expression whole head/)
 assert.match(registered.get('set_character_variant_transform')!.description, /x moves right, y moves down/)
 assert.match(registered.get('set_character_variant_transform')!.description, /Composite, Overlay, Difference, and Align/)
@@ -103,10 +105,12 @@ assert.match(registered.get('inspect_workspace')!.description, /snapshot, not a 
 assert.match(registered.get('replace_character_asset')!.description, /one complete dataUrl/)
 assert.match(registered.get('replace_character_asset')!.description, /never print or route base64 through model text/)
 assert.match(registered.get('replace_character_asset')!.description, /browser-file-chooser fallback/)
-assert.match(registered.get('replace_character_asset')!.description, /outfit is garment pixels only/)
 assert.match(registered.get('replace_character_asset')!.description, /genuine RGBA PNG/)
-assert.match(registered.get('replace_character_asset')!.description, /Composite, Overlay, Difference, and Align/)
+assert.match(registered.get('replace_character_asset')!.description, /Every lane uses the same inspect, preflight, replace and visual-review workflow/)
 assert.match(registered.get('replace_character_asset')!.description, /rebaseDerivedAssets:true/)
+assert.equal(CHARACTER_ASSET_LANES.outfit.content, 'garment-only-transparent-overlay')
+assert.deepEqual(CHARACTER_VISUAL_REVIEW.modes, ['Composite', 'Overlay', 'Difference', 'Align'])
+assert.equal(CHARACTER_ASSET_POLICY.input.alpha.instruction.includes('移除此圖像的背景'), true)
 assert.match(CHARACTER_A_POSE_GUIDANCE, /whichever best fits the user’s prompt/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /no nipples/)
 assert.doesNotMatch(CHARACTER_A_POSE_GUIDANCE, /wearing underwear/)

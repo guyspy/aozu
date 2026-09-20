@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY, CHARACTER_CREATION_GROUPS } from '../src/core/application/character-asset-policy.ts'
 import { createCharacterDraft, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { measureCharacterPointAlignment, measureCharacterMaskAlignment, type CharacterAlignmentPoint } from '../src/core/application/character-alignment.ts'
 
@@ -64,6 +65,23 @@ const guide = readFileSync(`public${CHARACTER_AUTHORING_GUIDE.path}`, 'utf8')
 assert.ok(guide.includes(`Guide version: ${CHARACTER_AUTHORING_GUIDE.version}`), 'Live guide and contract version drifted')
 assert.ok(CHARACTER_BACKGROUND_GUIDANCE.includes('移除此圖像的背景。保持所有前景主體不變且完整，邊緣乾淨平滑。將背景設為透明。'))
 assert.ok(CHARACTER_BACKGROUND_GUIDANCE.includes('intentional 2× authoring canvas'))
+assert.equal(CHARACTER_ASSET_POLICY.input.alpha.instruction, CHARACTER_BACKGROUND_GUIDANCE)
+assert.deepEqual(CHARACTER_CREATION_GROUPS.map(({ group }) => group), Object.keys(CHARACTER_ASSET_LANES))
+for (const [group, lane] of Object.entries(CHARACTER_ASSET_LANES)) {
+  assert.ok(lane.layers.length, `${group} needs at least one owned layer`)
+  assert.ok(lane.instruction.length > 40, `${group} needs lane guidance`)
+}
+for (const group of ['outfit', 'hair', 'headwear', 'prop', 'expression'] as const) {
+  const id = `new-${group}`
+  const created = updateCharacterVariantMetadata(draft, group, id, {
+    label: `New ${group}`,
+    description: `Independent ${group} asset.`,
+    tags: [group],
+    ...(group === 'outfit' ? { outfit: { slot: 'one-piece' as const, garmentType: 'test garment' } } : {}),
+    ...(group === 'expression' ? { faceStyleId: 'default' } : {}),
+  })
+  assert.ok(created.variants.some((variant) => variant.group === group && variant.id === id), `${group} metadata must create a missing variant`)
+}
 for (const source of [guide, readFileSync('public/llms.txt', 'utf8'), readFileSync('README.md', 'utf8')]) {
   assert.doesNotMatch(source, /outfit skins?|navigate_character|update_collection_profile|complete outfit skins?/i, 'Public instructions advertise obsolete tools or clothing layers')
 }

@@ -86,6 +86,18 @@ await assert.rejects(
 
 const pack = buildCharacterPack(draft)
 assert.equal(migrateCharacterDraft(draft), draft)
+const legacy = structuredClone(draft) as unknown as Record<string, unknown>
+legacy.schemaVersion = 4
+delete legacy.faceStyles
+legacy.selected = { expression: 'happy', outfit: 'top-1', props: ['prop-1'] }
+legacy.variants = (legacy.variants as Array<Record<string, unknown>>).map((variant) => variant.group === 'outfit'
+  ? { ...variant, metadata: undefined, layers: { body: (variant.layers as Record<string, unknown>).front } }
+  : variant.group === 'expression' ? { ...variant, metadata: undefined } : variant)
+const migrated = migrateCharacterDraft(legacy as never)
+assert.equal(migrated.schemaVersion, 6)
+assert.deepEqual(migrated.selected.outfits, ['top-1'])
+assert.ok(migrated.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')?.layers.front)
+assert.equal(migrated.variants.find(({ group, id }) => group === 'expression' && id === 'happy')?.metadata?.faceStyleId, 'default')
 const copied = copyCharacter(draft)
 assert.notEqual(copied.id, draft.id)
 assert.notEqual(copied.packId, draft.packId)
