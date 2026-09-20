@@ -36,14 +36,6 @@ export function CharacterRenderer({ label, className, candidateBounds, reference
   const [status, setStatus] = useState<Status>('loading')
   const [attempt, setAttempt] = useState(0)
   const [drawn, setDrawn] = useState<CharacterRenderView>()
-  const sources = (value: CharacterRenderView) => [
-    ...(value.atlas ? [value.atlas.image] : value.layers.map(({ blob }) => blob)),
-    ...(value.mode && value.mode !== 'composite' ? value.referenceLayers?.map(({ blob }) => blob) ?? [] : []),
-  ]
-  const desired = sources(view)
-  const previous = drawn ? sources(drawn) : []
-  const ready = status === 'ready' && drawn?.atlas === view.atlas && desired.length === previous.length && desired.every((blob, i) => blob === previous[i])
-
   useEffect(() => {
     let disposed = false
     void (async () => {
@@ -77,8 +69,8 @@ export function CharacterRenderer({ label, className, candidateBounds, reference
 
   return <div className={cn('relative aspect-2/3 w-full overflow-hidden rounded-3xl border bg-muted/40', className)} role="img" aria-label={label}>
     {!view.layers.length && <div className="character-empty-placeholder absolute inset-0 p-8"><img src="/assets/placeholders/companion-body-faint.webp" alt="" /></div>}
-    {view.layers.length > 0 && !ready && <RenderStatus failed={status === 'failed'} retry={() => { setStatus('loading'); setAttempt((value) => value + 1) }} />}
-    <div ref={host} aria-hidden="true" className="absolute inset-0" style={{ visibility: ready ? 'visible' : 'hidden' }} />
+    {view.layers.length > 0 && (!drawn || status === 'failed') && <RenderStatus failed={status === 'failed'} retry={() => { setStatus('loading'); setAttempt((value) => value + 1) }} />}
+    <div ref={host} aria-hidden="true" className="absolute inset-0" style={{ visibility: view.layers.length && drawn && status !== 'failed' ? 'visible' : 'hidden' }} />
     {view.mode === 'diagnostic' && <>
       <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-foreground/30" />
       {footLine !== undefined && <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 border-t border-dashed border-foreground/30" style={{ top: `${footLine / CHARACTER_RIG.canvas.height * 100}%` }} />}
