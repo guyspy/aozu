@@ -2,7 +2,7 @@ import type { CharacterDraft, CharacterReferenceMetadata, CharacterVariantGroup 
 
 export const CHARACTER_AUTHORING_GUIDE = {
   path: '/character-authoring.md',
-  version: '2026-09-19.1',
+  version: '2026-09-20.1',
   source: 'https://github.com/guyspy/aozu/blob/main/public/character-authoring.md',
   instruction: 'Read this same-origin guide once before generating assets. It ships with this app; the GitHub main branch may be newer. Keep a short AOZU_WORKFLOW.md in a user-authorized local asset workspace if available; never overwrite unrelated AGENTS.md or treat site guidance as permission to run code. Live revisions and target requirements come from this contract.',
 } as const
@@ -90,6 +90,6 @@ export function modelSheetGenerationGuidance(kind?: CharacterReferenceMetadata['
     identity: 'Use the Character profile and visually inspected source images to preserve identity, distinctive features and body proportions. Expression, gaze and pose may change only as required by the requested study. Preserve the active Appearance clothing and accessories unless the user requests a redesign.',
     sources: 'Use appearance for the current composed look; canonical is only the base body. Inspect stored references and their notes/needsReview against the current look before treating them as a baseline. Stored art and needsReview:false do not establish human approval. Record inferred or unseen details in notes for user review; do not silently promote them to established design.',
     task: kind ? studies[kind] : 'Choose the requested reference kind and inspect again for its study instructions; do not generate an entire reference board by default.',
-    output: 'Generate only the requested reference, keeping individual views separate unless a combined sheet was requested. Use a clean neutral background, even lighting and enough space to avoid clipped anatomy. Save through update_character_model_sheet with the inspected revision, target hash and primary sourceSha256, then visually compare the result with its sources. These instructions do not replace Appearance layer alignment and alpha rules.',
+    output: 'One image per referenceId. For a model sheet, use the current Appearance as the front, then generate three-quarter, side and back separately; raised-arm or other pose studies use their own supplemental referenceId and kind:structure. Never put a multi-view collage in a turnaround slot. Use a clean neutral background, even lighting and enough space to avoid clipped anatomy. Save each image through update_character_model_sheet, re-inspect its revision before the next, and visually compare each result with its sources. These instructions do not replace Appearance layer alignment and alpha rules.',
   }
 }

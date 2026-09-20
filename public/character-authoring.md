@@ -1,6 +1,6 @@
 # AOZU character authoring
 
-Guide version: 2026-09-19.1
+Guide version: 2026-09-20.1
 
 Read this guide once before creating assets. This same-origin document ships with
 the running app; GitHub `main` may be newer. Inspect the live WebMCP contract for
@@ -162,6 +162,21 @@ contains parts behind the person; the front image contains visible item pixels
 (and any necessary gripping-hand patch). Hidden parts may need repainting.
 Check overlap rather than blindly cutting an object in half. Hand pose changes
 that cannot be covered cleanly require a new design, not larger body patches.
+
+## Model sheet
+
+Use the active Appearance as the design source, not the isolated Canonical Body.
+One reference ID contains one image. Capture the current combination into `front`
+with `fromAppearance:true`, then create `three-quarter`, `side` and `back` as
+separate full-body images. A raised-arm pose is a separate supplemental reference
+with its own ID and `kind:structure`; show requested details such as axillary
+hair in that pose. Do not put a multi-view collage in a turnaround slot.
+
+Inspect the model-sheet contract for each target, save one image with its exact
+revision and source hash, visually compare it with the active Appearance, then
+re-inspect before the next image. Generated unseen angles are proposals; record
+uncertain details in notes. Model-sheet art is reference material and does not
+replace registered Appearance layers.
 
 ## Facial Variants and expressions
 
