@@ -14,6 +14,8 @@ export const CHARACTER_RIG = {
     { id: 'headwear-front', order: 38, alpha: 'required' },
     { id: 'prop-front', order: 40, alpha: 'required' },
     { id: 'aura', order: 50, alpha: 'required' },
+    { id: 'item-back', order: 29, alpha: 'required' },
+    { id: 'item-front', order: 39, alpha: 'required' },
   ],
 } as const
 
@@ -54,15 +56,30 @@ export interface CharacterFaceStyle {
   facialHair: CharacterFacialHair | null
 }
 
+export interface CharacterItemRef { group: CharacterVariantGroup; id: string }
+export interface CharacterLayerRef extends CharacterItemRef { layer: CharacterVariantLayer }
+export interface CharacterCompositionRule {
+  layer: CharacterVariantLayer
+  relation: 'above' | 'below'
+  target: CharacterLayerRef
+}
+export interface CharacterItemComposition {
+  /** Shared keys make items mutually exclusive; category singletons also keep their built-in key. */
+  exclusiveKeys?: string[]
+  order?: CharacterCompositionRule[]
+}
+
 export interface CharacterVariantMetadata {
   description?: string
   tags?: string[]
   sourceSha256?: string
   outfit?: { slot: CharacterOutfitSlot; garmentType: string }
   faceStyleId?: string
+  composition?: CharacterItemComposition
 }
 
 export interface CharacterVariantProfilePatch {
+  composition?: CharacterItemComposition | null
   label?: string
   description?: string
   tags?: string[]
@@ -160,13 +177,9 @@ export interface CharacterAssetContent<Asset> {
 }
 
 export interface CharacterSelection {
-  expression?: string
-  /** Bottom to top activation order across selected garments. */
-  outfits: string[]
-  hair?: string
-  headwear?: string
-  /** Bottom to top within each prop rig slot. */
-  props: string[]
+  smartOrder: boolean
+  /** Stable activation order shared across all optional items. */
+  items: CharacterItemRef[]
 }
 
 export interface CharacterAppearance<Asset = CharacterDraftAsset> {
@@ -178,7 +191,7 @@ export interface CharacterAppearance<Asset = CharacterDraftAsset> {
 
 export interface CharacterDraft extends CharacterAssetContent<CharacterDraftAsset> {
   id: string
-  schemaVersion: 6
+  schemaVersion: 7
   packId: string
   rigProfile: { id: string; version: number }
   name: string

@@ -38,7 +38,7 @@ const character = createCharacterDraftFromStarter(starter, 'character:focus-defa
 assert.equal(isCharacterDraftPopulated(character), true)
 assert.equal(buildCharacterPack(character).defaultComposition.length, 1)
 assert.equal(character.variants.find(({ group, id }) => group === 'body' && id === 'base')!.layers.body!.source, 'starter')
-assert.equal(character.selected.expression, undefined)
+assert.equal(character.selected.items.find((item) => item.group === 'expression')?.id, undefined)
 assert.deepEqual(resolveStarterCharacterLayers(starter, 'character:focus-default').map(({ slot }) => slot), ['character-skin'])
 assert.deepEqual(resolveStarterSceneLayers(starter, 'daily-study').map(({ plane }) => plane), ['back'])
 console.log('starter packages: ok')

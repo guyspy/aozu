@@ -30,7 +30,7 @@ assert.ok(validateAuthoring('character-collections', { name: '', characterIds: [
 assert.equal(authoring.triggers['undo-character-change']?.target, 'undo-character-change')
 assert.equal(authoring.triggers['redo-character-change']?.target, 'redo-character-change')
 assert.equal(validateAuthoring('character-workspaces', {
-  schemaVersion: 6,
+  schemaVersion: 7,
   packId: 'character-test',
   rigProfile: { id: 'companion-fullbody', version: 3 },
   name: 'Test',
@@ -39,15 +39,15 @@ assert.equal(validateAuthoring('character-workspaces', {
   attributes: { courage: 8, nocturnal: true, calling: 'Guide' },
   variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }],
   faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }],
-  selected: { outfits: [], props: [] },
+  selected: { smartOrder: true, items: [] },
 }).length, 0)
 assert.ok(validateAuthoring('character-workspaces', {
-  schemaVersion: 6, packId: 'character-test', name: 'Missing rig', variants: [], faceStyles: [], selected: { outfits: [], props: [] },
+  schemaVersion: 7, packId: 'character-test', name: 'Missing rig', variants: [], faceStyles: [], selected: { smartOrder: true, items: [] },
 }).length)
 // Mantle entry version is the only revision token; a second counter in the Character value is rejected.
 assert.ok(validateAuthoring('character-workspaces', {
-  schemaVersion: 6, revision: 0, packId: 'character-test', rigProfile: { id: 'companion-fullbody', version: 3 }, name: 'Test',
-  variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }], faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }], selected: { outfits: [], props: [] },
+  schemaVersion: 7, revision: 0, packId: 'character-test', rigProfile: { id: 'companion-fullbody', version: 3 }, name: 'Test',
+  variants: [{ id: 'base', group: 'body', label: 'Base body', layers: {} }], faceStyles: [{ id: 'clean-shaven', label: 'Clean-shaven', facialHair: null }], selected: { smartOrder: true, items: [] },
 }).length)
 assert.equal(validate('rules', {
   ruleId: 'recursive', priority: 1,

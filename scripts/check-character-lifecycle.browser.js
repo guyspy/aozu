@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router'
 import { createCharacterEditor } from '/src/core/application/character-editor.ts'
 import { createCharacterDraft } from '/src/core/application/character-creation.ts'
 import { AppRoutes } from '/src/ui/routes/AppRoutes.tsx'
-import '/src/ui/i18n.ts'
+import i18n from '/src/ui/i18n.ts'
+import { emptyWorldLibrary } from '/src/core/domain/world-library.ts'
 import '/src/index.css'
 
 const result = document.querySelector('#result')
@@ -28,7 +29,7 @@ const makeCharacter = async (id, color) => {
   character.name = id
   character.variants.find((v) => v.group === 'body').layers.body = asset
   character.variants.find((v) => v.id === 'happy').layers.head = asset
-  character.selected.expression = 'happy'
+  character.selected.items = [...character.selected.items.filter((item) => item.group !== 'expression'), { group: 'expression', id: 'happy' }]
   return character
 }
 const characters = await Promise.all([makeCharacter('a', '#b44'), makeCharacter('b', '#46b')])
@@ -47,6 +48,7 @@ const editor = createCharacterEditor({
 let navigateTo
 const application = {
   editor,
+  worldLibrary: { load: async () => emptyWorldLibrary(), subscribe: () => () => {} },
   webmcp: { getState: () => ({ status: 'ready', toolCount: 0 }), setNavigate: (navigate) => { navigateTo = navigate; return () => {} }, subscribe: () => () => {} },
   subscribeCharacterChanges: () => () => {},
   loadCharacterLibrary: async () => ({ collections: [{ id: 'default', name: 'My characters', description: '', backstory: '', version: 0, updatedAt: 0, characterIds: characters.map((c) => c.id) }], characters: characters.map((c) => ({ id: c.id, name: c.name, revision: 1, updatedAt: c.updatedAt, previewKey: c.id })) }),
@@ -66,18 +68,18 @@ try {
     reads.get(character.id).resolve()
     await ready(() => document.querySelector('.character-stage-canvas'))
     if (!document.querySelector('.doll-workbench')) {
-      document.querySelector('.character-stage-preview button[aria-label="Customize appearance"]').click()
+      document.querySelector(`button[aria-label="${i18n.t('characterDraft.customizeTitle')}"]`).click()
       await ready(() => document.querySelector('.doll-workbench'))
     }
     check(Boolean(document.querySelector('.character-stage-canvas [role="status"]')), 'Preview must show loading until its pixels are ready')
-    check(Boolean(document.querySelector('.variant-preview [role="status"]')), 'Thumbnails must show loading until their pixels are ready')
-    check(!document.querySelector('.character-stage-canvas img, .variant-preview img[alt="Happy"]'), 'Pending decode must never display raw images first')
+    check(Boolean(document.querySelector('.variant-card .workspace-card-preview [role="status"]')), 'Thumbnails must show loading until their pixels are ready')
+    check(!document.querySelector('.character-stage-canvas img, .variant-card .workspace-card-preview img[alt="Happy"]'), 'Pending decode must never display raw images first')
     releaseDecode(character)
     await ready(() => document.querySelector('.character-stage-canvas canvas') && !document.querySelector('.character-stage-canvas [role="status"]'))
-    await ready(() => document.querySelector('.variant-preview img[alt="Happy"]')?.naturalWidth > 0)
+    await ready(() => document.querySelector('.variant-card .workspace-card-preview img[alt="Happy"]')?.naturalWidth > 0)
     const stage = document.querySelector('.character-stage-canvas canvas')
-    const thumbnail = document.querySelector('.variant-preview img[alt="Happy"]')
-    editor.store.setState({ character: { ...editor.store.getState().character, selected: { outfits: [], props: [] } } })
+    const thumbnail = document.querySelector('.variant-card .workspace-card-preview img[alt="Happy"]')
+    editor.store.setState({ character: { ...editor.store.getState().character, selected: { smartOrder: true, items: [] } } })
     await wait(300)
     check(stage.isConnected && document.querySelectorAll('.character-stage-canvas canvas').length === 1, 'Selection change remounted or duplicated the canvas')
     check(thumbnail.isConnected && thumbnail.complete, 'Selection change remounted or cleared a thumbnail')
@@ -101,7 +103,7 @@ try {
   await ready(() => document.querySelector('.character-stage-canvas [role="alert"]'))
   check(document.querySelector('.character-stage-canvas canvas')?.parentElement.style.visibility === 'hidden', 'Failed decode must not fall back to raw art')
   failDecode = false
-  ;document.querySelector('.character-stage-canvas button[aria-label="Retry"]').click()
+  ;document.querySelector(`.character-stage-canvas button[aria-label="${i18n.t('characterDraft.status.retry')}"]`).click()
   await ready(() => document.querySelector('.character-stage-canvas canvas') && !document.querySelector('.character-stage-canvas [role="status"]'))
   result.textContent = failures.length ? `FAIL: ${failures.join('; ')}` : 'PASS: loading without raw-image flash, one stable canvas/thumbnail, StrictMode, late decode cancellation, and failure/retry'
 } catch (error) {

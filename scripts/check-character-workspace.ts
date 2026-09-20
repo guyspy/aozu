@@ -46,7 +46,7 @@ draft.description = 'A steadfast trail guide.'
 draft.backstory = 'First line.\n\nSecond line.'
 draft.attributes = { courage: 8, nocturnal: true }
 draft.variants.push({ group: 'prop', id: 'prop-2', label: 'Second prop', layers: {} })
-draft.selected.props = ['prop-2', 'prop-1']
+draft.selected.items = [...draft.selected.items.filter((item) => item.group !== 'prop'), { group: 'prop', id: 'prop-2' }, { group: 'prop', id: 'prop-1' }]
 const blob = new Blob(['boar'], { type: 'image/png' })
 draft.variants[0]!.layers.body = {
   blob,
@@ -63,7 +63,7 @@ assert.equal(created.version, 1)
 assert.equal(await created.character.variants[0]!.layers.body!.blob.text(), 'boar')
 assert.equal(created.character.backstory, draft.backstory)
 assert.deepEqual(created.character.attributes, draft.attributes)
-assert.deepEqual(created.character.selected.props, ['prop-2', 'prop-1'])
+assert.deepEqual(created.character.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-2', 'prop-1'])
 assert.equal('blob' in ((row!.data.variants as Array<{ layers: { body: object } }>)[0]!.layers.body), false)
 assert.equal((row!.data.variants as Array<{ layers: { body: { blobId: string } } }>)[0]!.layers.body.blobId, 'a'.repeat(64))
 assert.equal('revision' in row!.data, false)
@@ -74,7 +74,7 @@ const happy = draft.variants.find((variant) => variant.id === 'happy')!
 happy.layers.head = { ...base, canonicalSha256: base.inspection.sha256, inspection: { ...base.inspection, sha256: 'b'.repeat(64) } }
 const sad = draft.variants.find((variant) => variant.id === 'sad')!
 sad.layers.head = { ...base, canonicalSha256: base.inspection.sha256, inspection: { ...base.inspection, sha256: 'c'.repeat(64) } }
-draft.selected.expression = 'happy'
+draft.selected.items = [...draft.selected.items.filter((item) => item.group !== 'expression'), { group: 'expression', id: 'happy' }]
 await repository.put({ ...draft, id: created.character.id }, 1)
 assetReads = []
 const [summary] = await repository.listSummaries()
@@ -98,7 +98,7 @@ assert.deepEqual(assetReads, ['a'.repeat(64)])
 metadata.variants.push({ group: 'outfit', id: 'uniform', label: 'Uniform', metadata: { outfit: { slot: 'top', garmentType: 'uniform' } }, layers: { front: {
   ...metadata.variants.find((variant) => variant.id === 'sad')!.layers.head!,
 } } })
-metadata.selected.outfits = ['uniform']
+metadata.selected.items = [...metadata.selected.items.filter((item) => item.group !== 'outfit'), { group: 'outfit', id: 'uniform' }]
 assetReads = []
 assert.deepEqual((await repository.getPreview(created.character.id)).map(({ id }) => id), ['body-base-body', 'outfit-uniform-front'])
 assert.deepEqual(assetReads.sort(), ['a'.repeat(64), 'c'.repeat(64)])

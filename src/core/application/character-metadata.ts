@@ -1,3 +1,4 @@
+import { validateItemComposition, validateItemSelection } from '../domain/character-composition.ts'
 import {
   CHARACTER_OUTFIT_SLOTS,
   type CharacterAssetContent,
@@ -64,6 +65,7 @@ const metadataTags = (values: string[] | undefined) => {
 }
 
 export function validateCharacterVariantMetadata(content: Pick<CharacterAssetContent<unknown>, 'variants' | 'faceStyles'>): void {
+  validateItemComposition(content.variants)
   if (!Array.isArray(content.faceStyles) || !content.faceStyles.length || content.faceStyles.length > 100) throw new Error('Invalid Face Styles')
   const faceStyles = new Set<string>()
   for (const value of content.faceStyles as unknown[]) {
@@ -83,7 +85,7 @@ export function validateCharacterVariantMetadata(content: Pick<CharacterAssetCon
   for (const variant of content.variants) {
     const metadata = variant.metadata as Record<string, unknown> | undefined
     if (metadata !== undefined && (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) ||
-      Object.keys(metadata).some((key) => !['description', 'tags', 'sourceSha256', 'outfit', 'faceStyleId'].includes(key)) ||
+      Object.keys(metadata).some((key) => !['description', 'tags', 'sourceSha256', 'outfit', 'faceStyleId', 'composition'].includes(key)) ||
       (metadata.description !== undefined && (typeof metadata.description !== 'string' || metadata.description.length > 500)) ||
       (metadata.tags !== undefined && (!Array.isArray(metadata.tags) || metadata.tags.length > 20 || new Set(metadata.tags).size !== metadata.tags.length || metadata.tags.some((tag) => typeof tag !== 'string' || !tag.trim() || tag.length > 40))) ||
       (metadata.sourceSha256 !== undefined && (typeof metadata.sourceSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(metadata.sourceSha256))))) throw new Error('Invalid character variant metadata')
@@ -142,10 +144,12 @@ export function updateCharacterVariantMetadata(
       : [...faceStyles, faceStyle]
     faceStyleId = faceStyle.id
   }
-  const metadata = { ...(description ? { description } : {}), ...(tags?.length ? { tags } : {}), ...(sourceSha256 ? { sourceSha256 } : {}),
+  const composition = patch.composition === undefined ? variant.metadata?.composition : patch.composition ?? undefined
+  const metadata = { ...(composition ? { composition } : {}), ...(description ? { description } : {}), ...(tags?.length ? { tags } : {}), ...(sourceSha256 ? { sourceSha256 } : {}),
     ...(outfit ? { outfit: { slot: outfit.slot, garmentType: outfit.garmentType.trim() } } : {}), ...(faceStyleId ? { faceStyleId } : {}) }
   const variants = draft.variants.map((candidate) => candidate === variant ? { ...candidate, label, metadata } : candidate)
   const next = { ...draft, variants, faceStyles }
   validateCharacterVariantMetadata(next)
+  for (const selection of [next.selected, ...next.appearances?.map((appearance) => appearance.selected) ?? []]) validateItemSelection(next.variants, selection)
   return next
 }

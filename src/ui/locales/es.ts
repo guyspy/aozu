@@ -216,6 +216,7 @@ export const es: Messages= {
       "description": "Úsalo para pequeños cambios con la misma pose, proporciones y posición. Se conservarán la ropa y los accesorios. Si cambia el cuerpo o la pose, cancela y crea un personaje nuevo.",
       "confirm": "Misma pose, conservar capas",
     },
+    composition: { smart: "Capas inteligentes", smartHelp: "Activado: aplicar reglas de capas y exclusión. Desactivado: apilar por orden de clic sin exclusiones.","title": "Capas y exclusiones", "help": "Los elementos con la misma clave de exclusión se reemplazan entre sí. Las relaciones entre capas prevalecen sobre el orden predeterminado.", "exclusive": "Claves de exclusión (separadas por comas)", "layer": "Esta capa", "relation": "Orden", "target": "Capa de otro elemento", "add": "Añadir relación", "remove": "Eliminar relación", "front": "Frontal", "back": "Trasera", "head": "Cabeza", "body": "Cuerpo", "above": "Encima", "below": "Debajo"},
     "metadata": {
       "slot": "Espacio de vestuario",
       "garmentType": "Tipo de prenda",

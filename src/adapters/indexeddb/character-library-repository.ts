@@ -1,18 +1,17 @@
 import { rehomeWorldCollections } from './world-library-repository.ts'
 import { WORLD_NAMESPACE } from '../../core/domain/world-library.ts'
 import {
-  CHARACTER_LIBRARY_REVISION_FLOOR, characterLibraryKey, inspectCharacterLibrarySnapshot,
+  migrateCharacterLibrarySnapshot, CHARACTER_LIBRARY_REVISION_FLOOR, characterLibraryKey, inspectCharacterLibrarySnapshot,
   isCharacterLibraryAsset, isCharacterLibraryEntry, mergeCharacterLibraries,
   type CharacterLibraryRepository, type CharacterLibrarySnapshot,
 } from '../../core/application/character-library.ts'
 import { inspectCharacterImage } from '../browser/character-image.ts'
-import { migrateCharacterDraft } from '../../core/application/character-creation.ts'
 import { ASSET_STORE, CHARACTER_DRAFT_STORE, ENTRY_STORE, META_STORE, openCompanionDatabase } from './database.ts'
 
-const libraryOnly = (snapshot: CharacterLibrarySnapshot): CharacterLibrarySnapshot => ({
+const libraryOnly = (snapshot: CharacterLibrarySnapshot): CharacterLibrarySnapshot => migrateCharacterLibrarySnapshot({
   entries: snapshot.entries.filter(isCharacterLibraryEntry),
   assets: snapshot.assets.filter(isCharacterLibraryAsset),
-  legacyDrafts: snapshot.legacyDrafts.map(migrateCharacterDraft),
+  legacyDrafts: snapshot.legacyDrafts,
 })
 
 export function createIndexedDbCharacterLibraryRepository({ inspect = inspectCharacterImage } = {}): CharacterLibraryRepository {

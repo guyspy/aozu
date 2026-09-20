@@ -1,6 +1,7 @@
+import { sameItem, setSmartOrder } from '../domain/character-composition.ts'
 import { readWorkspaceView } from '../../adapters/webmcp/controller.ts'
 import { changeCharacterAppearance, type CharacterAppearanceCommand } from './character-appearances.ts'
-import { activateCharacterVariant, deactivateCharacterVariant, updateCharacterProfile, updateCharacterVariantMetadata } from './character-creation.ts'
+import { activateCharacterVariant, deactivateCharacterVariant, resolveCharacterDraftPlacements, updateCharacterProfile, updateCharacterVariantMetadata } from './character-creation.ts'
 import type { CharacterProfilePatch, CharacterVariantGroup, CharacterVariantProfilePatch } from '../domain/character.ts'
 
 import { createCharacterContractHandlers } from './character-contract-handlers.ts'
@@ -69,21 +70,26 @@ export function createCharacterWebMcpHandlers(dependencies: CharacterWebMcpDepen
   }
 
   async function setCharacterSelection(rawInput: unknown) {
-    const { characterId, expectedRevision, group, variantId, active, appearance } = rawInput as {
+    const { characterId, expectedRevision, group, variantId, active, appearance, smartOrder } = rawInput as {
       characterId: string
       expectedRevision: number
       group: 'expression' | 'outfit' | 'hair' | 'headwear' | 'prop'
       variantId: string
       active: boolean
+      smartOrder?: boolean
       appearance?: CharacterAppearanceCommand
     }
-    if (appearance ? group !== undefined || variantId !== undefined || active !== undefined
-      : !['expression', 'outfit', 'hair', 'headwear', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') throw new Error('Choose either appearance or group/variantId/active')
+    const hasItem = group !== undefined || variantId !== undefined || active !== undefined
+    if (Number(Boolean(appearance)) + Number(smartOrder !== undefined) + Number(hasItem) !== 1 ||
+      hasItem && (!['expression', 'outfit', 'hair', 'headwear', 'prop'].includes(group) || typeof variantId !== 'string' || typeof active !== 'boolean') ||
+      smartOrder !== undefined && typeof smartOrder !== 'boolean') throw new Error('Choose one: appearance, smartOrder, or group/variantId/active')
     if (readWorkspaceView(document)?.hasUncommittedInput) throw new Error('Finish or cancel local unsaved input before changing Appearance')
     await editor.open(characterId)
+    const before = activeCharacter().character.selected.items
     const target = { group, id: variantId }
     const changed = appearance ? await applyCharacterAppearance(characterId, appearance, expectedRevision)
-      : await editor.dispatch((character) => active
+      : await editor.dispatch((character) => smartOrder !== undefined
+      ? character.selected.smartOrder === smartOrder ? character : { ...character, selected: setSmartOrder(character.variants, character.selected, smartOrder) } : active
       ? activateCharacterVariant(character, target)
       : deactivateCharacterVariant(character, target), expectedRevision)
     const character = activeCharacter().character
@@ -92,13 +98,15 @@ export function createCharacterWebMcpHandlers(dependencies: CharacterWebMcpDepen
       data: {
         characterId: character.id,
         selected: character.selected,
+        removed: before.filter((item) => !character.selected.items.some((ref) => sameItem(item, ref))),
+        paintOrder: resolveCharacterDraftPlacements(character).map(({ variant, layer }) => ({ group: variant.group, id: variant.id, layer })),
         ...describeAppearances(character),
         modelSheet: describeModelSheet(character),
         revision: settledRevision('Character selection'),
         changed,
       },
       nextActions: characterNextActions(character),
-      effects: { navigation: { path: characterPath(character.id, appearance ? 'expression' : group), mode: 'push', reason: 'Show the selected Character composition.' } },
+      effects: { navigation: { path: smartOrder !== undefined ? currentPath() : characterPath(character.id, appearance ? 'expression' : group), mode: 'push', reason: 'Show the selected Character composition.' } },
     }
   }
 

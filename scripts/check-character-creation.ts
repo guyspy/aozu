@@ -40,7 +40,7 @@ put('expression', 'happy', 'head')
 put('prop', 'prop-1', 'back')
 put('prop', 'prop-1', 'front')
 draft.variants.push({ group: 'prop', id: 'prop-2', label: 'Prop 2', layers: { back: asset, front: asset } })
-draft.selected = { expression: 'happy', outfits: ['top-1'], props: ['prop-1', 'prop-2'] }
+draft.selected = { smartOrder: true, items: [{ group: 'outfit', id: 'top-1' }, { group: 'expression', id: 'happy' }, { group: 'prop', id: 'prop-1' }, { group: 'prop', id: 'prop-2' }] }
 draft.headRegistration = { variantId: 'happy' }
 draft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform = { x: 2, y: -3, scale: 1.01 }
 
@@ -94,8 +94,8 @@ legacy.variants = (legacy.variants as Array<Record<string, unknown>>).map((varia
   ? { ...variant, metadata: undefined, layers: { body: (variant.layers as Record<string, unknown>).front } }
   : variant.group === 'expression' ? { ...variant, metadata: undefined } : variant)
 const migrated = migrateCharacterDraft(legacy as never)
-assert.equal(migrated.schemaVersion, 6)
-assert.deepEqual(migrated.selected.outfits, ['top-1'])
+assert.equal(migrated.schemaVersion, 7)
+assert.deepEqual(migrated.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id), ['top-1'])
 assert.ok(migrated.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')?.layers.front)
 assert.equal(migrated.variants.find(({ group, id }) => group === 'expression' && id === 'happy')?.metadata?.faceStyleId, 'default')
 const copied = copyCharacter(draft)
@@ -123,20 +123,20 @@ const withDress = updateCharacterVariantMetadata(draft, 'outfit', 'dress', {
   label: 'Field dress', description: 'One-piece field uniform', tags: ['field', 'uniform'], outfit: { slot: 'one-piece', garmentType: 'dress' },
 })
 const dressed = activateCharacterVariant(withDress, { group: 'outfit', id: 'dress' })
-assert.deepEqual(dressed.selected.outfits, ['top-1', 'dress'])
+assert.deepEqual(dressed.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id), ['top-1', 'dress'])
 const layeredOutfits = activateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' })
 assert.equal(layeredOutfits, dressed)
 const topmostDress = activateCharacterVariant(deactivateCharacterVariant(dressed, { group: 'outfit', id: 'top-1' }), { group: 'outfit', id: 'top-1' })
-assert.deepEqual(topmostDress.selected.outfits, ['dress', 'top-1'])
+assert.deepEqual(topmostDress.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id), ['dress', 'top-1'])
 const namedDress = { ...dressed, activeAppearanceId: 'formal', appearances: [{ id: 'formal', label: 'Formal', selected: structuredClone(dressed.selected) }] }
 const withoutTop = removeCharacterVariant(namedDress, { group: 'outfit', id: 'top-1' })
-assert.deepEqual(withoutTop.selected.outfits, ['dress'])
-assert.deepEqual(withoutTop.appearances?.[0]?.selected.outfits, ['dress'])
+assert.deepEqual(withoutTop.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id), ['dress'])
+assert.deepEqual(withoutTop.appearances?.[0]?.selected.items.filter((item) => item.group === 'outfit').map((item) => item.id), ['dress'])
 assert.ok(!withoutTop.variants.some(({ group, id }) => group === 'outfit' && id === 'top-1'))
 assert.throws(() => removeCharacterVariant(draft, { group: 'body', id: 'base' }), /cannot be deleted/)
 const dressAsset = draft.variants.find(({ group, id }) => group === 'outfit' && id === 'top-1')!.layers.front!
 const dressedWithAsset = { ...dressed, variants: dressed.variants.map((variant) => variant.group === 'outfit' && variant.id === 'dress' ? { ...variant, layers: { front: dressAsset } } : variant) }
-assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ slot }) => slot.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front', 'outfit-dress-front'])
+assert.deepEqual(resolveCharacterDraftLayers(dressedWithAsset, { group: 'outfit', id: 'top-1' }).filter(({ id }) => id.startsWith('outfit-')).map(({ id }) => id), ['outfit-top-1-front', 'outfit-dress-front'])
 assert.throws(() => updateCharacterVariantMetadata(draft, 'expression', 'happy', { faceStyle: { id: 'invalid', label: 'Invalid', facialHair: { type: 'x'.repeat(81) } } }), /Invalid Face Style/)
 const bearded = updateCharacterVariantMetadata(draft, 'expression', 'happy', {
   faceStyle: { id: 'bearded', label: 'Bearded', facialHair: { type: 'full beard', color: 'black' } },
@@ -146,37 +146,37 @@ assert.equal('revision' in restored.draft, false)
 assert.deepEqual(pack.defaultComposition.map(({ appearanceId }) => appearanceId), ['body-base', 'outfit-top-1', 'expression-happy', 'prop-prop-1', 'prop-prop-2'])
 assert.deepEqual(
   validateCharacterPack(pack, new Map(pack.assets.map(({ blobId }) => [blobId, inspection]))).map(({ slot }) => slot),
-  ['prop-back', 'prop-back', 'character-skin', 'outfit-front', 'expression-head', 'prop-front', 'prop-front'],
+  ['item-back', 'item-back', 'character-skin', 'item-front', 'item-front', 'item-front', 'item-front'],
 )
-assert.deepEqual(resolveCharacterDraftLayers(draft).map(({ layerOrder }) => layerOrder), [1, 2, 1, 1, 1, 1, 2])
+assert.deepEqual(resolveCharacterDraftLayers(draft).map(({ layerOrder }) => layerOrder), [1, 2, 3, 4, 5, 6, 7])
 // Activation order, including reverse creation order, must survive preview and portable export.
 const clearedProps = clearCharacterVariantSelection(draft, 'prop')
 assert.equal(clearCharacterVariantSelection(clearedProps, 'prop'), clearedProps)
 const secondPropFirst = activateCharacterVariant(clearedProps, { group: 'prop', id: 'prop-2' })
 const reversedProps = activateCharacterVariant(secondPropFirst, { group: 'prop', id: 'prop-1' })
-assert.deepEqual(reversedProps.selected.props, ['prop-2', 'prop-1'])
+assert.deepEqual(reversedProps.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-2', 'prop-1'])
 assert.equal(activateCharacterVariant(reversedProps, { group: 'prop', id: 'prop-2' }), reversedProps)
 const reversedLayerIds = ['prop-prop-2-back', 'prop-prop-1-back', 'body-base-body', 'outfit-top-1-front', 'expression-happy-head', 'prop-prop-2-front', 'prop-prop-1-front']
 assert.deepEqual(resolveCharacterDraftLayers(reversedProps).map(({ id }) => id), reversedLayerIds)
 assert.deepEqual(resolveCharacterDraftLayers(reversedProps, { group: 'prop', id: 'prop-2' }).map(({ id }) => id), reversedLayerIds)
 assert.deepEqual(resolveCharacterDraftLayers(secondPropFirst, { group: 'prop', id: 'prop-1' }).map(({ id }) => id), reversedLayerIds)
-assert.deepEqual(secondPropFirst.selected.props, ['prop-2'])
+assert.deepEqual(secondPropFirst.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-2'])
 const readdedProp = activateCharacterVariant(deactivateCharacterVariant(reversedProps, { group: 'prop', id: 'prop-2' }), { group: 'prop', id: 'prop-2' })
-assert.deepEqual(readdedProp.selected.props, ['prop-1', 'prop-2'])
+assert.deepEqual(readdedProp.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-1', 'prop-2'])
 assert.equal(deactivateCharacterVariant(clearedProps, { group: 'prop', id: 'prop-2' }), clearedProps)
-assert.deepEqual(draft.selected.props, ['prop-1', 'prop-2'])
+assert.deepEqual(draft.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-1', 'prop-2'])
 assert.throws(() => activateCharacterVariant(draft, { group: 'prop', id: 'missing' }), /not found/)
-assert.throws(() => resolveCharacterDraftLayers({ ...draft, selected: { ...draft.selected, props: ['prop-1', 'prop-1'] } }), /Duplicate selected/)
-assert.throws(() => buildCharacterPack({ ...draft, selected: { ...draft.selected, props: ['missing'] } }), /prop is missing/)
+assert.throws(() => resolveCharacterDraftLayers({ ...draft, selected: { smartOrder: true, items: [...draft.selected.items.filter((item) => item.group !== 'prop'), { group: 'prop', id: 'prop-1' }, { group: 'prop', id: 'prop-1' }] } }), /duplicate/)
+assert.throws(() => buildCharacterPack({ ...draft, selected: { smartOrder: true, items: [...draft.selected.items.filter((item) => item.group !== 'prop'), { group: 'prop', id: 'missing' }] } }), /missing/)
 const reversedPack = buildCharacterPack(reversedProps)
 assert.deepEqual(resolveCharacterComposition(reversedPack, reversedPack.defaultComposition).map(({ blobId }) => blobId), reversedLayerIds)
 const reversedRestored = await readCharacterDraftZip(await exportCharacterDraftZip(reversedProps), async () => inspection)
-assert.deepEqual(reversedRestored.draft.selected.props, ['prop-2', 'prop-1'])
+assert.deepEqual(reversedRestored.draft.selected.items.filter((item) => item.group === 'prop').map((item) => item.id), ['prop-2', 'prop-1'])
 assert.deepEqual(resolveCharacterDraftLayers(reversedRestored.draft).map(({ id }) => id), reversedLayerIds)
-assert.deepEqual(resolveCharacterDraftLayers(draft).find(({ slot }) => slot === 'expression-head')?.transform, { x: 2, y: -3, scale: 1.01 })
+assert.deepEqual(resolveCharacterDraftLayers(draft).find(({ id }) => id === 'expression-happy-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 assert.deepEqual(resolveCharacterDraftAtlasSources(draft).find(({ id }) => id === 'expression-happy-head')?.transform, { x: 2, y: -3, scale: 1.01 })
 const atlasKey = characterDraftAtlasKey(draft)
-assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { outfits: [], props: [] } }), atlasKey)
+assert.equal(characterDraftAtlasKey({ ...draft, name: 'Renamed', updatedAt: draft.updatedAt + 1, selected: { smartOrder: true, items: [] } }), atlasKey)
 assert.equal('revision' in archivedDraft, false)
 const movedAtlasDraft = structuredClone(draft)
 movedAtlasDraft.variants.find(({ group, id }) => group === 'expression' && id === 'happy')!.transform!.x += 1
@@ -277,7 +277,7 @@ const loaded = await loadCharacterProjection(
   async () => inspection,
   state.id,
 )
-assert.deepEqual(loaded?.map(({ slot }) => slot), ['character-skin', 'expression-head'])
+assert.deepEqual(loaded?.map(({ slot }) => slot), ['character-skin', 'item-front'])
 
 const replacementInspection = { ...inspection, sha256: 'b'.repeat(64), visibleBounds: { x: 40, y: 10, width: 430, height: 730 }, visiblePixelCount: 100 }
 const before = structuredClone(draft)

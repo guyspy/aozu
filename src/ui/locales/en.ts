@@ -153,6 +153,7 @@ export const en = {
       "description": "Use this for a small correction with the same pose, proportions and placement. Existing clothes and accessories will be kept. For a different body or pose, cancel and create a new Character.",
       "confirm": "Same pose — keep layers",
     },
+    composition: { smart: "Smart stacking", smartHelp: "On: apply layer and exclusivity rules. Off: stack in click order without exclusions.","title": "Layering & conflicts", "help": "Shared conflict keys replace each other. Layer relations override the default order.", "exclusive": "Conflict keys (comma-separated)", "layer": "This layer", "relation": "Order", "target": "Other item layer", "add": "Add relation", "remove": "Remove relation", "front": "Front", "back": "Back", "head": "Head", "body": "Body", "above": "Above", "below": "Below"},
     metadata: {
       slot: 'Wardrobe slot', garmentType: 'Garment type', faceStyle: "Facial Variant", faceStyleName: "Facial Variant name",
       faceDescription: "Facial appearance (makeup, face paint, facial hair…)",

@@ -4,7 +4,7 @@ import { AUTHORING_NAMESPACE } from './authoring.ts'
 import { characterAssets } from './character-assets.ts'
 import { validateCharacterAppearances, validateCharacterSelection } from './character-appearances.ts'
 import { modelSheetReferences, validateModelSheet, validateReferenceInspection, validateReferencePng } from './character-model-sheet.ts'
-import { validateCharacterAssetInspection, validateCharacterVariantMetadata } from './character-creation.ts'
+import { migrateCharacterDraft, validateCharacterAssetInspection, validateCharacterVariantMetadata } from './character-creation.ts'
 import { CHARACTER_COLLECTIONS } from '../domain/character-collection.ts'
 import { compileAuthoringBackbone } from '../mantle/backbone.ts'
 import {
@@ -28,6 +28,15 @@ export interface CharacterLibraryRepository {
   snapshot(): Promise<CharacterLibrarySnapshot>
   restore(snapshot: CharacterLibrarySnapshot, mode: CharacterLibraryImportMode): Promise<void>
 }
+/** Upgrade only editable records, preserving revisions, assets and installed packs. */
+export function migrateCharacterLibrarySnapshot(snapshot: CharacterLibrarySnapshot): CharacterLibrarySnapshot {
+  return { ...snapshot, legacyDrafts: snapshot.legacyDrafts.map(migrateCharacterDraft), entries: snapshot.entries.map((entry) => {
+    if (entry.collection !== 'character-workspaces' || entry.bundleId !== AUTHORING_NAMESPACE) return entry
+    const { id: _id, updatedAt: _updatedAt, ...data } = migrateCharacterDraft({ ...entry.data, id: entry.id, updatedAt: entry.updatedAt } as unknown as CharacterDraft)
+    return { ...entry, data: data as unknown as Record<string, unknown> }
+  }) }
+}
+
 export const isCharacterLibraryEntry = (entry: Pick<CharacterLibraryEntry, 'bundleId' | 'collection'>) =>
   (entry.bundleId === AUTHORING_NAMESPACE && ['character-workspaces', CHARACTER_LIBRARY_COLLECTION].includes(entry.collection)) ||
   (entry.bundleId === CHARACTER_LIBRARY_PACK_NAMESPACE && entry.collection === 'character-packs')
@@ -54,7 +63,7 @@ const validateAuthoringData = (collection: string, data: Record<string, unknown>
 
 /** Validate partial authoring work without requiring publishable artwork. No mutation or repair on import. */
 function validateDraft(draft: CharacterDraft | (CharacterWorkspaceData & { id: string; updatedAt: number }), assets: Map<string, CharacterLibraryAsset>) {
-  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 6 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
+  if (!record(draft) || !text(draft.id) || draft.schemaVersion !== 7 || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(draft.packId) ||
     !text(draft.name) || !stamp(draft.updatedAt) || !record(draft.rigProfile) || draft.rigProfile.id !== CHARACTER_RIG.id || draft.rigProfile.version !== CHARACTER_RIG.version ||
     !Array.isArray(draft.variants) || !draft.variants.length || draft.variants.length > 100) fail('Character record')
   for (const [field, max] of [['description', 500], ['backstory', 8000]] as const) {

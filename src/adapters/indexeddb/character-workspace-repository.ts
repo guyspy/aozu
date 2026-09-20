@@ -1,10 +1,10 @@
 import type { Entry } from '@aotter/mantle-spec'
 import type { MantleRuntime } from '@aotter/mantle-runtime'
 
-import { migrateCharacterDraft, resolveCharacterDraftPlacements } from '../../core/application/character-creation.ts'
+import { migrateCharacterDraft, resolveCharacterDraftPlacements, validateCharacterVariantMetadata } from '../../core/application/character-creation.ts'
 import { characterAssets, mapCharacterAssets } from '../../core/application/character-assets.ts'
 import { validateModelSheet } from '../../core/application/character-model-sheet.ts'
-import { validateCharacterAppearances } from '../../core/application/character-appearances.ts'
+import { validateCharacterAppearances, validateCharacterSelection } from '../../core/application/character-appearances.ts'
 
 import {
   CharacterRevisionConflict,
@@ -49,6 +49,8 @@ export function createCharacterWorkspaceRepository(
   assets: AssetRepositoryFactory,
 ) {
   const persistAssets = async (draft: CharacterDraft) => {
+    validateCharacterVariantMetadata(draft)
+    validateCharacterSelection(draft, draft.selected)
     validateCharacterAppearances(draft)
     if (draft.modelSheet) validateModelSheet(draft.modelSheet)
     const repository = assets(characterAssetScope(draft.packId))
