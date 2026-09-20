@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, CopyIcon, LanguagesIcon } from 'lucide-react'
+import { ArrowLeftIcon, BotIcon, CopyIcon, LanguagesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -31,9 +31,9 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
       <nav
         aria-label={t('navigation.primary')}
-        className="mx-auto flex min-h-14 w-full max-w-5xl flex-wrap items-center justify-between gap-y-1 px-4 py-1"
+        className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-2 px-3 sm:px-4"
       >
-        <div className="flex min-w-0 max-w-full items-center gap-1">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           {onBack && <Button type="button" size="icon" variant="ghost" onClick={onBack} aria-label={t('common.back')}><ArrowLeftIcon /></Button>}
           <Link to="/" aria-label={t('navigation.home')} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2">
             <AozuIcon name="book" />
@@ -41,12 +41,13 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
           </Link>
           {title && <h1 className="truncate font-heading text-lg font-semibold">{title}</h1>}
         </div>
-        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
           {actions}
           <Select value={i18n.resolvedLanguage ?? 'en'} onValueChange={(code) => void i18n.changeLanguage(code)}>
-            <SelectTrigger size="sm" aria-label={t('common.language')}>
-              <LanguagesIcon aria-hidden="true" />
-              <SelectValue />
+            <SelectTrigger size="sm" aria-label={t('common.language')} className="h-9 w-12 justify-center gap-0 px-1 sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2">
+              <span className="text-xs font-semibold sm:hidden">{(i18n.resolvedLanguage ?? 'en').split('-').at(-1)?.toUpperCase()}</span>
+              <LanguagesIcon aria-hidden="true" className="hidden sm:block" />
+              <span className="hidden sm:inline"><SelectValue /></span>
             </SelectTrigger>
             <SelectContent align="end">
               {LANGUAGES.map(({ code, label: name }) => <SelectItem key={code} value={code}>{name}</SelectItem>)}
@@ -54,9 +55,10 @@ export function AppHeader({ webmcp, title, onBack, actions }: AppHeaderProps) {
           </Select>
           <Dialog onOpenChange={(open) => { if (!open) { setCopied(false); setCopyError('') } }}>
             <DialogTrigger asChild>
-              <Button type="button" size="sm" variant="ghost" aria-label={`WebMCP. ${label}`} title={webmcp.error ?? label} className="h-8 gap-1.5 px-2 text-xs text-muted-foreground">
-                <span className={`size-2 rounded-full ${color}`} aria-hidden="true" />
-                WebMCP
+              <Button type="button" size="sm" variant="ghost" aria-label={`WebMCP. ${label}`} title={webmcp.error ?? label} className="relative h-9 w-9 gap-1.5 px-0 text-xs text-muted-foreground sm:h-8 sm:w-auto sm:px-2">
+                <BotIcon className="size-4 sm:hidden" aria-hidden="true" />
+                <span className={`absolute right-1 top-1 size-2 rounded-full sm:static ${color}`} aria-hidden="true" />
+                <span className="hidden sm:inline">WebMCP</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg" closeLabel={t('common.close')}>

@@ -100,7 +100,7 @@ export function LibraryExplorer(props: ExplorerProps) {
   const [open, setOpen] = useState(false)
 
   return <>
-    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} onClick={() => setOpen(true)}><FolderTreeIcon />{text('library')}</Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
+    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" aria-label={`${text('library')}. ${text('localOnly')}`} className="h-9 w-9 px-0 sm:w-auto sm:px-3" onClick={() => setOpen(true)}><FolderTreeIcon /><span className="hidden sm:inline">{text('library')}</span></Button></TooltipTrigger><TooltipContent>{text('localOnly')}</TooltipContent></Tooltip></TooltipProvider>
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="library-explorer" closeLabel={t('common.close')} aria-describedby={undefined}>
         <SheetTitle>{text('library')}</SheetTitle>

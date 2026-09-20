@@ -9,8 +9,8 @@ export function Breadcrumbs({ items }: { items: Array<{ label: string; path: str
   return <Breadcrumb className="app-breadcrumb" aria-label={t('navigation.breadcrumb')}><BreadcrumbList>
     <BreadcrumbItem><BreadcrumbLink asChild><Link to="/" aria-label={t('navigation.home')} title={t('navigation.home')}><HomeIcon className="size-4" aria-hidden="true" /></Link></BreadcrumbLink></BreadcrumbItem>
     {items.map((item, index) => <Fragment key={item.path}>
-      <BreadcrumbSeparator />
-      <BreadcrumbItem>{index === items.length - 1 ? <BreadcrumbPage>{item.label}</BreadcrumbPage> : <BreadcrumbLink asChild><Link to={item.path}>{item.label}</Link></BreadcrumbLink>}</BreadcrumbItem>
+      <BreadcrumbSeparator className={index === items.length - 1 ? undefined : 'hidden sm:inline-flex'} />
+      <BreadcrumbItem className={index === items.length - 1 ? 'min-w-0' : 'hidden sm:inline-flex'}>{index === items.length - 1 ? <BreadcrumbPage className="truncate whitespace-nowrap">{item.label}</BreadcrumbPage> : <BreadcrumbLink asChild><Link to={item.path}>{item.label}</Link></BreadcrumbLink>}</BreadcrumbItem>
     </Fragment>)}
   </BreadcrumbList></Breadcrumb>
 }

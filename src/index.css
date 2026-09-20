@@ -903,6 +903,7 @@ body::before {
 .app-breadcrumb [data-slot="breadcrumb-link"] { display: inline-flex; align-items: center; min-height: 28px; border-radius: 4px; overflow-wrap: anywhere; }
 .app-breadcrumb [data-slot="breadcrumb-page"] { font-weight: 600; overflow-wrap: anywhere; }
 .app-breadcrumb a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+@media (max-width: 639px) { .app-breadcrumb [data-slot="breadcrumb-list"] { flex-wrap: nowrap; overflow: hidden; } }
 .collection-move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .collection-move-grid .collection-cover { min-height: 180px; padding: 18px 10px; overflow-wrap: anywhere; cursor: pointer; }
 .collection-move-grid .collection-cover-seal { width: 72px; height: 72px; }
