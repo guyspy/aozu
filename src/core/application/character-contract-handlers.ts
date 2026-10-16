@@ -1,5 +1,5 @@
 import { characterAssetTransfer, readDataUrl } from '../../adapters/webmcp/png-transfer.ts'
-import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_COMPONENT_RULES, CHARACTER_LAYER_GUIDANCE, CHARACTER_A_POSE_GUIDANCE, CHARACTER_VISUAL_REVIEW, MODEL_SHEET_REVIEW, characterMetadataStatus, modelSheetGenerationGuidance } from './character-agent-guidance.ts'
+import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_LAYER_FINALIZATION, CHARACTER_COMPONENT_RULES, CHARACTER_LAYER_GUIDANCE, CHARACTER_A_POSE_GUIDANCE, CHARACTER_VISUAL_REVIEW, MODEL_SHEET_REVIEW, characterMetadataStatus, modelSheetGenerationGuidance } from './character-agent-guidance.ts'
 import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY, CHARACTER_CREATION_GROUPS, characterNormalizationContract } from './character-asset-policy.ts'
 import { characterCoverageContract, measureCharacterMaskAlignment, measureCharacterPointAlignment, measureProtectedRegionDelta, suggestCharacterFit, suggestCharacterVisualRegistration, type CharacterAlignmentPoint } from './character-alignment.ts'
 import { REQUIRED_CHARACTER_TARGETS, characterAssetPlacement, characterRegistrationFrame, isCharacterDraftAssetCurrent, resolveCharacterAssetSources, resolveCharacterDraftLayers, resolveCharacterDraftPlacements, resolveCharacterDraftReferenceLayers, transformCharacterBounds } from './character-creation.ts'
@@ -113,7 +113,7 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
     const replacementAction = {
       tool: 'replace_character_asset',
       required: !current,
-      reason: current ? 'Replace this asset only when the user has a final target-owned layer and the client can serialize its bytes directly.' : 'Install the final exact-canvas RGBA target layer only with direct client byte serialization; otherwise ask the user to use the visible file control.',
+      reason: CHARACTER_LAYER_FINALIZATION,
       input: {
         characterId: draft.id,
         group: input.group,
@@ -257,6 +257,7 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
         } : null,
         preserveCanvasCoordinates: true,
         backgroundPreparation: CHARACTER_BACKGROUND_GUIDANCE,
+        beforeTransfer: CHARACTER_LAYER_FINALIZATION,
         output: {
           generateAt: normalization.generateAt,
           finalizeAt: { ...CHARACTER_RIG.canvas },
@@ -369,7 +370,7 @@ export function createCharacterContractHandlers(dependencies: CharacterWebMcpDep
             selector: `input[data-webmcp-upload="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
             triggerSelector: `[data-webmcp-upload-trigger="character-asset"][data-group="${target.input.group}"][data-variant-id="${target.input.variantId}"][data-layer="${target.input.layer}"]`,
             label: target.input.group === 'body' ? 'Replace canonical body PNG' : target.input.layer === 'back' ? 'Behind character · Optional' : target.input.group === 'expression' ? 'Head' : 'Primary sprite',
-          } : undefined),
+          } : undefined, 'layer'),
           authoringGuide: CHARACTER_AUTHORING_GUIDE,
           productionBrief: [
             'Use the Collection context and Character profile; the user-approved artwork is the source of truth.',

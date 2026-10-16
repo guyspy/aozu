@@ -1,6 +1,6 @@
 # AOZU character authoring
 
-Guide version: 2026-09-20.1
+Guide version: 2026-10-16.1
 
 Read this guide once before creating assets. This same-origin document ships with
 the running app; GitHub `main` may be newer. Inspect the live WebMCP contract for
@@ -28,7 +28,8 @@ artwork determine the design. Product defaults never authorize changing that art
    view the source PNG and placement reference before generating. Follow the
    target's workflow and metadataStatus.
 3. Agree independently editable components, prepare a working background-removal method,
-   then prepare final target-owned pixels, keeping the full canvas and registration.
+   then finalize target-owned pixels locally to 512×768 RGBA **before encoding or
+   sending any candidate/preflight payload**, keeping the full canvas and registration.
 4. Use `update_character_variant_metadata` to create a missing independently
    editable item or complete its metadata. New items require a label; outfits
    also require slot and garmentType. Re-inspect for a fresh revision; never
@@ -82,8 +83,10 @@ edge treatment. Do not perform background removal merely because it is the
 standard generation recipe. Keep the original file. Reference retrieval preserves
 the stored file and its dimensions; an image generator may choose its own output
 size. The generation canvas is intentionally 1024×1536 (2×) and the current layer
-canvas is 512×768. Inspect dimensions instead of assuming the reference was doubled. Optional
-`exact-aspect-downscale` never crops or reframes, but resampling can change fine
+canvas is 512×768. Inspect dimensions instead of assuming the reference was doubled. Finalize layers
+locally before transfer; keep model-sheet reference images at their original size.
+Website `exact-aspect-downscale` runs after transfer, so it cannot fix a host
+payload rejection. It never crops or reframes, but resampling can change fine
 texture and translucent edges. Compare the finalized PNG visually to the source;
 a correct hash and size alone are not visual acceptance. Do not repeatedly try
 filters or redesign the art without understanding the difference.
@@ -250,6 +253,48 @@ new Appearance or `rebaseDerivedAssets:false` to invalidate the old wardrobe.
 
 ## PNG transport toolkit
 
+**Prepare layers before transmission.** Pixel dimensions, PNG file bytes and the
+host request limit are different constraints. The website accepts up to 5 MiB;
+the host may accept less. Base64 uses `4 * ceil(pngBytes / 3)` characters plus
+the data URL prefix and JSON. No single PNG byte threshold guarantees delivery.
+
+For layers, preserve the source and use a permitted local image processor to
+finalize to exactly 512×768 genuine RGBA, before candidate preflight, replace or
+repair. Never crop, stretch, reframe or upscale. If Sharp is already available
+in the host, this example accepts its imported default function (discover the
+actual installed module path; AOZU does not install or provide it):
+
+```js
+async function finalizeCharacterLayer(sourcePath, finalPath, sharp) {
+  const { resolve } = await import('node:path');
+  const { realpath } = await import('node:fs/promises');
+  const source = await realpath(sourcePath);
+  let destination = resolve(finalPath);
+  try { destination = await realpath(finalPath); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (source === destination) throw new Error('Keep the source; choose a separate final PNG path');
+  const image = sharp(sourcePath);
+  const info = await image.metadata();
+  if (info.format !== 'png' || !info.hasAlpha || info.channels !== 4 ||
+      info.width < 512 || info.height < 768 || info.width * 768 !== info.height * 512 ||
+      (info.pages ?? 1) !== 1) {
+    throw new Error('Expected one RGBA PNG at exact 2:3 aspect, at least 512×768; fix the source without cropping or stretching');
+  }
+  await image.resize(512, 768, { fit: 'inside', withoutEnlargement: true }).png().toFile(finalPath);
+}
+```
+
+Use `await finalizeCharacterLayer(sourcePath, finalPath, sharp)` once, then
+visually compare source/final art and alpha edges on light/dark backgrounds.
+This does not remove backgrounds or establish visual correctness. Already-final
+layers need no resampling. **Model-sheet references keep their original canvas;
+do not run them through this layer helper.** If local preparation is unavailable,
+use a permitted image editor or request a finalized layer. The exact visible
+file chooser avoids data URL transport limits but still requires a prepared
+512×768 layer; it does not offer a resize choice or remove backgrounds. Website
+`exact-aspect-downscale` remains an explicit WebMCP option when the original
+source can pass host transmission.
+
 Use the host JavaScript runtime only if the client actually exposes local file
 access and WebMCP together. Keep the original PNG bytes in memory from file read
 to call. Never paste base64 into model text, terminal output or the clipboard.
@@ -257,14 +302,20 @@ Do not split the payload manually. Inspect/read this small helper before adaptin
 it to your client's documented API; the website cannot grant filesystem access.
 
 ```js
-async function pngWebMcpPayload(trustedLocalPngPath) {
+async function pngWebMcpPayload(trustedLocalPngPath, { layer = false } = {}) {
   const { readFile } = await import('node:fs/promises');
   const { createHash } = await import('node:crypto');
   const { basename } = await import('node:path');
   const bytes = await readFile(trustedLocalPngPath);
-  if (bytes.length > 5 * 1024 * 1024 || bytes.length < 26 ||
+  if (bytes.length > 5 * 1024 * 1024 || bytes.length < 33 ||
       !bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) {
     throw new Error('Use the complete original PNG, at most 5 MiB');
+  }
+  // Header guard before encoding; AOZU still decodes and validates the image.
+  if (layer && (bytes.toString('ascii', 12, 16) !== 'IHDR' ||
+      bytes.readUInt32BE(16) !== 512 || bytes.readUInt32BE(20) !== 768 ||
+      bytes[24] !== 8 || bytes[25] !== 6)) {
+    throw new Error('Finalize the layer locally to 512×768 8-bit RGBA before encoding; use the exact file-chooser fallback if unavailable');
   }
   return {
     filename: basename(trustedLocalPngPath),
@@ -273,12 +324,15 @@ async function pngWebMcpPayload(trustedLocalPngPath) {
   };
 }
 // In the same host runtime, using your client's documented WebMCP handle:
-const payload = await pngWebMcpPayload(trustedLocalPngPath);
+const payload = await pngWebMcpPayload(finalPath, { layer: true });
 await tools.call('replace_character_asset', { ...inspectedInput, ...payload });
 ```
 
 This verifies transport shape, not image decoding, transparency or visual quality.
-If the host capability is unavailable or decoding fails, stop repeating long
+For model-sheet references, call `pngWebMcpPayload(referencePath)` without the
+layer option; their original dimensions are preserved.
+
+If host capability/preparation is unavailable, transmission is rejected, or decoding fails, stop repeating long
 payload attempts. Use the exact visible PNG input from `assetTransfer.fallback`:
 start the documented file-chooser wait, click its selector, and select the trusted
 local file. Respect the client's upload permissions. Review the result, then

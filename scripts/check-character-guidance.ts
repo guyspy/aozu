@@ -3,11 +3,11 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
+import { CHARACTER_AUTHORING_GUIDE, CHARACTER_BACKGROUND_GUIDANCE, CHARACTER_LAYER_FINALIZATION, characterMetadataStatus } from '../src/core/application/character-agent-guidance.ts'
 import { CHARACTER_ASSET_LANES, CHARACTER_ASSET_POLICY, CHARACTER_CREATION_GROUPS } from '../src/core/application/character-asset-policy.ts'
 import { createCharacterDraft, updateCharacterVariantMetadata } from '../src/core/application/character-creation.ts'
 import { measureCharacterPointAlignment, measureCharacterMaskAlignment, type CharacterAlignmentPoint } from '../src/core/application/character-alignment.ts'
-import { pngFromPayload } from '../src/adapters/webmcp/png-transfer.ts'
+import { characterAssetTransfer, pngFromPayload } from '../src/adapters/webmcp/png-transfer.ts'
 
 const points: CharacterAlignmentPoint[] = [
   { label: 'upper left', candidate: { x: 100, y: 100 }, reference: { x: 120, y: 140 } },
@@ -87,7 +87,7 @@ for (const source of [guide, readFileSync('public/llms.txt', 'utf8'), readFileSy
   assert.doesNotMatch(source, /outfit skins?|navigate_character|update_collection_profile|complete outfit skins?/i, 'Public instructions advertise obsolete tools or clothing layers')
 }
 // Run the exact copyable toolkit against real bytes, without printing its payload.
-const helper = guide.match(/```js\n([\s\S]*?)\/\/ In the same host runtime/)![1]
+const helper = guide.match(/```js\n(async function pngWebMcpPayload[\s\S]*?)\/\/ In the same host runtime/)![1]
 const { pngWebMcpPayload } = await import(`data:text/javascript,${encodeURIComponent(`${helper}\nexport { pngWebMcpPayload };`)}`)
 const temp = mkdtempSync(join(tmpdir(), 'aozu-guide-'))
 try {
@@ -98,7 +98,25 @@ try {
   assert.equal(payload.dataSha256, createHash('sha256').update(png).digest('hex'))
   assert.deepEqual(Buffer.from(payload.dataUrl.split(',')[1], 'base64'), png)
   assert.equal((await pngFromPayload(payload)).receivedSha256, payload.dataSha256)
+  await assert.rejects(pngWebMcpPayload(path, { layer: true }), /Finalize the layer locally/, 'Reject wrong canvas before building a layer data URL')
+  // Exercise the transport header guard; browser decoding is tested separately.
+  const header = Buffer.from(png)
+  header.writeUInt32BE(512, 16); header.writeUInt32BE(768, 20)
+  writeFileSync(path, header)
+  assert.equal((await pngWebMcpPayload(path, { layer: true })).dataSha256, createHash('sha256').update(header).digest('hex'))
+  for (const [width, height, colorType] of [[1024, 1536, 6], [512, 767, 6], [512, 768, 3]]) {
+    header.writeUInt32BE(width, 16); header.writeUInt32BE(height, 20); header[25] = colorType
+    writeFileSync(path, header)
+    await assert.rejects(pngWebMcpPayload(path, { layer: true }), /Finalize the layer locally/)
+    assert.ok(await pngWebMcpPayload(path), 'Reference transport must not force the layer canvas')
+  }
   writeFileSync(path, 'not a PNG')
   await assert.rejects(pngWebMcpPayload(path), /original PNG/)
 } finally { rmSync(temp, { recursive: true, force: true }) }
+const layerTransfer = characterAssetTransfer(undefined, 'layer')
+assert.deepEqual(layerTransfer.preparation.finalCanvas, { width: 512, height: 768 })
+assert.equal(characterAssetTransfer().preparation.kind, 'reference')
+assert.ok(layerTransfer.limits.recovery.includes('file-chooser'))
+assert.ok(CHARACTER_ASSET_POLICY.input.beforeTransfer === CHARACTER_LAYER_FINALIZATION)
+assert.ok(guide.includes('transmission is rejected'))
 console.log('character authoring guidance: ok')

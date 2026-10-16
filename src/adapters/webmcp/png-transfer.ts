@@ -34,17 +34,28 @@ export const blobFromDataUrl = (dataUrl: string) => {
   return new Blob([Uint8Array.from(atob(match[2]), (character) => character.charCodeAt(0))], { type: match[1] })
 }
 
-export const characterAssetTransfer = (fallback?: { path: string; selector: string; triggerSelector?: string; label?: string }) => ({
+export const characterAssetTransfer = (fallback?: { path: string; selector: string; triggerSelector?: string; label?: string }, purpose: 'layer' | 'reference' = 'reference') => ({
   protocol: 'chatgpt-host-data-url-v1',
+  preparation: purpose === 'layer'
+    ? { kind: 'layer', finalCanvas: { width: 512, height: 768 }, guide: '/character-authoring.md#png-transport-toolkit', instruction: 'Before preflight or mutation, finalize locally to exact-canvas genuine RGBA with a permitted image processor. Preserve the source and compare the final PNG visually. Use pngWebMcpPayload(finalPath, { layer: true }) from the guide; hash the final bytes.' }
+    : { kind: 'reference', instruction: 'Keep original model-sheet dimensions and pixels; do not apply the layer-only 512×768 preparation.' },
   toolkit: {
     runtime: 'ChatGPT Browser Use host JavaScript',
-    read: "const { readFile } = await import('node:fs/promises'); const bytes = await readFile(trustedLocalPngPath)",
+    read: purpose === 'layer'
+      ? "const { readFile } = await import('node:fs/promises'); const bytes = await readFile(finalLocalPngPath) // already finalized to 512×768 RGBA"
+      : "const { readFile } = await import('node:fs/promises'); const bytes = await readFile(trustedLocalPngPath)",
     hash: "const { createHash } = await import('node:crypto'); const dataSha256 = createHash('sha256').update(bytes).digest('hex')",
     encode: "const dataUrl = `data:image/png;base64,${bytes.toString('base64')}`",
     call: 'const webmcp = await aozuTab.capabilities.get("webmcp"); const tools = await webmcp.fetchTools(); await tools.call(toolName, { ...requiredInput, filename, dataUrl, dataSha256 })',
     rule: 'Read, encode, and call WebMCP in the same host-runtime execution. Keep bytes in memory; never print or route base64 through model text, terminal output, or the clipboard.',
   },
-  input: { dataUrl: 'one complete data:image/png;base64 string', dataSha256: 'lowercase hex SHA-256 of original PNG bytes' },
+  input: { dataUrl: 'one complete data:image/png;base64 string', dataSha256: 'lowercase hex SHA-256 of submitted PNG bytes (after layer finalization)' },
+  limits: {
+    websiteMaxPngBytes: 5 * 1024 * 1024,
+    hostPayloadLimit: 'client-dependent; may be lower than the website limit',
+    encoding: 'base64 uses 4 * ceil(pngBytes / 3) characters, plus the data URL prefix and request JSON',
+    recovery: 'If host transmission is rejected, do not retry the same long payload. Use the exact browser-file-chooser fallback with a prepared final layer (or original model-sheet reference); it avoids data URL transport, not image validation. Website normalization runs only after transfer.',
+  },
   ...(fallback ? { fallback: {
     kind: 'browser-file-chooser', accept: 'image/png', ...fallback,
     instruction: fallback.triggerSelector

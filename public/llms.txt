@@ -23,7 +23,10 @@ replace_character_asset submits the final layer. For small compatible base
 corrections preserve existing layers; major redesigns need a new Character.
 
 AOZU does not generate images or remove backgrounds. Never burn in a checkerboard.
-Transfer complete PNG bytes directly from host memory when supported, otherwise
+Finalize Character layers locally to exactly 512×768 genuine RGBA before encoding
+or candidate preflight; keep model-sheet reference dimensions. Website resizing
+runs after transfer and cannot prevent client payload limits. Follow the guide’s
+checked host preparation/serialization examples. Transfer complete PNG bytes directly from host memory when supported, otherwise
 follow the contract's visible file-chooser fallback. Tool acceptance is not
 visual review or user approval. Follow navigation performed by AOZU and inspect
 the actual result before continuing.

@@ -10,6 +10,7 @@ import {
   CHARACTER_A_POSE_GUIDANCE,
   CHARACTER_BACKGROUND_GUIDANCE,
   CHARACTER_BACKGROUND_REMOVAL_PROMPT,
+  CHARACTER_LAYER_FINALIZATION,
   CHARACTER_LAYER_GUIDANCE,
   CHARACTER_NAVIGATION_GUIDANCE,
   CHARACTER_VISUAL_REVIEW,
@@ -63,6 +64,7 @@ export const CHARACTER_CREATION_GROUPS = Object.entries(CHARACTER_ASSET_LANES).m
 export const CHARACTER_ASSET_PREPARATION = {
   mediaType: 'image/png',
   finalCanvas: { ...CHARACTER_RIG.canvas },
+  beforeTransfer: CHARACTER_LAYER_FINALIZATION,
   visiblePixels: 'required',
   alpha: {
     required: true,
@@ -108,6 +110,7 @@ export const characterNormalizationContract = (alignAvailable: boolean) => ({
   generateAt: { ...CHARACTER_GENERATION_CANVAS },
   finalizeAt: { ...CHARACTER_RIG.canvas },
   requirements: [
+    CHARACTER_LAYER_FINALIZATION,
     CHARACTER_BACKGROUND_GUIDANCE,
     `Default submissions must already be exactly ${CHARACTER_RIG.canvas.width}×${CHARACTER_RIG.canvas.height}.`,
     `"exact-aspect-downscale" accepts only genuine RGBA at the exact ${CHARACTER_RIG.canvas.width}:${CHARACTER_RIG.canvas.height} aspect and at least that size; it never upscales, crops, or reframes.`,
